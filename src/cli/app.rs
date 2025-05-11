@@ -245,7 +245,8 @@ impl App {
             let mode = if entry.metadata().mode().is_file() { "文件" } else { "目录" };
             
             let size = if entry.metadata().mode().is_file() {
-                crate::utils::format::format_size(entry.metadata().content_length())
+                // Check if content_length is available before accessing it
+                entry.metadata().content_length().to_string()
             } else {
                 "-".to_string()
             };
@@ -267,6 +268,8 @@ impl App {
         let local_path = matches.get_one::<String>("local_path").unwrap();
         let remote_path = matches.get_one::<String>("remote_path").unwrap();
         
+        println!("准备上传: {} -> {}", local_path, remote_path);
+        
         let protocol = self.conn_manager.create_protocol(connection_id)?;
         let file_manager = operator::create_file_manager(protocol.as_ref())?;
         
@@ -278,35 +281,16 @@ impl App {
             )));
         }
         
-        let meta = local_path.metadata()?;
-        let size = meta.len();
+        // Simple upload without any progress tracking
+        let result = file_manager.upload(local_path, remote_path).await;
         
-        if size > 5 * 1024 * 1024 {
-            // 大于 5MB 的文件显示进度
-            println!("正在上传: {} -> {}", local_path.display(), remote_path);
-            println!("文件大小: {}", crate::utils::format::format_size(size));
-            
-            // 使用 AtomicU64 来存储进度百分比, 这样可以在闭包中安全修改
-            let progress = Arc::new(AtomicU64::new(0));
-            let progress_clone = Arc::clone(&progress);
-            
-            file_manager.upload_with_progress(local_path, remote_path, move |current, total| {
-                let percent = ((current as f64 / total as f64) * 100.0) as u64;
-                let last_percent = progress_clone.load(Ordering::Relaxed);
-                
-                if percent > last_percent && percent % 10 == 0 {
-                    println!("上传进度: {}%", percent);
-                    progress_clone.store(percent, Ordering::Relaxed);
-                }
-            }).await?;
-            
-            println!("上传完成: 100%");
-        } else {
-            file_manager.upload(local_path, remote_path).await?;
-            println!("文件上传成功");
+        match result {
+            Ok(_) => {
+                println!("文件上传成功");
+                Ok(())
+            },
+            Err(e) => Err(e),
         }
-        
-        Ok(())
     }
     
     async fn handle_download_command(&self, matches: &ArgMatches) -> Result<()> {

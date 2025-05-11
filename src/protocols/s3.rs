@@ -74,15 +74,15 @@ impl Protocol for S3Protocol {
         debug!("创建 S3 操作符, bucket: {}, region: {}", self.bucket, self.region);
         
         // 创建 S3 服务配置
-        let mut builder = services::S3::default();
-        builder.bucket(&self.bucket);
-        builder.region(&self.region);
-        builder.access_key_id(&self.access_key);
-        builder.secret_access_key(&self.secret_key);
-        
+        let mut builder = services::S3::default()
+            .bucket(&self.bucket)
+            .region(&self.region)
+            .access_key_id(&self.access_key)
+            .secret_access_key(&self.secret_key);
+
         if let Some(endpoint) = &self.endpoint {
             debug!("使用自定义端点: {}", endpoint);
-            builder.endpoint(endpoint);
+            builder = builder.endpoint(endpoint);
         }
         
         if self.path_style {

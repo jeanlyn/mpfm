@@ -7,7 +7,7 @@ authors = ["MultiProtocolFileManager <info@example.com>"]
 license = "MIT"
 
 [dependencies]
-opendal = { version = "0.40.0", features = ["services-s3"] }
+opendal = { version = "0.53.1", features = ["services-s3","services-fs"] }
 tokio = { version = "1.32", features = ["full"] }
 clap = { version = "4.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

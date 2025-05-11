@@ -115,9 +115,8 @@ impl FileManager {
         }
         
         let data = self.operator.read(&remote_path).await?;
-        
         let mut file = File::create(local_path)?;
-        file.write_all(&data)?;
+        file.write_all(&data.to_bytes())?;
         
         info!("文件下载成功: {} -> {}", remote_path, local_path.display());
         Ok(())
@@ -148,7 +147,7 @@ impl FileManager {
         progress_callback(data.len() as u64, total_size);
         
         let mut file = File::create(local_path)?;
-        file.write_all(&data)?;
+        file.write_all(&data.to_bytes())?;
         
         info!("大文件下载成功: {} -> {}", remote_path, local_path.display());
         Ok(())
