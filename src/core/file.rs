@@ -24,14 +24,11 @@ impl FileManager {
         
         let path = normalize_path(path);
         
-        // 直接使用 list 方法
-        let entries = match self.operator.list(&path).await {
-            Ok(entries) => entries,
-            Err(e) => return Err(Error::from(e)),
-        };
+        // 获取目录列表
+        let result = self.operator.list(&path).await?;
         
-        info!("已列出 {} 个文件/目录", entries.len());
-        Ok(entries)
+        info!("已列出 {} 个文件/目录", result.len());
+        Ok(result)
     }
     
     /// 上传文件
@@ -46,12 +43,9 @@ impl FileManager {
         
         let remote_path = normalize_path(remote_path);
         
-        let mut file = File::open(local_path)
-            .map_err(|e| Error::new_io(&format!("无法打开本地文件: {}", e)))?;
-        
+        let mut file = File::open(local_path)?;
         let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .map_err(|e| Error::new_io(&format!("读取本地文件失败: {}", e)))?;
+        file.read_to_end(&mut buffer)?;
         
         self.operator.write(&remote_path, buffer).await?;
         
@@ -60,9 +54,9 @@ impl FileManager {
     }
     
     /// 上传带进度的大文件
-    pub async fn upload_with_progress<F>(&self, local_path: &Path, remote_path: &str, progress_callback: F) -> Result<()>
+    pub async fn upload_with_progress<F>(&self, local_path: &Path, remote_path: &str, mut progress_callback: F) -> Result<()>
     where
-        F: Fn(u64, u64) + Send + Sync,
+        F: FnMut(u64, u64) + Send + Sync,
     {
         debug!("上传大文件: {} -> {}", local_path.display(), remote_path);
         
@@ -74,24 +68,17 @@ impl FileManager {
         
         let remote_path = normalize_path(remote_path);
         
-        let file = File::open(local_path)
-            .map_err(|e| Error::new_io(&format!("无法打开本地文件: {}", e)))?;
-        
-        let metadata = file.metadata()
-            .map_err(|e| Error::new_io(&format!("无法获取文件元数据: {}", e)))?;
-        
+        let file = File::open(local_path)?;
+        let metadata = file.metadata()?;
         let total_size = metadata.len();
-        let mut reader = io::BufReader::new(file);
         
-        // 读取文件内容
+        let mut reader = io::BufReader::new(file);
         let mut buffer = Vec::with_capacity(total_size as usize);
         let mut chunk = [0; 1024 * 1024]; // 1MB 缓冲区
         let mut uploaded = 0;
         
         loop {
-            let n = reader.read(&mut chunk)
-                .map_err(|e| Error::new_io(&format!("读取本地文件失败: {}", e)))?;
-            
+            let n = reader.read(&mut chunk)?;
             if n == 0 {
                 break;
             }
@@ -101,7 +88,6 @@ impl FileManager {
             progress_callback(uploaded, total_size);
         }
         
-        // 写入远程文件
         self.operator.write(&remote_path, buffer).await?;
         
         info!("大文件上传成功: {} -> {}", local_path.display(), remote_path);
@@ -124,27 +110,23 @@ impl FileManager {
         // 创建本地目录（如果需要）
         if let Some(parent) = local_path.parent() {
             if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| Error::new_io(&format!("无法创建本地目录: {}", e)))?;
+                std::fs::create_dir_all(parent)?;
             }
         }
         
         let data = self.operator.read(&remote_path).await?;
         
-        let mut file = File::create(local_path)
-            .map_err(|e| Error::new_io(&format!("无法创建本地文件: {}", e)))?;
-        
-        file.write_all(&data)
-            .map_err(|e| Error::new_io(&format!("写入本地文件失败: {}", e)))?;
+        let mut file = File::create(local_path)?;
+        file.write_all(&data)?;
         
         info!("文件下载成功: {} -> {}", remote_path, local_path.display());
         Ok(())
     }
     
     /// 下载带进度的大文件
-    pub async fn download_with_progress<F>(&self, remote_path: &str, local_path: &Path, progress_callback: F) -> Result<()>
+    pub async fn download_with_progress<F>(&self, remote_path: &str, local_path: &Path, mut progress_callback: F) -> Result<()>
     where
-        F: Fn(u64, u64) + Send + Sync,
+        F: FnMut(u64, u64) + Send + Sync,
     {
         debug!("下载大文件: {} -> {}", remote_path, local_path.display());
         
@@ -157,8 +139,7 @@ impl FileManager {
         // 创建本地目录（如果需要）
         if let Some(parent) = local_path.parent() {
             if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| Error::new_io(&format!("无法创建本地目录: {}", e)))?;
+                std::fs::create_dir_all(parent)?;
             }
         }
         
@@ -166,11 +147,8 @@ impl FileManager {
         let data = self.operator.read(&remote_path).await?;
         progress_callback(data.len() as u64, total_size);
         
-        let mut file = File::create(local_path)
-            .map_err(|e| Error::new_io(&format!("无法创建本地文件: {}", e)))?;
-        
-        file.write_all(&data)
-            .map_err(|e| Error::new_io(&format!("写入本地文件失败: {}", e)))?;
+        let mut file = File::create(local_path)?;
+        file.write_all(&data)?;
         
         info!("大文件下载成功: {} -> {}", remote_path, local_path.display());
         Ok(())
@@ -216,7 +194,7 @@ impl FileManager {
     }
 }
 
-/// 规范化路径，处理开头和结尾的斜杠
+/// 规范化路径，处理开头的斜杠
 fn normalize_path(path: &str) -> String {
     let mut path = path.to_string();
     

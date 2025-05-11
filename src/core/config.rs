@@ -18,6 +18,7 @@ pub struct ConnectionConfig {
 }
 
 impl ConnectionConfig {
+    /// 创建新的连接配置
     pub fn new(name: String, protocol_type: String, config: HashMap<String, String>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
@@ -37,7 +38,36 @@ pub struct ConnectionManager {
 impl ConnectionManager {
     /// 创建新的连接管理器
     pub fn new(config_path: PathBuf) -> Result<Self> {
-        let connections = Self::load_connections(&config_path)?;
+        // 如果目录不存在，创建目录
+        if let Some(parent) = config_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+        
+        let connections = if config_path.exists() {
+            let content = fs::read_to_string(&config_path)?;
+            if content.trim().is_empty() {
+                HashMap::new()
+            } else {
+                match serde_json::from_str::<Vec<ConnectionConfig>>(&content) {
+                    Ok(configs) => {
+                        let mut map = HashMap::new();
+                        for config in configs {
+                            map.insert(config.id.clone(), config);
+                        }
+                        map
+                    },
+                    Err(e) => {
+                        debug!("解析配置文件失败: {}, 将使用空配置", e);
+                        HashMap::new()
+                    }
+                }
+            }
+        } else {
+            HashMap::new()
+        };
+        
         info!("已加载 {} 个连接配置", connections.len());
         
         Ok(Self { 
@@ -46,69 +76,18 @@ impl ConnectionManager {
         })
     }
     
-    /// 加载连接配置
-    fn load_connections(path: &Path) -> Result<HashMap<String, ConnectionConfig>> {
-        if !path.exists() {
-            debug!("配置文件不存在: {:?}, 将创建一个空的配置", path);
-            return Ok(HashMap::new());
-        }
-        
-        let config_str = fs::read_to_string(path)
-            .map_err(|e| Error::new_io(&format!("无法读取配置文件: {}", e)))?;
-            
-        if config_str.trim().is_empty() {
-            debug!("配置文件为空, 返回空配置");
-            return Ok(HashMap::new());
-        }
-        
-        let configs: Vec<ConnectionConfig> = serde_json::from_str(&config_str)
-            .map_err(|e| Error::new_config(&format!("解析配置文件失败: {}", e)))?;
-            
-        let mut connections = HashMap::new();
-        for config in configs {
-            connections.insert(config.id.clone(), config);
-        }
-        
-        Ok(connections)
-    }
-    
     /// 保存连接配置
     pub fn save_connections(&self) -> Result<()> {
         let configs: Vec<ConnectionConfig> = self.connections.values().cloned().collect();
-        
-        let dir_path = self.config_path.parent()
-            .ok_or_else(|| Error::new_io("无法获取配置文件的父目录"))?;
-            
-        if !dir_path.exists() {
-            fs::create_dir_all(dir_path)
-                .map_err(|e| Error::new_io(&format!("无法创建配置目录: {}", e)))?;
-        }
-        
-        let config_str = serde_json::to_string_pretty(&configs)
-            .map_err(|e| Error::new_config(&format!("序列化配置失败: {}", e)))?;
-            
-        fs::write(&self.config_path, config_str)
-            .map_err(|e| Error::new_io(&format!("写入配置文件失败: {}", e)))?;
-            
+        let config_json = serde_json::to_string_pretty(&configs)?;
+        fs::write(&self.config_path, config_json)?;
         debug!("已保存 {} 个连接配置到 {:?}", configs.len(), self.config_path);
-        
         Ok(())
     }
     
     /// 添加新连接
     pub fn add_connection(&mut self, config: ConnectionConfig) -> Result<()> {
         info!("添加新连接: {} ({})", config.name, config.id);
-        self.connections.insert(config.id.clone(), config);
-        self.save_connections()
-    }
-    
-    /// 更新连接
-    pub fn update_connection(&mut self, config: ConnectionConfig) -> Result<()> {
-        if !self.connections.contains_key(&config.id) {
-            return Err(Error::new_not_found(&format!("连接 ID 不存在: {}", config.id)));
-        }
-        
-        info!("更新连接: {} ({})", config.name, config.id);
         self.connections.insert(config.id.clone(), config);
         self.save_connections()
     }

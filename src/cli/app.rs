@@ -1,16 +1,15 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::io::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use clap::ArgMatches;
+use clap::{ArgMatches, Command, Arg, ArgAction};
 use log::debug;
-use indicatif::{ProgressBar, ProgressStyle};
-use prettytable::{Table, row};
 use serde_json::Value;
 
 use crate::core::{ConnectionManager, ConnectionConfig, Result, Error};
 use crate::core::operator;
-use super::commands::build_cli;
 
 pub struct App {
     conn_manager: ConnectionManager,
@@ -36,7 +35,8 @@ impl App {
     }
     
     pub async fn run(&mut self) -> Result<()> {
-        let matches = build_cli().get_matches();
+        // 构建命令行参数解析器
+        let matches = self.build_cli().get_matches();
         
         match matches.subcommand() {
             Some(("connection", sub_matches)) => {
@@ -64,6 +64,82 @@ impl App {
         }
     }
     
+    fn build_cli(&self) -> Command {
+        Command::new("mpfm")
+            .about("OpenDAL 多协议文件管理器")
+            .version(env!("CARGO_PKG_VERSION"))
+            .subcommand_required(true)
+            .arg_required_else_help(true)
+            .subcommand(
+                Command::new("connection")
+                    .about("管理连接配置")
+                    .subcommand_required(true)
+                    .subcommand(Command::new("list").about("列出所有连接"))
+                    .subcommand(
+                        Command::new("show")
+                            .about("显示连接详情")
+                            .arg(Arg::new("id").help("连接 ID").required(true))
+                    )
+                    .subcommand(
+                        Command::new("add")
+                            .about("添加新连接")
+                            .arg(Arg::new("name").short('n').long("name").help("连接名称").required(true))
+                            .arg(Arg::new("type").short('t').long("type").help("协议类型 (s3, fs 等)").required(true))
+                            .arg(Arg::new("config").short('c').long("config").help("连接配置 (JSON 格式)").required(true))
+                    )
+                    .subcommand(
+                        Command::new("remove")
+                            .about("删除连接")
+                            .arg(Arg::new("id").help("连接 ID").required(true))
+                    )
+            )
+            .subcommand(
+                Command::new("ls")
+                    .about("列出文件和目录")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("path").help("远程路径").default_value("/"))
+            )
+            .subcommand(
+                Command::new("upload")
+                    .about("上传文件")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("local_path").help("本地文件路径").required(true))
+                    .arg(Arg::new("remote_path").help("远程文件路径").required(true))
+            )
+            .subcommand(
+                Command::new("download")
+                    .about("下载文件")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("remote_path").help("远程文件路径").required(true))
+                    .arg(Arg::new("local_path").help("本地文件路径").required(true))
+            )
+            .subcommand(
+                Command::new("rm")
+                    .about("删除文件或目录")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("path").help("远程路径").required(true))
+                    .arg(
+                        Arg::new("recursive")
+                            .short('r')
+                            .long("recursive")
+                            .help("递归删除目录")
+                            .action(ArgAction::SetTrue)
+                    )
+            )
+            .subcommand(
+                Command::new("mkdir")
+                    .about("创建目录")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("path").help("远程路径").required(true))
+            )
+            .subcommand(
+                Command::new("stat")
+                    .about("获取文件或目录信息")
+                    .arg(Arg::new("connection").short('c').long("connection").help("连接 ID").required(true))
+                    .arg(Arg::new("path").help("远程路径").required(true))
+            )
+    }
+    
     async fn handle_connection_command(&mut self, matches: &ArgMatches) -> Result<()> {
         match matches.subcommand() {
             Some(("list", _)) => {
@@ -73,14 +149,14 @@ impl App {
                     return Ok(());
                 }
                 
-                let mut table = Table::new();
-                table.add_row(row!["ID", "名称", "协议类型"]);
+                // 使用简单的打印方式
+                println!("{:<36} {:<20} {:<10}", "ID", "名称", "协议类型");
+                println!("{:-<36} {:-<20} {:-<10}", "", "", "");
                 
                 for conn in connections {
-                    table.add_row(row![conn.id, conn.name, conn.protocol_type]);
+                    println!("{:<36} {:<20} {:<10}", conn.id, conn.name, conn.protocol_type);
                 }
                 
-                table.printstd();
                 Ok(())
             },
             Some(("show", sub_matches)) => {
@@ -160,12 +236,13 @@ impl App {
             return Ok(());
         }
         
-        let mut table = Table::new();
-        table.add_row(row!["名称", "类型", "大小", "最后修改时间"]);
+        // 使用简单的打印方式
+        println!("{:<30} {:<10} {:<15} {:<25}", "名称", "类型", "大小", "最后修改时间");
+        println!("{:-<30} {:-<10} {:-<15} {:-<25}", "", "", "", "");
         
         for entry in entries {
             let name = entry.name();
-            let mode = crate::utils::format::format_mode(entry.metadata().mode());
+            let mode = if entry.metadata().mode().is_file() { "文件" } else { "目录" };
             
             let size = if entry.metadata().mode().is_file() {
                 crate::utils::format::format_size(entry.metadata().content_length())
@@ -173,12 +250,15 @@ impl App {
                 "-".to_string()
             };
             
-            let time = crate::utils::format::format_time(entry.metadata().last_modified());
+            let time = if let Some(tm) = entry.metadata().last_modified() {
+                tm.format("%Y-%m-%d %H:%M:%S").to_string()
+            } else {
+                "未知".to_string()
+            };
             
-            table.add_row(row![name, mode, size, time]);
+            println!("{:<30} {:<10} {:<15} {:<25}", name, mode, size, time);
         }
         
-        table.printstd();
         Ok(())
     }
     
@@ -202,19 +282,25 @@ impl App {
         let size = meta.len();
         
         if size > 5 * 1024 * 1024 {
-            // 大于 5MB 的文件显示进度条
-            let pb = ProgressBar::new(size);
-            pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                .unwrap()
-                .progress_chars("#>-"));
+            // 大于 5MB 的文件显示进度
+            println!("正在上传: {} -> {}", local_path.display(), remote_path);
+            println!("文件大小: {}", crate::utils::format::format_size(size));
+            
+            // 使用 AtomicU64 来存储进度百分比, 这样可以在闭包中安全修改
+            let progress = Arc::new(AtomicU64::new(0));
+            let progress_clone = Arc::clone(&progress);
             
             file_manager.upload_with_progress(local_path, remote_path, move |current, total| {
-                pb.set_position(current);
-                if current >= total {
-                    pb.finish_with_message("上传完成");
+                let percent = ((current as f64 / total as f64) * 100.0) as u64;
+                let last_percent = progress_clone.load(Ordering::Relaxed);
+                
+                if percent > last_percent && percent % 10 == 0 {
+                    println!("上传进度: {}%", percent);
+                    progress_clone.store(percent, Ordering::Relaxed);
                 }
             }).await?;
+            
+            println!("上传完成: 100%");
         } else {
             file_manager.upload(local_path, remote_path).await?;
             println!("文件上传成功");
@@ -238,19 +324,25 @@ impl App {
         let local_path = PathBuf::from(local_path);
         
         if size > 5 * 1024 * 1024 {
-            // 大于 5MB 的文件显示进度条
-            let pb = ProgressBar::new(size);
-            pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                .unwrap()
-                .progress_chars("#>-"));
+            // 大于 5MB 的文件显示进度
+            println!("正在下载: {} -> {}", remote_path, local_path.display());
+            println!("文件大小: {}", crate::utils::format::format_size(size));
+            
+            // 使用 AtomicU64 来存储进度百分比, 这样可以在闭包中安全修改
+            let progress = Arc::new(AtomicU64::new(0));
+            let progress_clone = Arc::clone(&progress);
             
             file_manager.download_with_progress(remote_path, &local_path, move |current, total| {
-                pb.set_position(current);
-                if current >= total {
-                    pb.finish_with_message("下载完成");
+                let percent = ((current as f64 / total as f64) * 100.0) as u64;
+                let last_percent = progress_clone.load(Ordering::Relaxed);
+                
+                if percent > last_percent && percent % 10 == 0 {
+                    println!("下载进度: {}%", percent);
+                    progress_clone.store(percent, Ordering::Relaxed);
                 }
             }).await?;
+            
+            println!("下载完成: 100%");
         } else {
             file_manager.download(remote_path, &local_path).await?;
             println!("文件下载成功");
