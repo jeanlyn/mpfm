@@ -22,6 +22,12 @@ indicatif = "0.17"
 prettytable-rs = "0.10"
 uuid = { version = "1.5", features = ["v4"] }
 
+# Tauri dependencies
+tauri = { version = "1.0", features = ["dialog-open", "dialog-save", "fs-copy-file", "fs-create-dir", "fs-exists", "fs-read-dir", "fs-read-file", "fs-remove-dir", "fs-remove-file", "fs-rename-file", "fs-write-file", "notification-all", "shell-open"] }
+
+[build-dependencies]
+tauri-build = "1.0"
+
 [profile.release]
 lto = true
 codegen-units = 1

@@ -1,0 +1,13 @@
+{
+  "name": "multi-protocol-file-manager",
+  "version": "0.1.0",
+  "description": "Multi-protocol file manager with GUI interface",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.0.0"
+  }
+}

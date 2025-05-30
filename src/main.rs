@@ -1,45 +1,28 @@
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod cli;
 mod core;
 mod protocols;
 mod utils;
+mod tauri_commands;
 
-use std::process;
-use cli::App;
-use log::{error, info};
+use tauri_commands::*;
 
 fn main() {
-    // 初始化日志
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
+    env_logger::init();
     
-    info!("启动 OpenDAL 多协议文件管理器");
-    
-    // 创建运行时
-    let rt = match tokio::runtime::Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => {
-            error!("无法创建异步运行时: {}", e);
-            process::exit(1);
-        }
-    };
-    
-    // 在运行时中执行应用
-    rt.block_on(async {
-        // 创建并运行应用
-        match App::new() {
-            Ok(mut app) => {
-                if let Err(e) = app.run().await {
-                    error!("运行错误: {}", e);
-                    process::exit(1);
-                }
-            }
-            Err(e) => {
-                error!("初始化应用程序失败: {}", e);
-                process::exit(1);
-            }
-        }
-    });
-    
-    info!("应用程序正常退出");
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            get_connections,
+            add_connection,
+            remove_connection,
+            list_files,
+            upload_file,
+            download_file,
+            delete_file,
+            create_directory
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
