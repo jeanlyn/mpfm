@@ -58,7 +58,7 @@ const App: React.FC = () => {
         alignItems: 'center'
       }}>
         <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-          OpenDAL 多协议文件管理器
+          多协议文件管理器
         </Title>
         {currentConnection && (
           <div style={{ marginLeft: 'auto', color: '#666' }}>

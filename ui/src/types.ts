@@ -3,6 +3,7 @@ export interface Connection {
   name: string;
   protocol_type: string;
   config: Record<string, string>;
+  created_at?: string;
 }
 
 export interface FileInfo {

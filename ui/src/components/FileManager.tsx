@@ -26,6 +26,8 @@ import {
   HomeOutlined,
   ReloadOutlined,
   InfoCircleOutlined,
+  LinkOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/api/dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
@@ -342,7 +344,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       {/* 性能信息提示 */}
       {directorySize > 100 && (
         <Alert
-          message={`大目录优化`}
+          message={`文件数过多，已启用分页模式以提升性能`}
           description={`此目录包含 ${directorySize} 个文件，已启用分页模式以提升性能。加载时间: ${loadTime}ms`}
           type="info"
           icon={<InfoCircleOutlined />}

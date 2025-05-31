@@ -17,13 +17,16 @@ fn main() {
             get_connections,
             add_connection,
             remove_connection,
+            copy_connection,
+            check_s3_bucket_exists,
+            create_s3_bucket,
             list_files,
             list_files_paginated,
-            get_directory_count,
             upload_file,
             download_file,
             delete_file,
-            create_directory
+            create_directory,
+            get_directory_count
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

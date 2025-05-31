@@ -93,6 +93,94 @@ export class ApiService {
     }
   }
 
+  static async copyConnection(connectionId: string, newName: string): Promise<Connection> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating copy connection');
+      const mockConnection: Connection = {
+        id: `mock-copy-${Date.now()}`,
+        name: newName,
+        protocol_type: 's3',
+        config: {},
+        created_at: new Date().toISOString(),
+      };
+      return Promise.resolve(mockConnection);
+    }
+
+    try {
+      const response: ApiResponse<Connection> = await invoke('copy_connection', {
+        connectionId,
+        newName,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '复制连接失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`复制连接失败: ${error}`);
+    }
+  }
+
+  static async checkS3BucketExists(
+    bucket: string,
+    region: string,
+    endpoint: string | null,
+    accessKey: string,
+    secretKey: string
+  ): Promise<boolean> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating bucket check');
+      return Promise.resolve(false); // 模拟 bucket 不存在
+    }
+
+    try {
+      const response: ApiResponse<boolean> = await invoke('check_s3_bucket_exists', {
+        bucket,
+        region,
+        endpoint,
+        accessKey,
+        secretKey,
+      });
+      if (response.success && response.data !== undefined) {
+        return response.data;
+      }
+      throw new Error(response.error || '检查 bucket 失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`检查 bucket 失败: ${error}`);
+    }
+  }
+
+  static async createS3Bucket(
+    bucket: string,
+    region: string,
+    endpoint: string | null,
+    accessKey: string,
+    secretKey: string
+  ): Promise<boolean> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating bucket creation');
+      return Promise.resolve(true); // 模拟创建成功
+    }
+
+    try {
+      const response: ApiResponse<boolean> = await invoke('create_s3_bucket', {
+        bucket,
+        region,
+        endpoint,
+        accessKey,
+        secretKey,
+      });
+      if (response.success && response.data !== undefined) {
+        return response.data;
+      }
+      throw new Error(response.error || '创建 bucket 失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`创建 bucket 失败: ${error}`);
+    }
+  }
+
   static async listFiles(connectionId: string, path: string): Promise<FileInfo[]> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, returning mock file list');
