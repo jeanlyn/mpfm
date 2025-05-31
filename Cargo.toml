@@ -6,8 +6,17 @@ description = "A multi-protocol file manager built on OpenDAL"
 authors = ["MultiProtocolFileManager <info@example.com>"]
 license = "MIT"
 
+# 定义二进制目标
+[[bin]]
+name = "multi-protocol-file-manager"
+path = "src/main.rs"
+
+[[bin]]
+name = "main_cli"
+path = "src/main_cli.rs"
+
 [dependencies]
-opendal = { version = "0.53.1", features = ["services-s3","services-fs"] }
+opendal = { version = "0.53.1", features = ["services-s3", "services-fs"] }
 tokio = { version = "1.32", features = ["full"] }
 clap = { version = "4.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -26,7 +35,7 @@ uuid = { version = "1.5", features = ["v4"] }
 tauri = { version = "1.0", features = ["dialog-open", "dialog-save", "fs-copy-file", "fs-create-dir", "fs-exists", "fs-read-dir", "fs-read-file", "fs-remove-dir", "fs-remove-file", "fs-rename-file", "fs-write-file", "notification-all", "shell-open"] }
 
 [build-dependencies]
-tauri-build = "1.0"
+tauri-build = { version = "1.0", features = [] }
 
 [profile.release]
 lto = true

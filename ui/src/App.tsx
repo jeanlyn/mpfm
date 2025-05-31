@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, message } from 'antd';
+import { Layout, Typography, message, Alert } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import FileManager from './components/FileManager';
 import { Connection } from './types';
@@ -7,6 +7,11 @@ import { ApiService } from './services/api';
 
 const { Header } = Layout;
 const { Title } = Typography;
+
+// 检测是否在 Tauri 环境中
+const isTauriEnvironment = (): boolean => {
+  return typeof window !== 'undefined' && window.__TAURI_IPC__ !== undefined;
+};
 
 const App: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -61,6 +66,16 @@ const App: React.FC = () => {
           </div>
         )}
       </Header>
+      
+      {!isTauriEnvironment() && (
+        <Alert
+          message="演示模式"
+          description="您正在浏览器中查看界面演示。要使用完整功能，请运行 'npm run tauri:dev' 启动 Tauri 应用。"
+          type="info"
+          showIcon
+          style={{ margin: '16px' }}
+        />
+      )}
       
       <Layout style={{ height: 'calc(100vh - 64px)' }}>
         <ConnectionManager
