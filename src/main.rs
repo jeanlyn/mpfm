@@ -18,6 +18,8 @@ fn main() {
             add_connection,
             remove_connection,
             list_files,
+            list_files_paginated,
+            get_directory_count,
             upload_file,
             download_file,
             delete_file,

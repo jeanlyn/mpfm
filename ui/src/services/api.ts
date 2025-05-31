@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import { Connection, FileInfo, ApiResponse } from '../types';
+import { Connection, FileInfo, PaginatedFileList, ApiResponse } from '../types';
 
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
@@ -13,14 +13,12 @@ const mockConnections: Connection[] = [
     name: '本地文件系统',
     protocol_type: 'fs',
     config: { root: '/tmp' },
-    created_at: new Date().toISOString(),
   },
   {
     id: 'mock-2', 
     name: 'S3存储桶',
     protocol_type: 's3',
     config: { bucket: 'demo-bucket', region: 'us-east-1' },
-    created_at: new Date().toISOString(),
   }
 ];
 
@@ -226,6 +224,78 @@ export class ApiService {
     } catch (error) {
       console.error('Tauri invoke error:', error);
       throw new Error(`创建目录失败: ${error}`);
+    }
+  }
+
+  static async listFilesPaginated(
+    connectionId: string, 
+    path: string, 
+    page: number = 0, 
+    pageSize: number = 50
+  ): Promise<PaginatedFileList> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock paginated file list');
+      
+      // 生成更多模拟数据来测试分页
+      const mockFiles: FileInfo[] = [];
+      for (let i = 0; i < 150; i++) {
+        mockFiles.push({
+          name: `file_${i.toString().padStart(3, '0')}.txt`,
+          path: path === '/' ? `/file_${i.toString().padStart(3, '0')}.txt` : `${path}/file_${i.toString().padStart(3, '0')}.txt`,
+          is_dir: i % 10 === 0, // 每10个文件中有一个目录
+          size: i % 10 === 0 ? undefined : Math.floor(Math.random() * 1000000),
+          modified: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+      
+      const start = page * pageSize;
+      const end = start + pageSize;
+      const paginatedFiles = mockFiles.slice(start, end);
+      
+      return Promise.resolve({
+        files: paginatedFiles,
+        total: mockFiles.length,
+        page,
+        page_size: pageSize,
+        has_more: end < mockFiles.length,
+      });
+    }
+
+    try {
+      const response: ApiResponse<PaginatedFileList> = await invoke('list_files_paginated', {
+        connectionId,
+        path,
+        page,
+        pageSize,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '获取分页文件列表失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`获取分页文件列表失败: ${error}`);
+    }
+  }
+
+  static async getDirectoryCount(connectionId: string, path: string): Promise<number> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock count');
+      return Promise.resolve(150); // 模拟150个文件
+    }
+
+    try {
+      const response: ApiResponse<number> = await invoke('get_directory_count', {
+        connectionId,
+        path,
+      });
+      if (response.success && response.data !== undefined) {
+        return response.data;
+      }
+      throw new Error(response.error || '获取目录文件数失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`获取目录文件数失败: ${error}`);
     }
   }
 }

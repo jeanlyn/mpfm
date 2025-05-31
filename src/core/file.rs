@@ -31,6 +31,54 @@ impl FileManager {
         Ok(result)
     }
     
+    /// 分页列出给定路径下的文件和目录
+    pub async fn list_paginated(&self, path: &str, page: usize, page_size: usize) -> Result<(Vec<Entry>, usize)> {
+        debug!("分页列出路径内容: {} (页码: {}, 每页: {})", path, page, page_size);
+        
+        let path = normalize_path(path);
+        
+        // 获取完整目录列表
+        let mut all_entries = self.operator.list(&path).await?;
+        
+        // 按名称排序，目录在前
+        all_entries.sort_by(|a, b| {
+            match (a.metadata().is_dir(), b.metadata().is_dir()) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name().cmp(b.name()),
+            }
+        });
+        
+        let total_count = all_entries.len();
+        let start_idx = page * page_size;
+        let end_idx = std::cmp::min(start_idx + page_size, total_count);
+        
+        let paginated_entries = if start_idx < total_count {
+            all_entries[start_idx..end_idx].to_vec()
+        } else {
+            Vec::new()
+        };
+        
+        info!("已列出 {}/{} 个文件/目录 (页码: {})", paginated_entries.len(), total_count, page);
+        Ok((paginated_entries, total_count))
+    }
+    
+    /// 异步流式列出文件（适用于超大目录）
+    pub async fn list_stream(&self, path: &str, batch_size: usize) -> Result<Vec<Vec<Entry>>> {
+        debug!("流式列出路径内容: {} (批次大小: {})", path, batch_size);
+        
+        let path = normalize_path(path);
+        let all_entries = self.operator.list(&path).await?;
+        
+        let mut batches = Vec::new();
+        for chunk in all_entries.chunks(batch_size) {
+            batches.push(chunk.to_vec());
+        }
+        
+        info!("已分割为 {} 个批次", batches.len());
+        Ok(batches)
+    }
+    
     /// 上传文件
     pub async fn upload(&self, local_path: &Path, remote_path: &str) -> Result<()> {
         debug!("上传文件: {} -> {}", local_path.display(), remote_path);
@@ -101,7 +149,7 @@ impl FileManager {
         let remote_path = normalize_path(remote_path);
         
         // 检查远程文件是否存在
-        if !self.operator.is_exist(&remote_path).await? {
+        if !self.operator.exists(&remote_path).await? {
             return Err(Error::new_not_found(&format!(
                 "远程文件不存在: {}", remote_path
             )));

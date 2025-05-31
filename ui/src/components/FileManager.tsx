@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Layout,
   Table,
@@ -11,6 +11,10 @@ import {
   Typography,
   Space,
   Popconfirm,
+  Pagination,
+  Select,
+  Alert,
+  Spin,
 } from 'antd';
 import {
   FolderOutlined,
@@ -21,13 +25,15 @@ import {
   PlusOutlined,
   HomeOutlined,
   ReloadOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/api/dialog';
-import { Connection, FileInfo } from '../types';
+import { Connection, FileInfo, PaginatedFileList } from '../types';
 import { ApiService } from '../services/api';
 
 const { Content } = Layout;
 const { Title } = Typography;
+const { Option } = Select;
 
 interface FileManagerProps {
   connection: Connection | null;
@@ -39,34 +45,105 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [loading, setLoading] = useState(false);
   const [createDirModalOpen, setCreateDirModalOpen] = useState(false);
   const [newDirName, setNewDirName] = useState('');
+  
+  // 分页相关状态
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<'pagination' | 'all'>('pagination');
+  
+  // 性能监控
+  const [loadTime, setLoadTime] = useState<number>(0);
+  const [directorySize, setDirectorySize] = useState<number>(0);
 
   useEffect(() => {
     if (connection) {
+      // 重置状态并加载文件
+      setCurrentPage(0);
+      setFiles([]);
       loadFiles('/');
     }
   }, [connection]);
 
-  const loadFiles = async (path: string) => {
+  // 智能选择加载模式
+  const chooseLoadingMode = useCallback(async (path: string) => {
+    if (!connection) return 'pagination';
+    
+    try {
+      const count = await ApiService.getDirectoryCount(connection.id, path);
+      setDirectorySize(count);
+      
+      // 如果文件数量超过100个，使用分页模式
+      if (count > 100) {
+        setLoadingMode('pagination');
+        return 'pagination';
+      } else {
+        setLoadingMode('all');
+        return 'all';
+      }
+    } catch (error) {
+      console.warn('无法获取目录大小，默认使用分页模式:', error);
+      setLoadingMode('pagination');
+      return 'pagination';
+    }
+  }, [connection]);
+
+  const loadFiles = useCallback(async (path: string, page: number = 0) => {
     if (!connection) return;
     
     setLoading(true);
+    const startTime = Date.now();
+    
     try {
-      const fileList = await ApiService.listFiles(connection.id, path);
-      setFiles(fileList);
+      const mode = await chooseLoadingMode(path);
+      
+      if (mode === 'pagination') {
+        // 分页模式
+        const result: PaginatedFileList = await ApiService.listFilesPaginated(
+          connection.id, 
+          path, 
+          page, 
+          pageSize
+        );
+        
+        setFiles(result.files);
+        setTotalFiles(result.total);
+        setCurrentPage(result.page);
+        setHasMore(result.has_more);
+      } else {
+        // 全量加载模式（适用于小目录）
+        const fileList = await ApiService.listFiles(connection.id, path);
+        setFiles(fileList);
+        setTotalFiles(fileList.length);
+        setCurrentPage(0);
+        setHasMore(false);
+      }
+      
       setCurrentPath(path);
+      setLoadTime(Date.now() - startTime);
+      
     } catch (error) {
       message.error(`加载文件列表失败: ${error}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [connection, pageSize, chooseLoadingMode]);
 
-  const handleFileDoubleClick = (file: FileInfo) => {
+  const handlePageChange = useCallback((page: number, size?: number) => {
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+    loadFiles(currentPath, page - 1); // Ant Design 分页从1开始，我们的API从0开始
+  }, [currentPath, pageSize, loadFiles]);
+
+  const handleFileDoubleClick = useCallback((file: FileInfo) => {
     if (file.is_dir) {
       const newPath = file.path.endsWith('/') ? file.path : file.path + '/';
+      setCurrentPage(0); // 重置到第一页
       loadFiles(newPath);
     }
-  };
+  }, [loadFiles]);
 
   const handleUpload = async () => {
     if (!connection) return;
@@ -85,7 +162,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
         await ApiService.uploadFile(connection.id, selected, remotePath);
         message.success('文件上传成功');
-        loadFiles(currentPath);
+        loadFiles(currentPath, currentPage);
       }
     } catch (error) {
       message.error(`文件上传失败: ${error}`);
@@ -116,7 +193,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     try {
       await ApiService.deleteFile(connection.id, file.path);
       message.success('删除成功');
-      loadFiles(currentPath);
+      loadFiles(currentPath, currentPage);
     } catch (error) {
       message.error(`删除失败: ${error}`);
     }
@@ -134,22 +211,23 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       message.success('目录创建成功');
       setCreateDirModalOpen(false);
       setNewDirName('');
-      loadFiles(currentPath);
+      loadFiles(currentPath, currentPage);
     } catch (error) {
       message.error(`创建目录失败: ${error}`);
     }
   };
 
-  const navigateUp = () => {
+  const navigateUp = useCallback(() => {
     if (currentPath === '/') return;
     
     const pathParts = currentPath.split('/').filter(part => part);
     pathParts.pop();
     const newPath = pathParts.length === 0 ? '/' : '/' + pathParts.join('/') + '/';
+    setCurrentPage(0);
     loadFiles(newPath);
-  };
+  }, [currentPath, loadFiles]);
 
-  const formatFileSize = (size?: number) => {
+  const formatFileSize = useCallback((size?: number) => {
     if (!size) return '-';
     
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -162,19 +240,29 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     }
     
     return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
-  };
+  }, []);
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      width: '40%',
+      minWidth: 200,
+      ellipsis: {
+        showTitle: false,
+      },
       render: (text: string, record: FileInfo) => (
         <Space>
-          {record.is_dir ? <FolderOutlined /> : <FileOutlined />}
+          {record.is_dir ? (
+            <FolderOutlined style={{ color: '#1890ff' }} />
+          ) : (
+            <FileOutlined style={{ color: '#666' }} />
+          )}
           <span 
             style={{ cursor: 'pointer' }}
             onDoubleClick={() => handleFileDoubleClick(record)}
+            title={text} // 鼠标悬停显示完整文件名
           >
             {text}
           </span>
@@ -185,6 +273,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       title: '大小',
       dataIndex: 'size',
       key: 'size',
+      width: 120,
+      align: 'right' as const,
       render: (size: number | undefined, record: FileInfo) => 
         record.is_dir ? '-' : formatFileSize(size),
     },
@@ -192,19 +282,29 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       title: '修改时间',
       dataIndex: 'modified',
       key: 'modified',
+      width: 180,
       render: (modified: string | undefined) => 
-        modified ? new Date(modified).toLocaleString('zh-CN') : '-',
+        modified ? new Date(modified).toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '-',
     },
     {
       title: '操作',
       key: 'actions',
-      render: (_, record: FileInfo) => (
-        <Space>
+      width: 180,
+      align: 'right' as const,
+      render: (_: any, record: FileInfo) => (
+        <Space size="small">
           {!record.is_dir && (
             <Button
               size="small"
               icon={<DownloadOutlined />}
               onClick={() => handleDownload(record)}
+              style={{ fontSize: '12px' }}
             >
               下载
             </Button>
@@ -212,11 +312,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           <Popconfirm
             title="确定要删除吗？"
             onConfirm={() => handleDelete(record)}
+            placement="topRight"
           >
             <Button
               size="small"
               icon={<DeleteOutlined />}
               danger
+              style={{ fontSize: '12px' }}
             >
               删除
             </Button>
@@ -224,7 +326,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         </Space>
       ),
     },
-  ];
+  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete]);
 
   if (!connection) {
     return (
@@ -237,13 +339,32 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
   return (
     <Content style={{ padding: '24px' }}>
+      {/* 性能信息提示 */}
+      {directorySize > 100 && (
+        <Alert
+          message={`大目录优化`}
+          description={`此目录包含 ${directorySize} 个文件，已启用分页模式以提升性能。加载时间: ${loadTime}ms`}
+          type="info"
+          icon={<InfoCircleOutlined />}
+          style={{ marginBottom: '16px' }}
+          showIcon
+        />
+      )}
+
       <div style={{ marginBottom: '16px' }}>
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            <Button icon={<HomeOutlined />} onClick={() => loadFiles('/')}>
+            <Button icon={<HomeOutlined />} onClick={() => {
+              setCurrentPage(0);
+              loadFiles('/');
+            }}>
               根目录
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={() => loadFiles(currentPath)}>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={() => loadFiles(currentPath, currentPage)}
+              loading={loading}
+            >
               刷新
             </Button>
             {currentPath !== '/' && (
@@ -272,7 +393,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       </div>
 
       <Breadcrumb style={{ marginBottom: '16px' }}>
-        <Breadcrumb.Item onClick={() => loadFiles('/')} style={{ cursor: 'pointer' }}>
+        <Breadcrumb.Item onClick={() => {
+          setCurrentPage(0);
+          loadFiles('/');
+        }} style={{ cursor: 'pointer' }}>
           根目录
         </Breadcrumb.Item>
         {currentPath !== '/' && 
@@ -281,7 +405,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             return (
               <Breadcrumb.Item 
                 key={path}
-                onClick={() => loadFiles(path)}
+                onClick={() => {
+                  setCurrentPage(0);
+                  loadFiles(path);
+                }}
                 style={{ cursor: 'pointer' }}
               >
                 {part}
@@ -291,14 +418,52 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         }
       </Breadcrumb>
 
-      <Table
-        columns={columns}
-        dataSource={files}
-        rowKey="path"
-        loading={loading}
-        pagination={false}
-        size="small"
-      />
+      <Spin spinning={loading}>
+        <Table
+          columns={columns}
+          dataSource={files}
+          rowKey="path"
+          pagination={false}
+          size="small"
+          scroll={{ y: 400 }}
+        />
+      </Spin>
+
+      {/* 分页控件 */}
+      {loadingMode === 'pagination' && totalFiles > 0 && (
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <Space>
+            <span>每页显示：</span>
+            <Select
+              value={pageSize}
+              onChange={(value) => {
+                setPageSize(value);
+                setCurrentPage(0);
+                loadFiles(currentPath, 0);
+              }}
+              style={{ width: 80 }}
+            >
+              <Option value={25}>25</Option>
+              <Option value={50}>50</Option>
+              <Option value={100}>100</Option>
+              <Option value={200}>200</Option>
+            </Select>
+            <span>条</span>
+          </Space>
+          <Pagination
+            current={currentPage + 1}
+            pageSize={pageSize}
+            total={totalFiles}
+            onChange={handlePageChange}
+            showSizeChanger={false}
+            showQuickJumper
+            showTotal={(total, range) => 
+              `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+            }
+            style={{ marginTop: '8px' }}
+          />
+        </div>
+      )}
 
       <Modal
         title="创建新目录"

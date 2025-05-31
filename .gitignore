@@ -2,3 +2,4 @@
 /test_dir
 /.vscode
 node_modules/
+dist/

@@ -72,6 +72,15 @@ impl<T> ApiResponse<T> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaginatedFileList {
+    pub files: Vec<FileInfo>,
+    pub total: usize,
+    pub page: usize,
+    pub page_size: usize,
+    pub has_more: bool,
+}
+
 #[command]
 pub async fn get_connections() -> ApiResponse<Vec<ConnectionInfo>> {
     match get_connection_manager() {
@@ -139,6 +148,55 @@ pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<
                                             ApiResponse::success(files)
                                         }
                                         Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
+                                    }
+                                }
+                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                    }
+                }
+                None => ApiResponse::error("Connection not found".to_string()),
+            }
+        }
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
+#[command]
+pub async fn list_files_paginated(
+    connection_id: String, 
+    path: String, 
+    page: usize, 
+    page_size: usize
+) -> ApiResponse<PaginatedFileList> {
+    match get_connection_manager() {
+        Ok(manager) => {
+            match manager.get_connection(&connection_id) {
+                Some(config) => {
+                    match create_protocol(&config.protocol_type, &config.config) {
+                        Ok(protocol) => {
+                            match protocol.create_operator() {
+                                Ok(operator) => {
+                                    let file_manager = FileManager::new(operator);
+                                    match file_manager.list_paginated(&path, page, page_size).await {
+                                        Ok((entries, total)) => {
+                                            let files: Vec<FileInfo> = entries
+                                                .into_iter()
+                                                .map(|entry| entry.into())
+                                                .collect();
+                                            
+                                            let paginated_list = PaginatedFileList {
+                                                files,
+                                                total,
+                                                page,
+                                                page_size,
+                                                has_more: (page + 1) * page_size < total,
+                                            };
+                                            
+                                            ApiResponse::success(paginated_list)
+                                        }
+                                        Err(e) => ApiResponse::error(format!("分页列出文件失败: {}", e)),
                                     }
                                 }
                                 Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
@@ -264,6 +322,35 @@ pub async fn create_directory(connection_id: String, path: String) -> ApiRespons
                                     match file_manager.create_dir(&dir_path).await {
                                         Ok(_) => ApiResponse::success(true),
                                         Err(e) => ApiResponse::error(format!("创建目录失败: {}", e)),
+                                    }
+                                }
+                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                    }
+                }
+                None => ApiResponse::error("Connection not found".to_string()),
+            }
+        }
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
+#[command]
+pub async fn get_directory_count(connection_id: String, path: String) -> ApiResponse<usize> {
+    match get_connection_manager() {
+        Ok(manager) => {
+            match manager.get_connection(&connection_id) {
+                Some(config) => {
+                    match create_protocol(&config.protocol_type, &config.config) {
+                        Ok(protocol) => {
+                            match protocol.create_operator() {
+                                Ok(operator) => {
+                                    let file_manager = FileManager::new(operator);
+                                    match file_manager.list(&path).await {
+                                        Ok(entries) => ApiResponse::success(entries.len()),
+                                        Err(e) => ApiResponse::error(format!("获取目录文件数失败: {}", e)),
                                     }
                                 }
                                 Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),

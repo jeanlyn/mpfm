@@ -13,6 +13,14 @@ export interface FileInfo {
   modified?: string;
 }
 
+export interface PaginatedFileList {
+  files: FileInfo[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
