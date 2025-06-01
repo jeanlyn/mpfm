@@ -349,7 +349,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview]);
 
   // 搜索功能
-  const handleSearch = useCallback(async () => {
+  const handleSearch = useCallback(async (page: number = 0) => {
     if (!connection || !searchQuery.trim()) return;
 
     setLoading(true);
@@ -360,7 +360,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         connection.id, 
         currentPath,
         searchQuery.trim(), 
-        0, 
+        page, 
         pageSize
       );
       
@@ -374,17 +374,35 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     }
   }, [connection, currentPath, searchQuery, pageSize]);
 
+  // 处理普通文件列表分页
+  const handlePageChange = useCallback((page: number, size?: number) => {
+    if (size && size !== pageSize) {
+      setPageSize(size);
+      setCurrentPage(0);
+      loadFiles(currentPath, 0);
+      return;
+    }
+    
+    const targetPage = page - 1; // Pagination组件从1开始，API从0开始
+    setCurrentPage(targetPage);
+    loadFiles(currentPath, targetPage);
+  }, [currentPath, pageSize, loadFiles]);
+
+  // 处理搜索结果分页
   const handleSearchPageChange = useCallback((page: number, size?: number) => {
     if (size && size !== pageSize) {
       setPageSize(size);
+      handleSearch(0);
+      return;
     }
-    // 搜索时，page从1开始，API从0开始
-    loadFiles(currentPath, isSearchMode ? page - 1 : currentPage);
-  }, [currentPath, pageSize, loadFiles, isSearchMode, currentPage]);
+    
+    const targetPage = page - 1; // Pagination组件从1开始，API从0开始
+    handleSearch(targetPage);
+  }, [pageSize, handleSearch]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    handleSearch();
+    handleSearch(0);
   }, [handleSearch]);
 
   const handleSearchReset = useCallback(() => {
@@ -582,7 +600,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             current={isSearchMode ? searchPage + 1 : currentPage + 1}
             pageSize={pageSize}
             total={isSearchMode ? searchTotal : totalFiles}
-            onChange={handleSearchPageChange}
+            onChange={isSearchMode ? handleSearchPageChange : handlePageChange}
             showSizeChanger={false}
             showQuickJumper
             showTotal={(total, range) => 
