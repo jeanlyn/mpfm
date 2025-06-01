@@ -610,7 +610,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             <Button
               type="primary"
               icon={<SearchOutlined />}
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               loading={loading}
             >
               搜索
