@@ -1,4 +1,4 @@
-# OpenDAL 多协议文件管理器
+# 多协议文件管理器
 
 基于 [Apache OpenDAL™](https://opendal.apache.org/) 的跨平台多协议文件管理器，提供命令行界面和图形界面两种使用方式。
 

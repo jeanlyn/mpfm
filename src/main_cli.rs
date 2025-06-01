@@ -13,7 +13,7 @@ fn main() {
         .format_timestamp_secs()
         .init();
     
-    info!("启动 OpenDAL 多协议文件管理器");
+    info!("启动 多协议文件管理器");
     
     // 创建运行时
     let rt = match tokio::runtime::Runtime::new() {

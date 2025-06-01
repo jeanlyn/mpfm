@@ -7,7 +7,7 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "OpenDAL 多协议文件管理器",
+    "productName": "多协议文件管理器",
     "version": "0.1.0"
   },
   "tauri": {
@@ -57,7 +57,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "OpenDAL 多协议文件管理器",
+        "title": "多协议文件管理器",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

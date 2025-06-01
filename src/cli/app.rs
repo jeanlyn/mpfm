@@ -66,7 +66,7 @@ impl App {
     
     fn build_cli(&self) -> Command {
         Command::new("mpfm")
-            .about("OpenDAL 多协议文件管理器")
+            .about("多协议文件管理器")
             .version(env!("CARGO_PKG_VERSION"))
             .subcommand_required(true)
             .arg_required_else_help(true)
