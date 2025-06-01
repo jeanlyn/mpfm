@@ -8,6 +8,7 @@
     "tauri:build": "tauri build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1.0.0"
+    "@tauri-apps/cli": "^1.0.0",
+    "@types/react-window": "^1.8.8"
   }
 }

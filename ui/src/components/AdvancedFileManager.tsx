@@ -600,8 +600,9 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
         <Breadcrumb.Item onClick={() => {
           resetState();
           loadFiles('/');
-        }} style={{ cursor: 'pointer' }}>
-          根目录
+        }}>
+          <span style={{ cursor: 'pointer' }}>
+          </span>
         </Breadcrumb.Item>
         {currentPath !== '/' && 
           currentPath.split('/').filter(part => part).map((part, index, array) => {
@@ -613,9 +614,10 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
                   resetState();
                   loadFiles(path);
                 }}
-                style={{ cursor: 'pointer' }}
               >
-                {part}
+                <span style={{ cursor: 'pointer' }}>
+                  {part}
+                </span>
               </Breadcrumb.Item>
             );
           })
@@ -723,6 +725,7 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
               <List
                 ref={ref}
                 height={500}
+                width={800} // Add the required width property
                 itemCount={hasNextPage ? files.length + 1 : files.length}
                 itemSize={48}
                 itemData={virtualizedRowData}
@@ -736,6 +739,7 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
           // 普通虚拟列表
           <List
             height={500}
+            width={800} // Add the required width property
             itemCount={files.length}
             itemSize={48}
             itemData={virtualizedRowData}

@@ -513,7 +513,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           <Form.Item dependencies={['protocolType']} noStyle>
             {({ getFieldValue }) => {
               const protocolType = getFieldValue('protocolType');
-              return renderProtocolFields(protocolType, modalConfig.connection);
+              return renderProtocolFields(protocolType, modalConfig.connection || undefined);
             }}
           </Form.Item>
 

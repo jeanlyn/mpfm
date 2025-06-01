@@ -401,7 +401,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   return (
     <Content style={{ padding: '24px' }}>
       {/* 性能信息提示 */}
-      {directorySize > 100 && (
+      {/* {directorySize > 100 && (
         <Alert
           message={`文件数过多，已启用分页模式以提升性能`}
           description={`此目录包含 ${directorySize} 个文件，已启用分页模式以提升性能。加载时间: ${loadTime}ms`}
@@ -410,7 +410,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           style={{ marginBottom: '16px' }}
           showIcon
         />
-      )}
+      )} */}
 
       <div style={{ marginBottom: '16px' }}>
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
@@ -457,8 +457,9 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         <Breadcrumb.Item onClick={() => {
           setCurrentPage(0);
           loadFiles('/');
-        }} style={{ cursor: 'pointer' }}>
-          根目录
+        }}>
+          <span style={{ cursor: 'pointer' }}>
+          </span>
         </Breadcrumb.Item>
         {currentPath !== '/' && 
           currentPath.split('/').filter(part => part).map((part, index, array) => {
@@ -470,9 +471,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
                   setCurrentPage(0);
                   loadFiles(path);
                 }}
-                style={{ cursor: 'pointer' }}
               >
-                {part}
+                <span style={{ cursor: 'pointer' }}>{part}</span>
               </Breadcrumb.Item>
             );
           })
