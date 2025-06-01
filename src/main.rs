@@ -18,6 +18,7 @@ fn main() {
             add_connection,
             remove_connection,
             copy_connection,
+            update_connection,
             check_s3_bucket_exists,
             create_s3_bucket,
             list_files,

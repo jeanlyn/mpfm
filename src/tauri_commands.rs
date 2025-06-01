@@ -573,6 +573,33 @@ pub async fn search_files(
     }
 }
 
+#[command]
+pub async fn update_connection(
+    connection_id: String,
+    name: String,
+    protocol_type: String,
+    config: HashMap<String, String>,
+) -> ApiResponse<ConnectionInfo> {
+    match get_connection_manager() {
+        Ok(mut manager) => {
+            match manager.update_connection(&connection_id, name, protocol_type, config) {
+                Ok(_) => {
+                    // 返回更新后的连接信息
+                    match manager.get_connection(&connection_id) {
+                        Some(updated_config) => {
+                            let connection_info: ConnectionInfo = updated_config.clone().into();
+                            ApiResponse::success(connection_info)
+                        }
+                        None => ApiResponse::error("更新后无法找到连接".to_string()),
+                    }
+                }
+                Err(e) => ApiResponse::error(e.to_string()),
+            }
+        }
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
 fn get_connection_manager() -> Result<ConnectionManager, crate::core::error::Error> {
     let config_dir = dirs::config_dir()
         .ok_or_else(|| crate::core::error::Error::new_config("无法获取配置目录"))?

@@ -443,4 +443,40 @@ export class ApiService {
       throw new Error(`搜索文件失败: ${error}`);
     }
   }
+
+  // 更新连接配置
+  static async updateConnection(
+    connectionId: string,
+    name: string,
+    protocolType: string,
+    config: Record<string, string>
+  ): Promise<Connection> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating update connection');
+      const updatedConnection: Connection = {
+        id: connectionId,
+        name,
+        protocol_type: protocolType,
+        config,
+        created_at: new Date().toISOString(),
+      };
+      return Promise.resolve(updatedConnection);
+    }
+
+    try {
+      const response: ApiResponse<Connection> = await invoke('update_connection', {
+        connectionId,
+        name,
+        protocolType,
+        config,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '更新连接失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`更新连接失败: ${error}`);
+    }
+  }
 }

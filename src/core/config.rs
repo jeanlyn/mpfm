@@ -102,6 +102,22 @@ impl ConnectionManager {
         self.connections.remove(id);
         self.save_connections()
     }
+
+    /// 更新连接配置
+    pub fn update_connection(&mut self, id: &str, name: String, protocol_type: String, config: HashMap<String, String>) -> Result<()> {
+        if !self.connections.contains_key(id) {
+            return Err(Error::new_not_found(&format!("连接 ID 不存在: {}", id)));
+        }
+        
+        info!("更新连接: {} -> {}", id, name);
+        
+        // 创建新的连接配置，保持原有的 ID
+        let mut updated_config = ConnectionConfig::new(name, protocol_type, config);
+        updated_config.id = id.to_string(); // 保持原有 ID
+        
+        self.connections.insert(id.to_string(), updated_config);
+        self.save_connections()
+    }
     
     /// 获取连接列表
     pub fn get_connections(&self) -> Vec<&ConnectionConfig> {
