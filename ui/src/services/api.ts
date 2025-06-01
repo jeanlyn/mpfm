@@ -386,4 +386,61 @@ export class ApiService {
       throw new Error(`获取目录文件数失败: ${error}`);
     }
   }
+
+  // 搜索文件（支持模糊匹配文件名）
+  static async searchFiles(
+    connectionId: string, 
+    path: string, 
+    query: string,
+    page: number = 0,
+    pageSize: number = 50
+  ): Promise<PaginatedFileList> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock search results');
+      
+      // 模拟搜索结果
+      const allMockFiles: FileInfo[] = [];
+      for (let i = 0; i < 50; i++) {
+        const fileName = `search_result_${i.toString().padStart(3, '0')}.txt`;
+        if (fileName.toLowerCase().includes(query.toLowerCase())) {
+          allMockFiles.push({
+            name: fileName,
+            path: path === '/' ? `/${fileName}` : `${path}/${fileName}`,
+            is_dir: i % 15 === 0,
+            size: i % 15 === 0 ? undefined : Math.floor(Math.random() * 1000000),
+            modified: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+      }
+      
+      const start = page * pageSize;
+      const end = start + pageSize;
+      const paginatedFiles = allMockFiles.slice(start, end);
+      
+      return Promise.resolve({
+        files: paginatedFiles,
+        total: allMockFiles.length,
+        page,
+        page_size: pageSize,
+        has_more: end < allMockFiles.length,
+      });
+    }
+
+    try {
+      const response: ApiResponse<PaginatedFileList> = await invoke('search_files', {
+        connectionId,
+        path,
+        query,
+        page,
+        pageSize,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '搜索文件失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`搜索文件失败: ${error}`);
+    }
+  }
 }

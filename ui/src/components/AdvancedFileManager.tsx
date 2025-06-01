@@ -27,6 +27,8 @@ import {
   ReloadOutlined,
   InfoCircleOutlined,
   ThunderboltOutlined,
+  SearchOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/api/dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
@@ -188,6 +190,14 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
   // 虚拟滚动设置
   const [useVirtualScrolling, setUseVirtualScrolling] = useState(false);
   const [loadingMode, setLoadingMode] = useState<'pagination' | 'infinite' | 'all'>('pagination');
+  
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<FileInfo[]>([]);
+  const [searchPage, setSearchPage] = useState(0);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
   
   // 性能监控
   const [loadTime, setLoadTime] = useState<number>(0);
@@ -407,13 +417,82 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
     return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
   }, []);
 
+  // 搜索功能
+  const handleSearch = useCallback(async () => {
+    if (!connection || !searchQuery.trim()) return;
+
+    setLoading(true);
+    setIsSearchMode(true);
+    setSearchPage(0);
+    
+    try {
+      const result: PaginatedFileList = await ApiService.searchFiles(
+        connection.id, 
+        currentPath,
+        searchQuery.trim(), 
+        0, 
+        pageSize
+      );
+      
+      setSearchResults(result.files);
+      setSearchTotal(result.total);
+      setSearchPage(result.page);
+      setSearchHasMore(result.has_more);
+    } catch (error) {
+      message.error(`搜索文件失败: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [connection, currentPath, searchQuery, pageSize]);
+
+  const handleSearchLoadMore = useCallback(async () => {
+    if (!connection || !searchHasMore || loading) return;
+    
+    const nextPage = searchPage + 1;
+    setLoading(true);
+    
+    try {
+      const result: PaginatedFileList = await ApiService.searchFiles(
+        connection.id, 
+        currentPath,
+        searchQuery.trim(), 
+        nextPage, 
+        pageSize
+      );
+      
+      setSearchResults(prev => [...prev, ...result.files]);
+      setSearchPage(result.page);
+      setSearchHasMore(result.has_more);
+    } catch (error) {
+      message.error(`加载更多搜索结果失败: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [connection, currentPath, searchQuery, searchPage, searchHasMore, loading, pageSize]);
+
+  const handleSearchReset = useCallback(() => {
+    setIsSearchMode(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchPage(0);
+    setSearchTotal(0);
+    setSearchHasMore(false);
+    resetState();
+    loadFiles(currentPath, 0);
+  }, [currentPath, loadFiles, resetState]);
+
+  const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    handleSearch();
+  }, [handleSearch]);
+
   const virtualizedRowData = useMemo(() => ({
-    files,
+    files: isSearchMode ? searchResults : files,
     onFileDoubleClick: handleFileDoubleClick,
     onDownload: handleDownload,
     onDelete: handleDelete,
     formatFileSize,
-  }), [files, handleFileDoubleClick, handleDownload, handleDelete, formatFileSize]);
+  }), [isSearchMode, searchResults, files, handleFileDoubleClick, handleDownload, handleDelete, formatFileSize]);
 
   if (!connection) {
     return (
@@ -542,6 +621,57 @@ const AdvancedFileManager: React.FC<FileManagerProps> = ({ connection }) => {
           })
         }
       </Breadcrumb>
+
+      {/* 搜索框 */}
+      <div style={{ marginBottom: '16px' }}>
+        <form onSubmit={handleSearchSubmit}>
+          <Space style={{ width: '100%' }}>
+            <Input
+              placeholder="搜索当前目录下的文件或目录"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ flex: 1, minWidth: '300px' }}
+              suffix={
+                isSearchMode ? (
+                  <Button 
+                    icon={<CloseOutlined />} 
+                    onClick={handleSearchReset} 
+                    size="small"
+                    style={{ border: 'none', color: '#999' }}
+                  />
+                ) : undefined
+              }
+            />
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
+              loading={loading}
+            >
+              搜索
+            </Button>
+          </Space>
+        </form>
+        
+        {isSearchMode && (
+          <div style={{ marginTop: '8px' }}>
+            <Space>
+              <span style={{ color: '#666' }}>
+                搜索 "{searchQuery}" 在 {currentPath} 中找到 {searchTotal} 个结果
+              </span>
+              {searchHasMore && (
+                <Button 
+                  size="small" 
+                  onClick={handleSearchLoadMore}
+                  loading={loading}
+                >
+                  加载更多搜索结果
+                </Button>
+              )}
+            </Space>
+          </div>
+        )}
+      </div>
 
       {/* 文件列表表头 */}
       <div style={{ 

@@ -4,6 +4,7 @@ import ConnectionManager from './components/ConnectionManager';
 import FileManager from './components/FileManager';
 import { Connection } from './types';
 import { ApiService } from './services/api';
+import FileManagerWrapper from './components/FileManagerWrapper';
 
 const { Header } = Layout;
 const { Title } = Typography;

@@ -523,6 +523,56 @@ pub async fn get_directory_count(connection_id: String, path: String) -> ApiResp
     }
 }
 
+#[command]
+pub async fn search_files(
+    connection_id: String,
+    path: String,
+    query: String,
+    page: usize,
+    page_size: usize,
+) -> ApiResponse<PaginatedFileList> {
+    match get_connection_manager() {
+        Ok(manager) => {
+            match manager.get_connection(&connection_id) {
+                Some(config) => {
+                    match create_protocol(&config.protocol_type, &config.config) {
+                        Ok(protocol) => {
+                            match protocol.create_operator() {
+                                Ok(operator) => {
+                                    let file_manager = FileManager::new(operator);
+                                    match file_manager.search_paginated(&path, &query, page, page_size).await {
+                                        Ok((entries, total)) => {
+                                            let files: Vec<FileInfo> = entries
+                                                .into_iter()
+                                                .map(|entry| entry.into())
+                                                .collect();
+                                            
+                                            let paginated_list = PaginatedFileList {
+                                                files,
+                                                total,
+                                                page,
+                                                page_size,
+                                                has_more: (page + 1) * page_size < total,
+                                            };
+                                            
+                                            ApiResponse::success(paginated_list)
+                                        }
+                                        Err(e) => ApiResponse::error(format!("搜索文件失败: {}", e)),
+                                    }
+                                }
+                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                    }
+                }
+                None => ApiResponse::error("Connection not found".to_string()),
+            }
+        }
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
 fn get_connection_manager() -> Result<ConnectionManager, crate::core::error::Error> {
     let config_dir = dirs::config_dir()
         .ok_or_else(|| crate::core::error::Error::new_config("无法获取配置目录"))?

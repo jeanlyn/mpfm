@@ -26,7 +26,8 @@ fn main() {
             download_file,
             delete_file,
             create_directory,
-            get_directory_count
+            get_directory_count,
+            search_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

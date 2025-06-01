@@ -239,6 +239,75 @@ impl FileManager {
         info!("目录创建成功: {}", path);
         Ok(())
     }
+
+    /// 搜索文件和目录（支持模糊匹配文件名）
+    pub async fn search(&self, path: &str, query: &str) -> Result<Vec<Entry>> {
+        debug!("搜索文件: 路径={}, 查询={}", path, query);
+        
+        let path = normalize_path(path);
+        
+        // 获取目录列表
+        let all_entries = self.operator.list(&path).await?;
+        
+        // 过滤匹配查询的文件
+        let query_lower = query.to_lowercase();
+        let filtered_entries: Vec<Entry> = all_entries
+            .into_iter()
+            .filter(|entry| {
+                entry.name().to_lowercase().contains(&query_lower)
+            })
+            .collect();
+        
+        info!("搜索到 {} 个匹配的文件/目录", filtered_entries.len());
+        Ok(filtered_entries)
+    }
+
+    /// 分页搜索文件和目录
+    pub async fn search_paginated(
+        &self, 
+        path: &str, 
+        query: &str, 
+        page: usize, 
+        page_size: usize
+    ) -> Result<(Vec<Entry>, usize)> {
+        debug!("分页搜索文件: 路径={}, 查询={}, 页码={}, 每页={}", path, query, page, page_size);
+        
+        let path = normalize_path(path);
+        
+        // 获取完整目录列表
+        let all_entries = self.operator.list(&path).await?;
+        
+        // 过滤匹配查询的文件
+        let query_lower = query.to_lowercase();
+        let mut filtered_entries: Vec<Entry> = all_entries
+            .into_iter()
+            .filter(|entry| {
+                entry.name().to_lowercase().contains(&query_lower)
+            })
+            .collect();
+        
+        // 按名称排序，目录在前
+        filtered_entries.sort_by(|a, b| {
+            match (a.metadata().is_dir(), b.metadata().is_dir()) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name().cmp(b.name()),
+            }
+        });
+        
+        let total_count = filtered_entries.len();
+        let start_idx = page * page_size;
+        let end_idx = std::cmp::min(start_idx + page_size, total_count);
+        
+        let paginated_entries = if start_idx < total_count {
+            filtered_entries[start_idx..end_idx].to_vec()
+        } else {
+            Vec::new()
+        };
+        
+        info!("搜索到 {}/{} 个匹配的文件/目录 (页码: {})", paginated_entries.len(), total_count, page);
+        Ok((paginated_entries, total_count))
+    }
 }
 
 /// 规范化路径，处理开头的斜杠

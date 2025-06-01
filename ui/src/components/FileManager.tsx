@@ -7,7 +7,6 @@ import {
   message,
   Modal,
   Input,
-  Upload,
   Typography,
   Space,
   Popconfirm,
@@ -28,6 +27,8 @@ import {
   InfoCircleOutlined,
   LinkOutlined,
   CopyOutlined,
+  SearchOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/api/dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
@@ -54,6 +55,14 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [totalFiles, setTotalFiles] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMode, setLoadingMode] = useState<'pagination' | 'all'>('pagination');
+  
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<FileInfo[]>([]);
+  const [searchPage, setSearchPage] = useState(0);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
   
   // 性能监控
   const [loadTime, setLoadTime] = useState<number>(0);
@@ -330,6 +339,56 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     },
   ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete]);
 
+  // 搜索功能
+  const handleSearch = useCallback(async () => {
+    if (!connection || !searchQuery.trim()) return;
+
+    setLoading(true);
+    setIsSearchMode(true);
+    
+    try {
+      const result: PaginatedFileList = await ApiService.searchFiles(
+        connection.id, 
+        currentPath,
+        searchQuery.trim(), 
+        0, 
+        pageSize
+      );
+      
+      setSearchResults(result.files);
+      setSearchTotal(result.total);
+      setSearchPage(result.page);
+      setSearchHasMore(result.has_more);
+    } catch (error) {
+      message.error(`搜索文件失败: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [connection, currentPath, searchQuery, pageSize]);
+
+  const handleSearchPageChange = useCallback((page: number, size?: number) => {
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+    // 搜索时，page从1开始，API从0开始
+    loadFiles(currentPath, isSearchMode ? page - 1 : currentPage);
+  }, [currentPath, pageSize, loadFiles, isSearchMode, currentPage]);
+
+  const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    handleSearch();
+  }, [handleSearch]);
+
+  const handleSearchReset = useCallback(() => {
+    setIsSearchMode(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchPage(0);
+    setSearchTotal(0);
+    setSearchHasMore(false);
+    loadFiles(currentPath, 0);
+  }, [currentPath, loadFiles]);
+
   if (!connection) {
     return (
       <Content style={{ padding: '24px', textAlign: 'center' }}>
@@ -420,10 +479,42 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         }
       </Breadcrumb>
 
+      {/* 搜索框 */}
+      <div style={{ marginBottom: '16px' }}>
+        <form onSubmit={handleSearchSubmit}>
+          <Space style={{ width: '100%' }}>
+            <Input
+              placeholder="搜索文件或目录"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ flex: 1 }}
+              suffix={
+                isSearchMode ? (
+                  <Button 
+                    icon={<CloseOutlined />} 
+                    onClick={handleSearchReset} 
+                    size="small"
+                    style={{ border: 'none', color: '#999' }}
+                  />
+                ) : undefined
+              }
+            />
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
+              loading={loading}
+            >
+              搜索
+            </Button>
+          </Space>
+        </form>
+      </div>
+
       <Spin spinning={loading}>
         <Table
           columns={columns}
-          dataSource={files}
+          dataSource={isSearchMode ? searchResults : files}
           rowKey="path"
           pagination={false}
           size="small"
@@ -453,10 +544,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             <span>条</span>
           </Space>
           <Pagination
-            current={currentPage + 1}
+            current={isSearchMode ? searchPage + 1 : currentPage + 1}
             pageSize={pageSize}
-            total={totalFiles}
-            onChange={handlePageChange}
+            total={isSearchMode ? searchTotal : totalFiles}
+            onChange={handleSearchPageChange}
             showSizeChanger={false}
             showQuickJumper
             showTotal={(total, range) => 
