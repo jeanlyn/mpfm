@@ -379,7 +379,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     if (size && size !== pageSize) {
       setPageSize(size);
       setCurrentPage(0);
-      loadFiles(currentPath, 0);
+      // 使用新的pageSize立即加载文件，而不是依赖状态更新
+      loadFilesWithNewPageSize(currentPath, 0, size);
       return;
     }
     
@@ -388,17 +389,82 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     loadFiles(currentPath, targetPage);
   }, [currentPath, pageSize, loadFiles]);
 
+  // 使用新的pageSize加载文件的辅助函数
+  const loadFilesWithNewPageSize = useCallback(async (path: string, page: number = 0, newPageSize: number) => {
+    if (!connection) return;
+    
+    setLoading(true);
+    
+    try {
+      const mode = await chooseLoadingMode(path);
+      
+      if (mode === 'pagination') {
+        // 分页模式，使用新的pageSize
+        const result: PaginatedFileList = await ApiService.listFilesPaginated(
+          connection.id, 
+          path, 
+          page, 
+          newPageSize
+        );
+        
+        setFiles(result.files);
+        setTotalFiles(result.total);
+        setCurrentPage(result.page);
+      } else {
+        // 全量加载模式（适用于小目录）
+        const fileList = await ApiService.listFiles(connection.id, path);
+        setFiles(fileList);
+        setTotalFiles(fileList.length);
+        setCurrentPage(0);
+      }
+      
+      setCurrentPath(path);
+      
+    } catch (error) {
+      message.error(`加载文件列表失败: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [connection, chooseLoadingMode]);
+
   // 处理搜索结果分页
   const handleSearchPageChange = useCallback((page: number, size?: number) => {
     if (size && size !== pageSize) {
       setPageSize(size);
-      handleSearch(0);
+      // 使用新的pageSize搜索
+      handleSearchWithNewPageSize(0, size);
       return;
     }
     
     const targetPage = page - 1; // Pagination组件从1开始，API从0开始
     handleSearch(targetPage);
   }, [pageSize, handleSearch]);
+
+  // 使用新的pageSize搜索的辅助函数
+  const handleSearchWithNewPageSize = useCallback(async (page: number = 0, newPageSize: number) => {
+    if (!connection || !searchQuery.trim()) return;
+
+    setLoading(true);
+    setIsSearchMode(true);
+    
+    try {
+      const result: PaginatedFileList = await ApiService.searchFiles(
+        connection.id, 
+        currentPath,
+        searchQuery.trim(), 
+        page, 
+        newPageSize
+      );
+      
+      setSearchResults(result.files);
+      setSearchTotal(result.total);
+      setSearchPage(result.page);
+    } catch (error) {
+      message.error(`搜索文件失败: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [connection, currentPath, searchQuery]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -582,7 +648,12 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               onChange={(value) => {
                 setPageSize(value);
                 setCurrentPage(0);
-                loadFiles(currentPath, 0);
+                // 根据当前模式使用相应的加载函数
+                if (isSearchMode) {
+                  handleSearchWithNewPageSize(0, value);
+                } else {
+                  loadFilesWithNewPageSize(currentPath, 0, value);
+                }
               }}
               style={{ width: 70 }}
               size="small"
