@@ -12,7 +12,6 @@ import {
   Popconfirm,
   Pagination,
   Select,
-  Alert,
   Spin,
 } from 'antd';
 import {
@@ -24,9 +23,6 @@ import {
   PlusOutlined,
   HomeOutlined,
   ReloadOutlined,
-  InfoCircleOutlined,
-  LinkOutlined,
-  CopyOutlined,
   SearchOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
@@ -53,7 +49,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [totalFiles, setTotalFiles] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
   const [loadingMode, setLoadingMode] = useState<'pagination' | 'all'>('pagination');
   
   // 搜索相关状态
@@ -62,11 +57,9 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [searchResults, setSearchResults] = useState<FileInfo[]>([]);
   const [searchPage, setSearchPage] = useState(0);
   const [searchTotal, setSearchTotal] = useState(0);
-  const [searchHasMore, setSearchHasMore] = useState(false);
   
-  // 性能监控
-  const [loadTime, setLoadTime] = useState<number>(0);
-  const [directorySize, setDirectorySize] = useState<number>(0);
+  // 计算表格高度的hook
+  const [tableHeight, setTableHeight] = useState(400);
 
   useEffect(() => {
     if (connection) {
@@ -83,7 +76,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     
     try {
       const count = await ApiService.getDirectoryCount(connection.id, path);
-      setDirectorySize(count);
       
       // 如果文件数量超过100个，使用分页模式
       if (count > 100) {
@@ -104,7 +96,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     if (!connection) return;
     
     setLoading(true);
-    const startTime = Date.now();
     
     try {
       const mode = await chooseLoadingMode(path);
@@ -121,18 +112,15 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         setFiles(result.files);
         setTotalFiles(result.total);
         setCurrentPage(result.page);
-        setHasMore(result.has_more);
       } else {
         // 全量加载模式（适用于小目录）
         const fileList = await ApiService.listFiles(connection.id, path);
         setFiles(fileList);
         setTotalFiles(fileList.length);
         setCurrentPage(0);
-        setHasMore(false);
       }
       
       setCurrentPath(path);
-      setLoadTime(Date.now() - startTime);
       
     } catch (error) {
       message.error(`加载文件列表失败: ${error}`);
@@ -140,13 +128,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setLoading(false);
     }
   }, [connection, pageSize, chooseLoadingMode]);
-
-  const handlePageChange = useCallback((page: number, size?: number) => {
-    if (size && size !== pageSize) {
-      setPageSize(size);
-    }
-    loadFiles(currentPath, page - 1); // Ant Design 分页从1开始，我们的API从0开始
-  }, [currentPath, pageSize, loadFiles]);
 
   const handleFileDoubleClick = useCallback((file: FileInfo) => {
     if (file.is_dir) {
@@ -358,7 +339,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setSearchResults(result.files);
       setSearchTotal(result.total);
       setSearchPage(result.page);
-      setSearchHasMore(result.has_more);
     } catch (error) {
       message.error(`搜索文件失败: ${error}`);
     } finally {
@@ -385,9 +365,25 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     setSearchResults([]);
     setSearchPage(0);
     setSearchTotal(0);
-    setSearchHasMore(false);
     loadFiles(currentPath, 0);
   }, [currentPath, loadFiles]);
+
+  useEffect(() => {
+    const updateTableHeight = () => {
+      // 计算可用高度：窗口高度 - 头部导航 - 工具栏 - 搜索框 - 分页栏 - 边距
+      const windowHeight = window.innerHeight;
+      const reservedHeight = 280; // 为其他元素预留的高度
+      const availableHeight = windowHeight - reservedHeight;
+      setTableHeight(Math.max(300, availableHeight));
+    };
+
+    updateTableHeight();
+    window.addEventListener('resize', updateTableHeight);
+    
+    return () => {
+      window.removeEventListener('resize', updateTableHeight);
+    };
+  }, []);
 
   if (!connection) {
     return (
@@ -518,15 +514,23 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           rowKey="path"
           pagination={false}
           size="small"
-          scroll={{ y: 400 }}
+          scroll={{ y: tableHeight }}
         />
       </Spin>
 
-      {/* 分页控件 */}
+      {/* 优化后的分页控件 */}
       {loadingMode === 'pagination' && totalFiles > 0 && (
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <Space>
-            <span>每页显示：</span>
+        <div style={{ 
+          marginTop: '16px', 
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px'
+        }}>
+          {/* 左侧：每页显示数量选择 */}
+          <Space size="small">
+            <span>每页显示</span>
             <Select
               value={pageSize}
               onChange={(value) => {
@@ -534,7 +538,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
                 setCurrentPage(0);
                 loadFiles(currentPath, 0);
               }}
-              style={{ width: 80 }}
+              style={{ width: 70 }}
+              size="small"
             >
               <Option value={25}>25</Option>
               <Option value={50}>50</Option>
@@ -543,6 +548,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             </Select>
             <span>条</span>
           </Space>
+
+          {/* 右侧：分页控件 */}
           <Pagination
             current={isSearchMode ? searchPage + 1 : currentPage + 1}
             pageSize={pageSize}
@@ -553,7 +560,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             showTotal={(total, range) => 
               `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
             }
-            style={{ marginTop: '8px' }}
+            size="small"
           />
         </div>
       )}
