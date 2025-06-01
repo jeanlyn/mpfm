@@ -479,4 +479,115 @@ export class ApiService {
       throw new Error(`更新连接失败: ${error}`);
     }
   }
+
+  // 获取文件内容用于预览
+  static async getFileContent(
+    connectionId: string, 
+    path: string, 
+    type: 'text' | 'binary' = 'text'
+  ): Promise<string | ArrayBuffer> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock file content');
+      
+      if (type === 'binary') {
+        // 模拟二进制数据（1x1像素的PNG图片）
+        const mockImageData = new Uint8Array([
+          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+          0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+          0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0x0F, 0x00, 0x00,
+          0x01, 0x00, 0x01, 0x5C, 0xCF, 0x80, 0x64, 0x00, 0x00, 0x00, 0x00, 0x49,
+          0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+        ]);
+        return Promise.resolve(mockImageData.buffer);
+      } else {
+        // 根据文件扩展名返回不同的模拟内容
+        const fileName = path.split('/').pop() || '';
+        const ext = fileName.toLowerCase().split('.').pop();
+        
+        let mockContent = '';
+        switch (ext) {
+          case 'json':
+            mockContent = `{
+  "name": "示例文件",
+  "type": "演示数据",
+  "items": [
+    {"id": 1, "title": "项目1", "completed": false},
+    {"id": 2, "title": "项目2", "completed": true}
+  ],
+  "metadata": {
+    "created": "2024-01-01",
+    "version": "1.0"
+  }
+}`;
+            break;
+          case 'js':
+          case 'jsx':
+            mockContent = `// JavaScript 示例文件
+function greet(name) {
+  console.log('Hello, ' + name + '!');
+}
+
+const users = [
+  { id: 1, name: 'Alice' },
+  { id: 2, name: 'Bob' }
+];
+
+export { greet, users };`;
+            break;
+          case 'py':
+            mockContent = `# Python 示例文件
+def hello_world():
+    print("Hello, World!")
+
+class Calculator:
+    def add(self, a, b):
+        return a + b
+    
+    def multiply(self, a, b):
+        return a * b
+
+if __name__ == "__main__":
+    calc = Calculator()
+    result = calc.add(2, 3)
+    print(f"2 + 3 = {result}")`;
+            break;
+          default:
+            mockContent = `这是一个示例文本文件的内容。
+文件名: ${fileName}
+路径: ${path}
+
+这里可以是任何类型的文本内容，比如：
+- 配置文件
+- 日志文件  
+- 说明文档
+- 代码文件
+
+当前时间: ${new Date().toLocaleString()}
+文件大小: 模拟数据`;
+        }
+        return Promise.resolve(mockContent);
+      }
+    }
+
+    try {
+      const response: ApiResponse<string | number[]> = await invoke('get_file_content', {
+        connectionId,
+        path,
+        type,
+      });
+      if (response.success && response.data !== undefined) {
+        if (type === 'binary' && Array.isArray(response.data)) {
+          // 将数字数组转换为 ArrayBuffer
+          const uint8Array = new Uint8Array(response.data);
+          return uint8Array.buffer;
+        }
+        return response.data as string;
+      }
+      throw new Error(response.error || '获取文件内容失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`获取文件内容失败: ${error}`);
+    }
+  }
 }

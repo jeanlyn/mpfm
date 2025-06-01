@@ -25,10 +25,13 @@ import {
   ReloadOutlined,
   SearchOutlined,
   CloseOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/api/dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
 import { ApiService } from '../services/api';
+import FilePreview from './FilePreview';
+import { isPreviewable } from './FilePreview/utils/fileTypeDetector';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -57,6 +60,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [searchResults, setSearchResults] = useState<FileInfo[]>([]);
   const [searchPage, setSearchPage] = useState(0);
   const [searchTotal, setSearchTotal] = useState(0);
+  
+  // 预览相关状态
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   
   // 计算表格高度的hook
   const [tableHeight, setTableHeight] = useState(400);
@@ -209,6 +216,17 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     }
   };
 
+  // 预览功能处理函数
+  const handlePreview = useCallback((file: FileInfo) => {
+    setPreviewFile(file);
+    setPreviewVisible(true);
+  }, []);
+
+  const handlePreviewClose = useCallback(() => {
+    setPreviewVisible(false);
+    setPreviewFile(null);
+  }, []);
+
   const navigateUp = useCallback(() => {
     if (currentPath === '/') return;
     
@@ -287,10 +305,20 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 240,
       align: 'right' as const,
       render: (_: any, record: FileInfo) => (
         <Space size="small">
+          {!record.is_dir && isPreviewable(record.name) && (
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => handlePreview(record)}
+              style={{ fontSize: '12px' }}
+            >
+              预览
+            </Button>
+          )}
           {!record.is_dir && (
             <Button
               size="small"
@@ -318,7 +346,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         </Space>
       ),
     },
-  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete]);
+  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview]);
 
   // 搜索功能
   const handleSearch = useCallback(async () => {
@@ -581,6 +609,15 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           onPressEnter={handleCreateDirectory}
         />
       </Modal>
+
+      {/* 文件预览组件 */}
+      <FilePreview
+        file={previewFile}
+        connection={connection}
+        visible={previewVisible}
+        onClose={handlePreviewClose}
+        onDownload={handleDownload}
+      />
     </Content>
   );
 };

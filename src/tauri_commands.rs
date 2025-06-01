@@ -600,6 +600,75 @@ pub async fn update_connection(
     }
 }
 
+#[command]
+pub async fn get_file_content(
+    connection_id: String,
+    path: String,
+    r#type: String, // 使用 r#type 因为 type 是 Rust 关键字
+) -> ApiResponse<serde_json::Value> {
+    match get_connection_manager() {
+        Ok(manager) => {
+            match manager.get_connection(&connection_id) {
+                Some(config) => {
+                    match create_protocol(&config.protocol_type, &config.config) {
+                        Ok(protocol) => {
+                            match protocol.create_operator() {
+                                Ok(operator) => {
+                                    let file_manager = FileManager::new(operator);
+                                    
+                                    // 检查文件大小限制（5MB）
+                                    match file_manager.get_file_info(&path).await {
+                                        Ok(Some(info)) => {
+                                            if let Some(size) = info.size {
+                                                if size > 5 * 1024 * 1024 {
+                                                    return ApiResponse::error("文件太大，无法预览（限制5MB）".to_string());
+                                                }
+                                            }
+                                        }
+                                        Ok(None) => {
+                                            return ApiResponse::error("文件不存在".to_string());
+                                        }
+                                        Err(e) => {
+                                            return ApiResponse::error(format!("获取文件信息失败: {}", e));
+                                        }
+                                    }
+                                    
+                                    match file_manager.read_file(&path).await {
+                                        Ok(content) => {
+                                            let bytes = content.to_bytes().to_vec();
+                                            
+                                            if r#type == "binary" {
+                                                // 对于二进制文件，返回字节数组
+                                                ApiResponse::success(serde_json::Value::Array(
+                                                    bytes.into_iter().map(|b| serde_json::Value::Number(b.into())).collect()
+                                                ))
+                                            } else {
+                                                // 对于文本文件，尝试转换为 UTF-8 字符串
+                                                match String::from_utf8(bytes) {
+                                                    Ok(text) => ApiResponse::success(serde_json::Value::String(text)),
+                                                    Err(_) => {
+                                                        // 如果不是有效的UTF-8，尝试其他编码或返回错误
+                                                        ApiResponse::error("文件不是有效的UTF-8格式，请尝试二进制预览".to_string())
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Err(e) => ApiResponse::error(format!("读取文件失败: {}", e)),
+                                    }
+                                }
+                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                    }
+                }
+                None => ApiResponse::error("Connection not found".to_string()),
+            }
+        }
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
 fn get_connection_manager() -> Result<ConnectionManager, crate::core::error::Error> {
     let config_dir = dirs::config_dir()
         .ok_or_else(|| crate::core::error::Error::new_config("无法获取配置目录"))?

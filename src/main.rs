@@ -28,7 +28,8 @@ fn main() {
             delete_file,
             create_directory,
             get_directory_count,
-            search_files
+            search_files,
+            get_file_content
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
