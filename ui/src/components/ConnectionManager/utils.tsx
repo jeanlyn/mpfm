@@ -31,7 +31,7 @@ export const buildConfig = (values: any): Record<string, string> => {
     config.access_key = values.accessKey;
     config.secret_key = values.secretKey;
   } else if (values.protocolType === 'fs') {
-    config.root = values.root;
+    config.root_dir = values.root_dir;
   }
   
   return config;
