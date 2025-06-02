@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Typography, message, Alert } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
-import FileManager from './components/FileManager';
+import TabbedFileManager from './components/TabbedFileManager';
 import { Connection } from './types';
 import { ApiService } from './services/api';
-import FileManagerWrapper from './components/FileManagerWrapper';
 
 const { Header } = Layout;
 const { Title } = Typography;
@@ -17,7 +16,6 @@ const isTauriEnvironment = (): boolean => {
 const App: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const loadConnections = async () => {
     try {
@@ -25,8 +23,6 @@ const App: React.FC = () => {
       setConnections(connectionList);
     } catch (error) {
       message.error(`加载连接失败: ${error}`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -61,11 +57,6 @@ const App: React.FC = () => {
         <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
           多协议文件管理器
         </Title>
-        {currentConnection && (
-          <div style={{ marginLeft: 'auto', color: '#666' }}>
-            当前连接: {currentConnection.name} ({currentConnection.protocol_type.toUpperCase()})
-          </div>
-        )}
       </Header>
       
       {!isTauriEnvironment() && (
@@ -85,7 +76,7 @@ const App: React.FC = () => {
           onConnectionSelect={handleConnectionSelect}
           onConnectionsChange={handleConnectionsChange}
         />
-        <FileManager connection={currentConnection} />
+        <TabbedFileManager selectedConnection={currentConnection} />
       </Layout>
     </div>
   );

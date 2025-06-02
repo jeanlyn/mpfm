@@ -65,7 +65,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   
-  // 计算表格高度的hook
+  // 动态计算表格高度
   const [tableHeight, setTableHeight] = useState(400);
 
   useEffect(() => {
@@ -76,6 +76,34 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       loadFiles('/');
     }
   }, [connection]);
+
+  // 动态计算表格高度
+  useEffect(() => {
+    const calculateTableHeight = () => {
+      // 在Tab环境中，更保守的高度计算
+      const windowHeight = window.innerHeight;
+      
+      // 在Tab环境中预留更多空间：
+      // Tab栏(48px) + 内容padding(48px) + 工具栏(48px) + 面包屑(32px) + 搜索框(48px) + 分页(80px) + 表格与分页间距(16px) + 其他边距(20px)
+      const reservedHeight = 340;
+      
+      // 计算可用高度，最小200px（确保至少能显示几行数据），最大600px
+      const availableHeight = Math.min(600, Math.max(200, windowHeight - reservedHeight));
+      
+      setTableHeight(availableHeight);
+    };
+
+    // 初始计算
+    calculateTableHeight();
+    
+    // 监听窗口大小变化
+    window.addEventListener('resize', calculateTableHeight);
+    
+    // 清理事件监听器
+    return () => {
+      window.removeEventListener('resize', calculateTableHeight);
+    };
+  }, []);
 
   // 智能选择加载模式
   const chooseLoadingMode = useCallback(async (path: string) => {
@@ -480,23 +508,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     loadFiles(currentPath, 0);
   }, [currentPath, loadFiles]);
 
-  useEffect(() => {
-    const updateTableHeight = () => {
-      // 计算可用高度：窗口高度 - 头部导航 - 工具栏 - 搜索框 - 分页栏 - 边距
-      const windowHeight = window.innerHeight;
-      const reservedHeight = 280; // 为其他元素预留的高度
-      const availableHeight = windowHeight - reservedHeight;
-      setTableHeight(Math.max(300, availableHeight));
-    };
-
-    updateTableHeight();
-    window.addEventListener('resize', updateTableHeight);
-    
-    return () => {
-      window.removeEventListener('resize', updateTableHeight);
-    };
-  }, []);
-
   if (!connection) {
     return (
       <Content style={{ padding: '24px', textAlign: 'center' }}>
@@ -507,7 +518,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   }
 
   return (
-    <Content style={{ padding: '24px' }}>
+    <Content style={{ 
+      padding: '24px', 
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'auto'
+    }}>
       {/* 性能信息提示 */}
       {/* {directorySize > 100 && (
         <Alert
@@ -619,27 +636,45 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         </form>
       </div>
 
-      <Spin spinning={loading}>
-        <Table
-          columns={columns}
-          dataSource={isSearchMode ? searchResults : files}
-          rowKey="path"
-          pagination={false}
-          size="small"
-          scroll={{ y: tableHeight }}
-        />
-      </Spin>
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minHeight: 0,
+        overflow: 'hidden',
+        marginBottom: '5px' /* 确保与分页组件有最小间距 */
+      }}>
+        <Spin spinning={loading}>
+          <Table
+            columns={columns}
+            dataSource={isSearchMode ? searchResults : files}
+            rowKey="path"
+            pagination={false}
+            size="small"
+            scroll={{ y: tableHeight }}
+            style={{ marginBottom: 0 }}
+          />
+        </Spin>
+      </div>
 
       {/* 优化后的分页控件 */}
-      {loadingMode === 'pagination' && totalFiles > 0 && (
+      {((loadingMode === 'pagination' && totalFiles > 0) || (isSearchMode && searchTotal > 0)) && (
         <div style={{ 
-          marginTop: '16px', 
+          marginTop: '5px', 
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '8px'
+          gap: '8px',
+          flexShrink: 0, /* 防止分页组件被压缩 */
+          borderTop: '1px solid #f0f0f0',
+          paddingTop: '8px',
+          minHeight: '48px' /* 确保分页组件有最小高度 */
         }}>
+          {/* 调试信息
+          <span style={{ fontSize: '12px', color: '#999' }}>
+            模式: {loadingMode}, 总数: {isSearchMode ? searchTotal : totalFiles}, 搜索: {isSearchMode ? '是' : '否'}
+          </span> */}
           {/* 左侧：每页显示数量选择 */}
           <Space size="small">
             <span>每页显示</span>
