@@ -7,10 +7,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ]
   },
-  "productName": "多协议文件管理器",
-  "mainBinaryName": "多协议文件管理器",
+  "productName": "mpfm",
+  "mainBinaryName": "mpfm",
   "version": "0.1.0",
   "identifier": "com.mpfm.app",
   "plugins": {},
@@ -20,7 +23,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "多协议文件管理器",
+        "title": "mpfm(多协议文件管理器)",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
