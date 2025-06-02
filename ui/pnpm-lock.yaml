@@ -21,8 +21,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@18.3.1)
       '@tauri-apps/api':
-        specifier: ^1.5.0
-        version: 1.6.0
+        specifier: ^2.0.0
+        version: 2.5.0
       antd:
         specifier: ^5.12.0
         version: 5.25.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -545,9 +545,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@tauri-apps/api@1.6.0':
-    resolution: {integrity: sha512-rqI++FWClU5I2UBp4HXFvl+sBWkdigBkxnpJDQUWttNyG7IZP4FwQGhTNL5EOw0vI8i6eSAJ5frLqO7n7jbJdg==}
-    engines: {node: '>= 14.6.0', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
+  '@tauri-apps/api@2.5.0':
+    resolution: {integrity: sha512-Ldux4ip+HGAcPUmuLT8EIkk6yafl5vK0P0c0byzAKzxJh7vxelVtdPONjfgTm96PbN24yjZNESY8CKo8qniluA==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -1549,7 +1548,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.41.1':
     optional: true
 
-  '@tauri-apps/api@1.6.0': {}
+  '@tauri-apps/api@2.5.0': {}
 
   '@types/babel__core@7.20.5':
     dependencies:
