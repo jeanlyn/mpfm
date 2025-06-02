@@ -26,7 +26,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 创建新的配置错误
     pub fn new_config(message: &str) -> Self {
         Self {
@@ -34,7 +34,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 创建新的协议错误
     pub fn new_protocol(message: &str) -> Self {
         Self {
@@ -42,7 +42,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 创建新的未找到错误
     pub fn new_not_found(message: &str) -> Self {
         Self {
@@ -50,7 +50,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 创建新的不支持错误
     pub fn new_not_supported(message: &str) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 创建新的其他错误
     pub fn new_other(message: &str) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl Error {
             source: None,
         }
     }
-    
+
     /// 添加源错误
     pub fn with_source<E>(mut self, source: E) -> Self
     where

@@ -3,18 +3,18 @@ mod core;
 mod protocols;
 mod utils;
 
-use std::process;
 use cli::App;
 use log::{error, info};
+use std::process;
 
 fn main() {
     // 初始化日志
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_secs()
         .init();
-    
+
     info!("启动 多协议文件管理器");
-    
+
     // 创建运行时
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
@@ -23,7 +23,7 @@ fn main() {
             process::exit(1);
         }
     };
-    
+
     // 在运行时中执行应用
     rt.block_on(async {
         // 创建并运行应用
@@ -40,6 +40,6 @@ fn main() {
             }
         }
     });
-    
+
     info!("应用程序正常退出");
 }

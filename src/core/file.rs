@@ -60,13 +60,13 @@ impl FileManager {
         let mut all_entries = self.operator.list(&path).await?;
 
         // 按名称排序，目录在前
-        all_entries.sort_by(|a, b| {
-            match (a.metadata().is_dir(), b.metadata().is_dir()) {
+        all_entries.sort_by(
+            |a, b| match (a.metadata().is_dir(), b.metadata().is_dir()) {
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
                 _ => a.name().cmp(b.name()),
-            }
-        });
+            },
+        );
 
         let total_count = all_entries.len();
         let start_idx = page * page_size;
@@ -169,7 +169,11 @@ impl FileManager {
 
         self.operator.write(&remote_path, buffer).await?;
 
-        info!("大文件上传成功: {} -> {}", local_path.display(), remote_path);
+        info!(
+            "大文件上传成功: {} -> {}",
+            local_path.display(),
+            remote_path
+        );
         Ok(())
     }
 
@@ -234,7 +238,11 @@ impl FileManager {
         let mut file = File::create(local_path)?;
         file.write_all(&data.to_bytes())?;
 
-        info!("大文件下载成功: {} -> {}", remote_path, local_path.display());
+        info!(
+            "大文件下载成功: {} -> {}",
+            remote_path,
+            local_path.display()
+        );
         Ok(())
     }
 
@@ -326,13 +334,13 @@ impl FileManager {
             .collect();
 
         // 按名称排序，目录在前
-        filtered_entries.sort_by(|a, b| {
-            match (a.metadata().is_dir(), b.metadata().is_dir()) {
+        filtered_entries.sort_by(
+            |a, b| match (a.metadata().is_dir(), b.metadata().is_dir()) {
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
                 _ => a.name().cmp(b.name()),
-            }
-        });
+            },
+        );
 
         let total_count = filtered_entries.len();
         let start_idx = page * page_size;

@@ -1,6 +1,6 @@
-use std::io::Write;
 use env_logger::{Builder, Env};
 use log::LevelFilter;
+use std::io::Write;
 
 /// 初始化日志系统
 pub fn init() -> Result<(), Box<dyn std::error::Error>> {
@@ -9,7 +9,7 @@ pub fn init() -> Result<(), Box<dyn std::error::Error>> {
         .write_style_or("RUST_LOG_STYLE", "always");
 
     let mut builder = Builder::from_env(env);
-    
+
     builder
         .format(|buf, record| {
             let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");

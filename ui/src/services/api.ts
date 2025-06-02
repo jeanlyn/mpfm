@@ -1,9 +1,9 @@
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 import { Connection, FileInfo, PaginatedFileList, ApiResponse } from '../types';
 
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
-  return typeof window !== 'undefined' && window.__TAURI_IPC__ !== undefined;
+  return true;
 };
 
 // 模拟数据，用于浏览器环境下的演示

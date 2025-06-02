@@ -10,9 +10,8 @@ const { Title } = Typography;
 
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
-  return typeof window !== 'undefined' && window.__TAURI_IPC__ !== undefined;
+  return true;
 };
-
 const App: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
@@ -47,7 +46,7 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <Header style={{ 
+      {/* <Header style={{ 
         background: '#fff', 
         borderBottom: '1px solid #f0f0f0',
         padding: '0 24px',
@@ -57,7 +56,7 @@ const App: React.FC = () => {
         <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
           多协议文件管理器
         </Title>
-      </Header>
+      </Header> */}
       
       {!isTauriEnvironment() && (
         <Alert

@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use tauri::command;
-use opendal::Entry;
 use crate::core::config::{ConnectionConfig, ConnectionManager};
 use crate::core::file::FileManager;
-use crate::protocols::{create_protocol};
+use crate::protocols::create_protocol;
+use opendal::Entry;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tauri::command;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionInfo {
@@ -41,7 +41,11 @@ impl From<Entry> for FileInfo {
             name: entry.name().to_string(),
             path: entry.path().to_string(),
             is_dir: metadata.is_dir(),
-            size: if metadata.is_file() { Some(metadata.content_length()) } else { None },
+            size: if metadata.is_file() {
+                Some(metadata.content_length())
+            } else {
+                None
+            },
             modified: metadata.last_modified().map(|dt| dt.to_rfc3339()),
         }
     }
@@ -85,7 +89,8 @@ pub struct PaginatedFileList {
 pub async fn get_connections() -> ApiResponse<Vec<ConnectionInfo>> {
     match get_connection_manager() {
         Ok(manager) => {
-            let connections: Vec<ConnectionInfo> = manager.get_connections()
+            let connections: Vec<ConnectionInfo> = manager
+                .get_connections()
                 .into_iter()
                 .map(|config| config.clone().into())
                 .collect();
@@ -105,7 +110,7 @@ pub async fn add_connection(
         Ok(mut manager) => {
             let connection_config = ConnectionConfig::new(name, protocol_type, config);
             let connection_info: ConnectionInfo = connection_config.clone().into();
-            
+
             match manager.add_connection(connection_config) {
                 Ok(_) => ApiResponse::success(connection_info),
                 Err(e) => ApiResponse::error(e.to_string()),
@@ -118,12 +123,10 @@ pub async fn add_connection(
 #[command]
 pub async fn remove_connection(connection_id: String) -> ApiResponse<bool> {
     match get_connection_manager() {
-        Ok(mut manager) => {
-            match manager.remove_connection(&connection_id) {
-                Ok(_) => ApiResponse::success(true),
-                Err(e) => ApiResponse::error(e.to_string()),
-            }
-        }
+        Ok(mut manager) => match manager.remove_connection(&connection_id) {
+            Ok(_) => ApiResponse::success(true),
+            Err(e) => ApiResponse::error(e.to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -145,7 +148,7 @@ pub async fn copy_connection(
                         original_config.config.clone(),
                     );
                     let connection_info: ConnectionInfo = new_config.clone().into();
-                    
+
                     match manager.add_connection(new_config) {
                         Ok(_) => ApiResponse::success(connection_info),
                         Err(e) => ApiResponse::error(e.to_string()),
@@ -220,18 +223,14 @@ pub async fn create_s3_bucket(
     }
 
     match create_protocol("s3", &config) {
-        Ok(protocol) => {
-            match protocol.create_operator() {
-                Ok(operator) => {
-                    match operator.create_dir("/").await {
-                        Ok(_) => ApiResponse::success(true),
-                        Err(e) => ApiResponse::error(format!("无法自动创建bucket: {}", e))
-                    }
-                }
-                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-            }
-        }
-        
+        Ok(protocol) => match protocol.create_operator() {
+            Ok(operator) => match operator.create_dir("/").await {
+                Ok(_) => ApiResponse::success(true),
+                Err(e) => ApiResponse::error(format!("无法自动创建bucket: {}", e)),
+            },
+            Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+        },
+
         Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
     }
 }
@@ -244,39 +243,53 @@ async fn create_bucket_via_http(
     access_key: &str,
     secret_key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use reqwest::Client;
     use chrono::Utc;
-    use sha2::{Sha256, Digest};
     use hmac::{Hmac, Mac};
-    
+    use reqwest::Client;
+    use sha2::{Digest, Sha256};
+
     let client = Client::new();
     let url = if endpoint.ends_with('/') {
         format!("{}{}", endpoint, bucket)
     } else {
         format!("{}/{}", endpoint, bucket)
     };
-    
+
     let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
     let date = &timestamp[0..8];
-    
+
     // 创建签名
     let mut headers = std::collections::HashMap::new();
-    headers.insert("Host", url.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or(""));
+    headers.insert(
+        "Host",
+        url.split("://")
+            .nth(1)
+            .unwrap_or("")
+            .split('/')
+            .next()
+            .unwrap_or(""),
+    );
     headers.insert("X-Amz-Date", &timestamp);
-    headers.insert("X-Amz-Content-Sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    
+    headers.insert(
+        "X-Amz-Content-Sha256",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    );
+
     // 简化的签名过程（实际生产环境中需要完整的 AWS Signature V4）
     let auth_header = format!("AWS4-HMAC-SHA256 Credential={}/{}/{}/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=placeholder", 
                              access_key, date, region);
-    
+
     let response = client
         .put(&url)
         .header("Authorization", auth_header)
         .header("X-Amz-Date", timestamp)
-        .header("X-Amz-Content-Sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        .header(
+            "X-Amz-Content-Sha256",
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        )
         .send()
         .await?;
-        
+
     if response.status().is_success() || response.status().as_u16() == 409 {
         // 成功或者 bucket 已存在
         Ok(())
@@ -288,83 +301,67 @@ async fn create_bucket_via_http(
 #[command]
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.list(&path).await {
-                                        Ok(entries) => {
-                                            let files: Vec<FileInfo> = entries
-                                                .into_iter()
-                                                .map(|entry| entry.into())
-                                                .collect();
-                                            ApiResponse::success(files)
-                                        }
-                                        Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager.list(&path).await {
+                            Ok(entries) => {
+                                let files: Vec<FileInfo> =
+                                    entries.into_iter().map(|entry| entry.into()).collect();
+                                ApiResponse::success(files)
                             }
+                            Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
 
 #[command]
 pub async fn list_files_paginated(
-    connection_id: String, 
-    path: String, 
-    page: usize, 
-    page_size: usize
+    connection_id: String,
+    path: String,
+    page: usize,
+    page_size: usize,
 ) -> ApiResponse<PaginatedFileList> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.list_paginated(&path, page, page_size).await {
-                                        Ok((entries, total)) => {
-                                            let files: Vec<FileInfo> = entries
-                                                .into_iter()
-                                                .map(|entry| entry.into())
-                                                .collect();
-                                            
-                                            let paginated_list = PaginatedFileList {
-                                                files,
-                                                total,
-                                                page,
-                                                page_size,
-                                                has_more: (page + 1) * page_size < total,
-                                            };
-                                            
-                                            ApiResponse::success(paginated_list)
-                                        }
-                                        Err(e) => ApiResponse::error(format!("分页列出文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager.list_paginated(&path, page, page_size).await {
+                            Ok((entries, total)) => {
+                                let files: Vec<FileInfo> =
+                                    entries.into_iter().map(|entry| entry.into()).collect();
+
+                                let paginated_list = PaginatedFileList {
+                                    files,
+                                    total,
+                                    page,
+                                    page_size,
+                                    has_more: (page + 1) * page_size < total,
+                                };
+
+                                ApiResponse::success(paginated_list)
                             }
+                            Err(e) => ApiResponse::error(format!("分页列出文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -376,28 +373,25 @@ pub async fn upload_file(
     remote_path: String,
 ) -> ApiResponse<bool> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.upload(&std::path::Path::new(&local_path), &remote_path).await {
-                                        Ok(_) => ApiResponse::success(true),
-                                        Err(e) => ApiResponse::error(format!("上传文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                            }
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager
+                            .upload(&std::path::Path::new(&local_path), &remote_path)
+                            .await
+                        {
+                            Ok(_) => ApiResponse::success(true),
+                            Err(e) => ApiResponse::error(format!("上传文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -409,28 +403,25 @@ pub async fn download_file(
     local_path: String,
 ) -> ApiResponse<bool> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.download(&remote_path, &std::path::Path::new(&local_path)).await {
-                                        Ok(_) => ApiResponse::success(true),
-                                        Err(e) => ApiResponse::error(format!("下载文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                            }
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager
+                            .download(&remote_path, &std::path::Path::new(&local_path))
+                            .await
+                        {
+                            Ok(_) => ApiResponse::success(true),
+                            Err(e) => ApiResponse::error(format!("下载文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -438,28 +429,22 @@ pub async fn download_file(
 #[command]
 pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.delete(&path).await {
-                                        Ok(_) => ApiResponse::success(true),
-                                        Err(e) => ApiResponse::error(format!("删除文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                            }
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager.delete(&path).await {
+                            Ok(_) => ApiResponse::success(true),
+                            Err(e) => ApiResponse::error(format!("删除文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -467,29 +452,27 @@ pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<boo
 #[command]
 pub async fn create_directory(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    let dir_path = if path.ends_with('/') { path } else { format!("{}/", path) };
-                                    match file_manager.create_dir(&dir_path).await {
-                                        Ok(_) => ApiResponse::success(true),
-                                        Err(e) => ApiResponse::error(format!("创建目录失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                            }
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        let dir_path = if path.ends_with('/') {
+                            path
+                        } else {
+                            format!("{}/", path)
+                        };
+                        match file_manager.create_dir(&dir_path).await {
+                            Ok(_) => ApiResponse::success(true),
+                            Err(e) => ApiResponse::error(format!("创建目录失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -497,28 +480,22 @@ pub async fn create_directory(connection_id: String, path: String) -> ApiRespons
 #[command]
 pub async fn get_directory_count(connection_id: String, path: String) -> ApiResponse<usize> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.list(&path).await {
-                                        Ok(entries) => ApiResponse::success(entries.len()),
-                                        Err(e) => ApiResponse::error(format!("获取目录文件数失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                            }
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager.list(&path).await {
+                            Ok(entries) => ApiResponse::success(entries.len()),
+                            Err(e) => ApiResponse::error(format!("获取目录文件数失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -532,43 +509,38 @@ pub async fn search_files(
     page_size: usize,
 ) -> ApiResponse<PaginatedFileList> {
     match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
-                                    match file_manager.search_paginated(&path, &query, page, page_size).await {
-                                        Ok((entries, total)) => {
-                                            let files: Vec<FileInfo> = entries
-                                                .into_iter()
-                                                .map(|entry| entry.into())
-                                                .collect();
-                                            
-                                            let paginated_list = PaginatedFileList {
-                                                files,
-                                                total,
-                                                page,
-                                                page_size,
-                                                has_more: (page + 1) * page_size < total,
-                                            };
-                                            
-                                            ApiResponse::success(paginated_list)
-                                        }
-                                        Err(e) => ApiResponse::error(format!("搜索文件失败: {}", e)),
-                                    }
-                                }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager
+                            .search_paginated(&path, &query, page, page_size)
+                            .await
+                        {
+                            Ok((entries, total)) => {
+                                let files: Vec<FileInfo> =
+                                    entries.into_iter().map(|entry| entry.into()).collect();
+
+                                let paginated_list = PaginatedFileList {
+                                    files,
+                                    total,
+                                    page,
+                                    page_size,
+                                    has_more: (page + 1) * page_size < total,
+                                };
+
+                                ApiResponse::success(paginated_list)
                             }
+                            Err(e) => ApiResponse::error(format!("搜索文件失败: {}", e)),
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
                     }
-                }
-                None => ApiResponse::error("Connection not found".to_string()),
-            }
-        }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
@@ -615,13 +587,15 @@ pub async fn get_file_content(
                             match protocol.create_operator() {
                                 Ok(operator) => {
                                     let file_manager = FileManager::new(operator);
-                                    
+
                                     // 检查文件大小限制（5MB）
                                     match file_manager.get_file_info(&path).await {
                                         Ok(Some(info)) => {
                                             if let Some(size) = info.size {
                                                 if size > 5 * 1024 * 1024 {
-                                                    return ApiResponse::error("文件太大，无法预览（限制5MB）".to_string());
+                                                    return ApiResponse::error(
+                                                        "文件太大，无法预览（限制5MB）".to_string(),
+                                                    );
                                                 }
                                             }
                                         }
@@ -629,23 +603,33 @@ pub async fn get_file_content(
                                             return ApiResponse::error("文件不存在".to_string());
                                         }
                                         Err(e) => {
-                                            return ApiResponse::error(format!("获取文件信息失败: {}", e));
+                                            return ApiResponse::error(format!(
+                                                "获取文件信息失败: {}",
+                                                e
+                                            ));
                                         }
                                     }
-                                    
+
                                     match file_manager.read_file(&path).await {
                                         Ok(content) => {
                                             let bytes = content.to_bytes().to_vec();
-                                            
+
                                             if r#type == "binary" {
                                                 // 对于二进制文件，返回字节数组
                                                 ApiResponse::success(serde_json::Value::Array(
-                                                    bytes.into_iter().map(|b| serde_json::Value::Number(b.into())).collect()
+                                                    bytes
+                                                        .into_iter()
+                                                        .map(|b| {
+                                                            serde_json::Value::Number(b.into())
+                                                        })
+                                                        .collect(),
                                                 ))
                                             } else {
                                                 // 对于文本文件，尝试转换为 UTF-8 字符串
                                                 match String::from_utf8(bytes) {
-                                                    Ok(text) => ApiResponse::success(serde_json::Value::String(text)),
+                                                    Ok(text) => ApiResponse::success(
+                                                        serde_json::Value::String(text),
+                                                    ),
                                                     Err(_) => {
                                                         // 如果不是有效的UTF-8，尝试其他编码或返回错误
                                                         ApiResponse::error("文件不是有效的UTF-8格式，请尝试二进制预览".to_string())
@@ -653,7 +637,9 @@ pub async fn get_file_content(
                                                 }
                                             }
                                         }
-                                        Err(e) => ApiResponse::error(format!("读取文件失败: {}", e)),
+                                        Err(e) => {
+                                            ApiResponse::error(format!("读取文件失败: {}", e))
+                                        }
                                     }
                                 }
                                 Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),

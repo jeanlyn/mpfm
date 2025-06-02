@@ -5,6 +5,7 @@ edition = "2021"
 description = "A multi-protocol file manager built on OpenDAL"
 authors = ["MultiProtocolFileManager <info@example.com>"]
 license = "MIT"
+default-run = "multi-protocol-file-manager"  # 添加这一行
 
 # 定义二进制目标
 [[bin]]
@@ -35,10 +36,14 @@ sha2 = "0.10"
 hmac = "0.12"
 
 # Tauri dependencies
-tauri = { version = "1.0", features = ["dialog-open", "dialog-save", "fs-copy-file", "fs-create-dir", "fs-exists", "fs-read-dir", "fs-read-file", "fs-remove-dir", "fs-remove-file", "fs-rename-file", "fs-write-file", "notification-all", "shell-open"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
 
 [build-dependencies]
-tauri-build = { version = "1.0", features = [] }
+tauri-build = { version = "2", features = [] }
 
 [profile.release]
 lto = true

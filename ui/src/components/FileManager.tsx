@@ -27,7 +27,7 @@ import {
   CloseOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
-import { open, save } from '@tauri-apps/api/dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
 import { ApiService } from '../services/api';
 import FilePreview from './FilePreview';
@@ -85,7 +85,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       
       // 在Tab环境中预留更多空间：
       // Tab栏(48px) + 内容padding(48px) + 工具栏(48px) + 面包屑(32px) + 搜索框(48px) + 分页(80px) + 表格与分页间距(16px) + 其他边距(20px)
-      const reservedHeight = 340;
+      const reservedHeight = 300;
       
       // 计算可用高度，最小200px（确保至少能显示几行数据），最大600px
       const availableHeight = Math.min(600, Math.max(200, windowHeight - reservedHeight));

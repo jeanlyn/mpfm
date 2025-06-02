@@ -1,15 +1,15 @@
-pub mod error;
 pub mod config;
+pub mod error;
 pub mod file;
 
-pub use error::{Error, Result};
 pub use config::{ConnectionConfig, ConnectionManager};
+pub use error::{Error, Result};
 pub use file::FileManager;
 
 pub mod operator {
-    use opendal::Operator;
     use crate::core::Result;
     use crate::protocols::Protocol;
+    use opendal::Operator;
 
     /// 创建 Operator 的工厂函数
     pub fn create_operator(protocol: &dyn Protocol) -> Result<Operator> {

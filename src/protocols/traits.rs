@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use opendal::Operator;
+use std::fmt::Debug;
 
 use crate::core::error::Result;
 
@@ -62,13 +62,13 @@ impl Capabilities {
 pub trait Protocol: Debug + Send + Sync {
     /// 创建 OpenDAL 操作符
     fn create_operator(&self) -> Result<Operator>;
-    
+
     /// 获取协议的唯一标识符
     fn get_id(&self) -> String;
-    
+
     /// 获取协议的友好名称
     fn get_name(&self) -> String;
-    
+
     /// 获取该协议的能力描述
     fn get_capabilities(&self) -> Capabilities;
 }
