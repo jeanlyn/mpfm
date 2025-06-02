@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Modal, Form, Input, Select, Button } from 'antd';
 import { ModalConfig, MODAL_TYPES } from '../types';
 import { DirectoryItem } from '../types';
-import { Connection } from '../../../types';
 import { ProtocolFields } from './ProtocolFields';
 
 interface ConnectionModalProps {
@@ -49,6 +48,13 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
       open={modalConfig.isOpen}
       onCancel={onCancel}
       footer={null}
+      width={600}
+      style={{ maxWidth: '90vw' }}
+      bodyStyle={{ 
+        maxHeight: '70vh', 
+        overflowY: 'auto',
+        padding: '20px'
+      }}
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item
@@ -56,7 +62,11 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
           label="连接名称"
           rules={[{ required: true, message: '请输入连接名称' }]}
         >
-          <Input placeholder="例如：我的S3存储" />
+          <Input 
+            placeholder="例如：我的S3存储" 
+            style={{ width: '100%' }}
+            autoComplete="off"
+          />
         </Form.Item>
 
         <Form.Item
@@ -64,7 +74,10 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
           label="协议类型"
           rules={[{ required: true, message: '请选择协议类型' }]}
         >
-          <Select placeholder="选择协议类型">
+          <Select 
+            placeholder="选择协议类型"
+            style={{ width: '100%' }}
+          >
             <Select.Option value="s3">S3 兼容存储</Select.Option>
             <Select.Option value="fs">本地文件系统</Select.Option>
           </Select>

@@ -29,22 +29,60 @@ export const useConnectionModal = (directories: any[]) => {
       const preferredDirectory = connectionDirectories.find(dir => dir.id !== 'default') || 
                                 connectionDirectories.find(dir => dir.id === 'default');
       
+      // 根据协议类型设置基础信息
       initialValues = {
         name: `${connection.name} - 副本`,
         protocolType: connection.protocol_type,
         directoryId: preferredDirectory?.id, // 设置目录ID
-        ...connection.config,
-        accessKey: connection.config.access_key,
-        secretKey: connection.config.secret_key,
       };
+
+      // 根据协议类型填充特定配置
+      if (connection.protocol_type === 's3') {
+        initialValues = {
+          ...initialValues,
+          bucket: connection.config.bucket,
+          region: connection.config.region,
+          endpoint: connection.config.endpoint,
+          accessKey: connection.config.access_key,
+          secretKey: connection.config.secret_key,
+        };
+      } else if (connection.protocol_type === 'fs') {
+        initialValues = {
+          ...initialValues,
+          root_dir: connection.config.root_dir,
+        };
+      }
     } else if (type === MODAL_TYPES.EDIT && connection) {
+      // 找到原连接所在的目录（编辑模式需要显示目录信息）
+      const connectionDirectories = directories.filter(dir => 
+        dir.connectionIds.includes(connection.id)
+      );
+      const preferredDirectory = connectionDirectories.find(dir => dir.id !== 'default') || 
+                                connectionDirectories.find(dir => dir.id === 'default');
+
+      // 根据协议类型设置基础信息
       initialValues = {
         name: connection.name,
         protocolType: connection.protocol_type,
-        ...connection.config,
-        accessKey: connection.config.access_key,
-        secretKey: connection.config.secret_key,
+        directoryId: preferredDirectory?.id, // 显示目录信息
       };
+
+      // 根据协议类型填充特定配置
+      if (connection.protocol_type === 's3') {
+        initialValues = {
+          ...initialValues,
+          bucket: connection.config.bucket,
+          region: connection.config.region,
+          endpoint: connection.config.endpoint,
+          accessKey: connection.config.access_key,
+          secretKey: connection.config.secret_key,
+        };
+      } else if (connection.protocol_type === 'fs') {
+        initialValues = {
+          ...initialValues,
+          root_dir: connection.config.root_dir,
+        };
+      }
     }
     
     form.setFieldsValue(initialValues);

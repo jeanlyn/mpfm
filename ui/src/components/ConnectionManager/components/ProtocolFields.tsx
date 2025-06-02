@@ -1,5 +1,5 @@
 import React from 'react';
-import { Form, Input, Select } from 'antd';
+import { Form, Input } from 'antd';
 
 /**
  * 渲染协议特定的表单字段
@@ -50,11 +50,14 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
   if (protocolType === 'fs') {
     return (
       <Form.Item
-        name="root"
+        name="root_dir"
         label="根目录"
         rules={[{ required: true, message: '请输入根目录路径' }]}
       >
-        <Input placeholder="/path/to/directory" />
+        <Input 
+          placeholder="/path/to/directory" 
+          style={{ width: '100%', height: '32px' }}
+        />
       </Form.Item>
     );
   }
