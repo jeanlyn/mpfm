@@ -16,7 +16,14 @@
   "mainBinaryName": "mpfm",
   "version": "0.1.0",
   "identifier": "com.mpfm.app",
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM0NzE3MTY2RkFGQ0ZENTUKUldSVi9mejZabkZ4TklwM2psN3hySlZQcW9LcUlDSXVNcWJML0NzbFZqanNvRHorS2FXb1V2eXUK",
+      "endpoints": [
+        "https://github.com/jeanlyn/mpfm/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -28,11 +35,15 @@
         "height": 800,
         "minWidth": 800,
         "minHeight": 600,
-        "useHttpsScheme": true
+        "useHttpsScheme": true,
+        "label": "main"
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        "default"
+      ]
     }
   }
 }
