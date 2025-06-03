@@ -12,7 +12,12 @@
       "icons/icon.png",
       "icons/icon.ico",
       "icons/icon.icns"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      }
+    }
   },
   "productName": "mpfm",
   "mainBinaryName": "mpfm",
