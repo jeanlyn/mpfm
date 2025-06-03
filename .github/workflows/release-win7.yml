@@ -18,7 +18,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             arch: x86
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.target }} 
     steps:
       - uses: actions/checkout@v4
 
