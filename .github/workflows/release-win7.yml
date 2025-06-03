@@ -17,7 +17,7 @@ jobs:
           - platform: 'windows-latest'
             args: '--target x86_64-pc-windows-msvc'
 
-    runs-on: ${{ matrix.target }} 
+    runs-on: ${{ matrix.platform }} 
     steps:
       - uses: actions/checkout@v4
 
