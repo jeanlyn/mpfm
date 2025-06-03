@@ -15,7 +15,17 @@
     ],
     "windows": {
       "webviewInstallMode": {
-        "type": "embedBootstrapper"
+        "type": "fixedRuntime",
+        "path": "./Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86/"
+      },
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["SimpChinese", "English"],
+        "template": null,
+        "compression": "lzma"
       }
     }
   },
@@ -30,7 +40,7 @@
         "https://github.com/jeanlyn/mpfm/releases/latest/download/latest.json"
       ]
     }
-},
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -42,7 +52,7 @@
         "height": 800,
         "minWidth": 800,
         "minHeight": 600,
-        "useHttpsScheme": true,
+        "useHttpsScheme": false,
         "label": "main"
       }
     ],
