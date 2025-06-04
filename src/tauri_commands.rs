@@ -235,69 +235,6 @@ pub async fn create_s3_bucket(
     }
 }
 
-// 辅助函数：通过 HTTP 直接调用 S3 API 创建 bucket
-async fn create_bucket_via_http(
-    bucket: &str,
-    region: &str,
-    endpoint: &str,
-    access_key: &str,
-    secret_key: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use chrono::Utc;
-    use hmac::{Hmac, Mac};
-    use reqwest::Client;
-    use sha2::{Digest, Sha256};
-
-    let client = Client::new();
-    let url = if endpoint.ends_with('/') {
-        format!("{}{}", endpoint, bucket)
-    } else {
-        format!("{}/{}", endpoint, bucket)
-    };
-
-    let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
-    let date = &timestamp[0..8];
-
-    // 创建签名
-    let mut headers = std::collections::HashMap::new();
-    headers.insert(
-        "Host",
-        url.split("://")
-            .nth(1)
-            .unwrap_or("")
-            .split('/')
-            .next()
-            .unwrap_or(""),
-    );
-    headers.insert("X-Amz-Date", &timestamp);
-    headers.insert(
-        "X-Amz-Content-Sha256",
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    );
-
-    // 简化的签名过程（实际生产环境中需要完整的 AWS Signature V4）
-    let auth_header = format!("AWS4-HMAC-SHA256 Credential={}/{}/{}/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=placeholder", 
-                             access_key, date, region);
-
-    let response = client
-        .put(&url)
-        .header("Authorization", auth_header)
-        .header("X-Amz-Date", timestamp)
-        .header(
-            "X-Amz-Content-Sha256",
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        )
-        .send()
-        .await?;
-
-    if response.status().is_success() || response.status().as_u16() == 409 {
-        // 成功或者 bucket 已存在
-        Ok(())
-    } else {
-        Err(format!("HTTP 请求失败: {}", response.status()).into())
-    }
-}
-
 #[command]
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
     match get_connection_manager() {

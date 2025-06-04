@@ -1,9 +1,7 @@
-pub mod logger;
-
 // 公开实际使用的函数，不再导出未使用的函数
 pub mod format {
-    use chrono::{DateTime, Utc};
     use opendal::EntryMode;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     /// 格式化文件大小显示
     pub fn format_size(size: u64) -> String {
@@ -22,24 +20,6 @@ pub mod format {
             format!("{:.2} GB", size as f64 / GB as f64)
         } else {
             format!("{:.2} TB", size as f64 / TB as f64)
-        }
-    }
-
-    /// 格式化修改时间显示
-    pub fn format_time(time: Option<DateTime<Utc>>) -> String {
-        if let Some(time) = time {
-            time.format("%Y-%m-%d %H:%M:%S").to_string()
-        } else {
-            "未知".to_string()
-        }
-    }
-
-    /// 格式化文件类型
-    pub fn format_mode(mode: EntryMode) -> String {
-        match mode {
-            EntryMode::FILE => "文件".to_string(),
-            EntryMode::DIR => "目录".to_string(),
-            _ => "未知".to_string(),
         }
     }
 }
