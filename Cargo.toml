@@ -27,7 +27,7 @@ anyhow = "1.0"
 log = "0.4"
 env_logger = "0.10"
 dirs = "5.0"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"], default-features = false }
 indicatif = "0.17"
 prettytable-rs = "0.10"
 uuid = { version = "1.5", features = ["v4"] }

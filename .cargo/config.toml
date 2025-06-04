@@ -1,0 +1,9 @@
+# Windows 7 兼容性配置
+[target.'cfg(windows)']
+[target.'cfg(windows)'.dependencies]
+# 确保使用兼容的 Windows API 版本
+winapi = { version = "0.3", features = ["winnt", "fileapi", "handleapi", "processenv"] }
+
+[build]
+# 设置最低支持的 Windows 版本为 Windows 7
+rustflags = ["-C", "target-feature=+crt-static"]
