@@ -69,6 +69,7 @@ jobs:
           # 可选：显式设置密钥密码（如果有）
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           RUSTFLAGS: -C target-feature=+crt-static
+          TAURI_FIPS_COMPLIANT: true
         with:
           tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: 'App v__VERSION__'
