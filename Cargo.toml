@@ -37,7 +37,7 @@ hmac = "0.12"
 
 # Tauri dependencies
 tauri = { version = "2", features = [] }
-tauri-plugin-notification = "2"
+tauri-plugin-notification = { version = "2.0.0", features = [ "windows7-compat" ] }
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
