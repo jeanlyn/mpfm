@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - release-win7
+      - release-win
 
 jobs:
   publish-tauri:
@@ -77,4 +77,37 @@ jobs:
           releaseDraft: true
           prerelease: false
           tauriScript: pnpm run tauri
-          args: --config tauri.win7.conf.json
+          args: --config tauri.win.conf.json
+          afterBuildCommand: |
+            powershell -ExecutionPolicy Bypass -Command '
+              $ErrorActionPreference = "Stop";
+              $bundleDir = "./target/release/bundle";
+              Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix).";
+              Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
+                  $file = $_;
+                  $newName = $null;
+
+                  # Regex to capture base name and the extension part for specific file types
+                  # Example: "my_app_1.0.0.msi.zip" -> $base="my_app_1.0.0", $extPart=".msi.zip"
+                  # Example: "my_app_1.0.0.msi" -> $base="my_app_1.0.0", $extPart=".msi"
+                  if ($file.Name -match "^(.*)(\.msi\.zip)$") {
+                      $base = $matches[1];
+                      $extPart = $matches[2];
+                      $newName = "${base}-fixed-webview2${extPart}";
+                  } elseif ($file.Name -match "^(.*)(\.(msi|exe))$") {
+                      $base = $matches[1];
+                      $extPart = $matches[2];
+                      $newName = "${base}-fixed-webview2${extPart}";
+                  }
+
+                  if ($newName) {
+                      try {
+                          Rename-Item -Path $file.FullName -NewName $newName -Force;
+                          Write-Host "Successfully renamed ''$($file.Name)'' to ''$newName'' in $($file.DirectoryName)";
+                      } catch {
+                          Write-Error "Failed to rename ''$($file.Name)'' to ''$newName''. Error: $($_.Exception.Message)";
+                      }
+                  }
+              };
+              Write-Host "Artifact renaming process finished.";
+            '
