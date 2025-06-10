@@ -162,6 +162,12 @@ const TabBar: React.FC<TabBarProps> = ({
   const tabOperationsMenu: MenuProps = {
     items: [
       {
+        key: 'closeOthers',
+        label: '关闭其他Tab',
+        disabled: tabs.length <= 1 || !activeTabId,
+        onClick: () => activeTabId && onCloseOthers(activeTabId),
+      },
+      {
         key: 'closeAll',
         label: '关闭所有Tab',
         disabled: tabs.length === 0,
