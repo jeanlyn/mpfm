@@ -96,7 +96,7 @@ cargo check
 cd ui && pnpm install && cd ..
 
 # 安装 Tauri CLI
-npm install
+pnpm install
 ```
 
 ### 启动应用
@@ -106,7 +106,7 @@ npm install
 启动 Tauri 桌面应用，包含完整的图形界面：
 
 ```bash
-npm run tauri:dev
+pnpm run tauri:dev
 ```
 
 这会：
@@ -207,7 +207,7 @@ cargo run --bin main_cli -- stat --connection <connection-id> <path>
 
 ```bash
 # 构建 Tauri 应用
-npm run tauri:build
+pnpm run tauri:build
 
 # 构建 CLI 工具
 cargo build --release --bin main_cli
