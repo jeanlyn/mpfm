@@ -1,260 +1,262 @@
-# 多协议文件管理器
+# Multi-Protocol File Manager (MPFM)
 
-基于 [Apache OpenDAL™](https://opendal.apache.org/) 的跨平台多协议文件管理器，提供命令行界面和图形界面两种使用方式。
+[🇨🇳 中文](README_zh.md) | **🇺🇸 English**
 
-## 📋 功能特点
+A cross-platform multi-protocol file manager based on [Apache OpenDAL™](https://opendal.apache.org/), providing both command-line interface and graphical interface.
 
-- 🌐 **多协议支持**：支持本地文件系统、S3 兼容存储等多种协议
-- 🖥️ **双界面模式**：提供命令行工具和现代化图形界面
-- 🔧 **连接管理**：可保存和管理多个存储连接配置
-- 📁 **完整文件操作**：支持文件/目录的列表、上传、下载、删除、创建等操作
-- 🚀 **跨平台**：支持 Windows、Linux 和 macOS
-- ⚡ **高性能**：基于 Rust 构建，异步 I/O 操作
+## 📋 Features
 
-## 📸 演示效果
+- 🌐 **Multi-Protocol Support**: Support for local filesystem, S3-compatible storage, and other protocols
+- 🖥️ **Dual Interface**: Provides both command-line tools and modern graphical interface
+- 🔧 **Connection Management**: Save and manage multiple storage connection configurations
+- 📁 **Complete File Operations**: Support for file/directory listing, upload, download, delete, create, and more
+- 🚀 **Cross-Platform**: Support for Windows, Linux, and macOS
+- ⚡ **High Performance**: Built with Rust, featuring async I/O operations
 
-### 主界面预览
+## 📸 Demo
 
-![MPFM 主界面](image/mpfm_main.png)
+### Main Interface Preview
 
-*多协议文件管理器主界面 - 支持多种存储协议的统一文件管理体验*
+![MPFM Main Interface](image/mpfm_main.png)
 
-## 🏗️ 项目架构
+*Multi-Protocol File Manager Main Interface - Unified file management experience supporting multiple storage protocols*
 
-### 整体结构
+## 🏗️ Project Architecture
+
+### Overall Structure
 
 ```
 mpfm/
-├── 📁 src/                     # Rust 后端源码
-│   ├── main.rs                 # Tauri 图形界面入口
-│   ├── main_cli.rs             # 命令行界面入口
-│   ├── tauri_commands.rs       # Tauri 命令处理
-│   ├── 📁 cli/                 # 命令行界面模块
-│   │   ├── app.rs              # CLI 应用主逻辑
-│   │   ├── commands.rs         # CLI 命令实现
+├── 📁 src/                     # Rust backend source code
+│   ├── main.rs                 # Tauri GUI entry point
+│   ├── main_cli.rs             # Command-line interface entry point
+│   ├── tauri_commands.rs       # Tauri command handlers
+│   ├── 📁 cli/                 # Command-line interface module
+│   │   ├── app.rs              # CLI application main logic
+│   │   ├── commands.rs         # CLI command implementations
 │   │   └── mod.rs
-│   ├── 📁 core/                # 核心功能模块
-│   │   ├── config.rs           # 配置管理
-│   │   ├── error.rs            # 错误处理
-│   │   ├── file.rs             # 文件操作
+│   ├── 📁 core/                # Core functionality modules
+│   │   ├── config.rs           # Configuration management
+│   │   ├── error.rs            # Error handling
+│   │   ├── file.rs             # File operations
 │   │   └── mod.rs
-│   ├── 📁 protocols/           # 协议适配器
-│   │   ├── fs.rs               # 本地文件系统
-│   │   ├── s3.rs               # S3 协议
-│   │   ├── traits.rs           # 协议接口定义
+│   ├── 📁 protocols/           # Protocol adapters
+│   │   ├── fs.rs               # Local filesystem
+│   │   ├── s3.rs               # S3 protocol
+│   │   ├── traits.rs           # Protocol interface definitions
 │   │   └── mod.rs
-│   └── 📁 utils/               # 工具函数
-│       ├── logger.rs           # 日志工具
+│   └── 📁 utils/               # Utility functions
+│       ├── logger.rs           # Logging utilities
 │       └── mod.rs
-├── 📁 ui/                      # React 前端源码
+├── 📁 ui/                      # React frontend source code
 │   ├── src/
-│   │   ├── App.tsx             # 主应用组件
-│   │   ├── main.tsx            # 应用入口
-│   │   ├── types.ts            # TypeScript 类型定义
-│   │   ├── 📁 components/      # React 组件
-│   │   └── 📁 services/        # API 服务层
-│   ├── package.json            # 前端依赖配置
-│   └── vite.config.ts          # Vite 构建配置
-├── Cargo.toml                  # Rust 项目配置
-├── tauri.conf.json             # Tauri 应用配置
-└── package.json                # Tauri CLI 配置
+│   │   ├── App.tsx             # Main application component
+│   │   ├── main.tsx            # Application entry point
+│   │   ├── types.ts            # TypeScript type definitions
+│   │   ├── 📁 components/      # React components
+│   │   └── 📁 services/        # API service layer
+│   ├── package.json            # Frontend dependencies configuration
+│   └── vite.config.ts          # Vite build configuration
+├── Cargo.toml                  # Rust project configuration
+├── tauri.conf.json             # Tauri application configuration
+└── package.json                # Tauri CLI configuration
 ```
 
-### 技术栈
+### Tech Stack
 
-**后端 (Rust)**
-- [OpenDAL](https://opendal.apache.org/) - 统一存储访问层
-- [Tauri](https://tauri.app/) - 跨平台桌面应用框架
-- [Tokio](https://tokio.rs/) - 异步运行时
-- [Clap](https://clap.rs/) - 命令行参数解析
+**Backend (Rust)**
+- [OpenDAL](https://opendal.apache.org/) - Unified storage access layer
+- [Tauri](https://tauri.app/) - Cross-platform desktop application framework
+- [Tokio](https://tokio.rs/) - Async runtime
+- [Clap](https://clap.rs/) - Command-line argument parser
 
-**前端 (TypeScript + React)**
-- [React 18](https://react.dev/) - UI 框架
-- [Ant Design](https://ant.design/) - UI 组件库
-- [Vite](https://vitejs.dev/) - 构建工具
-- [TypeScript](https://www.typescriptlang.org/) - 类型安全
+**Frontend (TypeScript + React)**
+- [React 18](https://react.dev/) - UI framework
+- [Ant Design](https://ant.design/) - UI component library
+- [Vite](https://vitejs.dev/) - Build tool
+- [TypeScript](https://www.typescriptlang.org/) - Type safety
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 环境要求
+### Prerequisites
 
 - Rust 1.87.0+
 - Node.js 18+
-- pnpm 或 npm
+- pnpm or npm
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
-# 克隆项目
+# Clone the project
 git clone <repository-url>
 cd mpfm
 
-# 安装 Rust 依赖（自动）
+# Install Rust dependencies (automatic)
 cargo check
 
-# 安装前端依赖
+# Install frontend dependencies
 cd ui && pnpm install && cd ..
 
-# 安装 Tauri CLI
+# Install Tauri CLI
 pnpm install
 ```
 
-### 启动应用
+### Launch Application
 
-#### 方法1：图形界面模式（推荐）
+#### Method 1: GUI Mode (Recommended)
 
-启动 Tauri 桌面应用，包含完整的图形界面：
+Launch Tauri desktop application with complete graphical interface:
 
 ```bash
 pnpm run tauri:dev
 ```
 
-这会：
-1. 自动启动前端开发服务器（React + Vite）
-2. 编译并运行 Rust 后端
-3. 打开桌面应用窗口
+This will:
+1. Automatically start the frontend development server (React + Vite)
+2. Compile and run the Rust backend
+3. Open the desktop application window
 
-#### 方法2：命令行模式
+#### Method 2: CLI Mode
 
-仅使用命令行工具：
+Use command-line tool only:
 
 ```bash
-# 查看帮助
+# View help
 cargo run --bin main_cli -- --help
 
-# 查看可用命令
+# View available commands
 cargo run --bin main_cli
 ```
 
-#### 方法3：前端演示模式
+#### Method 3: Frontend Demo Mode
 
-仅启动前端界面（演示模式，使用模拟数据）：
+Launch frontend interface only (demo mode with mock data):
 
 ```bash
 cd ui
 pnpm dev
 ```
 
-然后在浏览器中访问 `http://localhost:1420`
+Then visit `http://localhost:1420` in your browser
 
-## 💻 使用指南
+## 💻 Usage Guide
 
-### 图形界面操作
+### GUI Operations
 
-1. **启动应用**：运行 `npm run tauri:dev`
-2. **添加连接**：在左侧面板点击"添加连接"
-3. **选择连接**：从连接列表中选择要使用的存储
-4. **文件操作**：在右侧文件管理器中进行文件操作
+1. **Launch Application**: Run `npm run tauri:dev`
+2. **Add Connection**: Click "Add Connection" in the left panel
+3. **Select Connection**: Choose the storage you want to use from the connection list
+4. **File Operations**: Perform file operations in the right file manager
 
-### 命令行操作
+### Command Line Operations
 
-#### 连接管理
+#### Connection Management
 
 ```bash
-# 添加本地文件系统连接
+# Add local filesystem connection
 cargo run --bin main_cli -- connection add
 
-# 添加 S3 连接
+# Add S3 connection
 cargo run --bin main_cli -- connection add
 
-# 列出所有连接
+# List all connections
 cargo run --bin main_cli -- connection list
 
-# 删除连接
+# Remove connection
 cargo run --bin main_cli -- connection remove <connection-id>
 ```
 
-#### 文件操作
+#### File Operations
 
 ```bash
-# 列出文件和目录
+# List files and directories
 cargo run --bin main_cli -- ls --connection <connection-id> [path]
 
-# 上传文件
+# Upload file
 cargo run --bin main_cli -- upload --connection <connection-id> <local-path> <remote-path>
 
-# 下载文件
+# Download file
 cargo run --bin main_cli -- download --connection <connection-id> <remote-path> <local-path>
 
-# 删除文件或目录
+# Delete file or directory
 cargo run --bin main_cli -- rm --connection <connection-id> <path>
 
-# 创建目录
+# Create directory
 cargo run --bin main_cli -- mkdir --connection <connection-id> <path>
 
-# 查看文件信息
+# View file information
 cargo run --bin main_cli -- stat --connection <connection-id> <path>
 ```
 
-## 🔧 支持的协议
+## 🔧 Supported Protocols
 
-### 当前支持
+### Currently Supported
 
-- ✅ **本地文件系统 (fs)**：本地磁盘文件操作
-- ✅ **S3 协议**：AWS S3、MinIO、Ceph 等 S3 兼容存储
+- ✅ **Local Filesystem (fs)**: Local disk file operations
+- ✅ **S3 Protocol**: AWS S3, MinIO, Ceph, and other S3-compatible storage
 
-### 计划支持
+### Planned Support
 
 - 🔄 SFTP
 - 🔄 FTP
 - 🔄 WebDAV
 - 🔄 Azure Blob Storage
 - 🔄 Google Cloud Storage
-- 🔄 阿里云 OSS
-- 🔄 腾讯云 COS
+- 🔄 Alibaba Cloud OSS
+- 🔄 Tencent Cloud COS
 
-## 🔨 构建发布版本
+## 🔨 Build Release
 
 ```bash
-# 构建 Tauri 应用
+# Build Tauri application
 pnpm run tauri:build
 
-# 构建 CLI 工具
+# Build CLI tool
 cargo build --release --bin main_cli
 ```
 
-构建产物位置：
-- Tauri 应用：`target/release/bundle/`
-- CLI 工具：`target/release/main_cli`
+Build artifacts location:
+- Tauri application: `target/release/bundle/`
+- CLI tool: `target/release/main_cli`
 
-## 🐛 故障排除
+## 🐛 Troubleshooting
 
-### 常见问题
+### Common Issues
 
-1. **端口冲突**：如果遇到端口占用，修改 `ui/vite.config.ts` 中的端口号
-2. **权限问题**：确保对目标目录有读写权限
-3. **连接失败**：检查网络连接和存储服务配置
-4. **mac安装失败**: 安装提示, "mpfm"已损坏， 无法打开，你应该将它移到废纸篓。运行`sudo xattr -r -d com.apple.quarantine  /Applications/mpfm.app`解决。
+1. **Port Conflict**: If you encounter port conflicts, modify the port number in `ui/vite.config.ts`
+2. **Permission Issues**: Ensure you have read/write permissions for target directories
+3. **Connection Failure**: Check network connectivity and storage service configuration
+4. **macOS Installation Failure**: If installation shows "mpfm is damaged and can't be opened", run `sudo xattr -r -d com.apple.quarantine /Applications/mpfm.app` to resolve
 
-### 开发调试
+### Development Debugging
 
 ```bash
-# 启用调试日志
+# Enable debug logging
 RUST_LOG=debug cargo run --bin main_cli
 
-# 检查代码问题
+# Check code issues
 cargo clippy
 
-# 运行测试
+# Run tests
 cargo test
 ```
 
-## 🤝 贡献指南
+## 🤝 Contributing
 
-欢迎贡献代码、报告问题或提出改进建议！
+Welcome to contribute code, report issues, or suggest improvements!
 
-1. Fork 项目
-2. 创建特性分支：`git checkout -b feature/amazing-feature`
-3. 提交更改：`git commit -m 'Add some amazing feature'`
-4. 推送分支：`git push origin feature/amazing-feature`
-5. 提交 Pull Request
+1. Fork the project
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add some amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Submit a Pull Request
 
-## 📄 许可证
+## 📄 License
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-- [Apache OpenDAL™](https://opendal.apache.org/) - 提供统一的存储访问接口
-- [Tauri](https://tauri.app/) - 现代化的桌面应用开发框架
-- [Rust 社区](https://www.rust-lang.org/) - 优秀的系统编程语言生态
+- [Apache OpenDAL™](https://opendal.apache.org/) - Providing unified storage access interface
+- [Tauri](https://tauri.app/) - Modern desktop application development framework
+- [Rust Community](https://www.rust-lang.org/) - Excellent systems programming language ecosystem
