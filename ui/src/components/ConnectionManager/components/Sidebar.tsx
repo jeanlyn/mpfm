@@ -32,7 +32,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   children,
 }) => {
   // 折叠状态的菜单项
-  const collapsedMenuItems = connections.map((conn) => ({
+  const collapsedMenuItems = connections
+    .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
+    .map((conn) => ({
     key: conn.id,
     icon: (
       <Tooltip title={`${conn.name} (${conn.protocol_type.toUpperCase()})`} placement="right">

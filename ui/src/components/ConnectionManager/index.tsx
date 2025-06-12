@@ -132,9 +132,9 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   const renderExpandedContent = () => (
     <div style={{ marginTop: '8px' }}>
       {directories.map((directory) => {
-        const directoryConnections = connections.filter(conn => 
-          directory.connectionIds.includes(conn.id)
-        );
+        const directoryConnections = connections
+          .filter(conn => directory.connectionIds.includes(conn.id))
+          .sort((a, b) => a.name.localeCompare(b.name)); // 按名称排序
 
         return (
           <div key={directory.id} style={{ marginBottom: '12px' }}>

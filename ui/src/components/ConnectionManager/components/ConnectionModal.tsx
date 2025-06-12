@@ -89,10 +89,12 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
         >
           <Select
             placeholder="选择目录"
-            options={directories.map(dir => ({ 
-              label: dir.name, 
-              value: dir.id 
-            }))}
+            options={directories
+              .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
+              .map(dir => ({ 
+                label: dir.name, 
+                value: dir.id 
+              }))}
             style={{ width: '100%' }}
           />
         </Form.Item>

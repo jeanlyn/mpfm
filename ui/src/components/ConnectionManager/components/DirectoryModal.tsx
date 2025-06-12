@@ -47,10 +47,12 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
           <Select
             mode="multiple"
             placeholder="选择关联的连接"
-            options={connections.map(conn => ({ 
-              label: conn.name, 
-              value: conn.id 
-            }))}
+            options={connections
+              .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
+              .map(conn => ({ 
+                label: conn.name, 
+                value: conn.id 
+              }))}
             style={{ width: '100%' }}
           />
         </Form.Item>
