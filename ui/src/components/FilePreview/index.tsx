@@ -7,6 +7,7 @@ import {
   FilePdfOutlined,
   FileExcelOutlined,
   FileImageOutlined,
+  FileWordOutlined,
   CodeOutlined
 } from '@ant-design/icons';
 import { Connection, FileInfo } from '../../types';
@@ -17,6 +18,7 @@ import ImagePreview from './ImagePreview';
 import PdfPreview from './PdfPreview';
 import CodePreview from './CodePreview';
 import ExcelPreview from './ExcelPreview';
+import WordPreview from './WordPreview';
 import { getFileType, FileType } from './utils/fileTypeDetector';
 
 interface FilePreviewProps {
@@ -72,7 +74,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
       }
 
       // 根据文件类型决定获取方式
-      if (detectedType === 'image' || detectedType === 'pdf' || detectedType === 'excel') {
+      if (detectedType === 'image' || detectedType === 'pdf' || detectedType === 'excel' || detectedType === 'word') {
         // 二进制文件获取二进制数据
         const arrayBuffer = await ApiService.getFileContent(connection.id, file.path, 'binary');
         setContent(arrayBuffer);
@@ -94,6 +96,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
       case 'pdf': return <FilePdfOutlined style={{ color: '#ff4d4f' }} />;
       case 'image': return <FileImageOutlined style={{ color: '#52c41a' }} />;
       case 'excel': return <FileExcelOutlined style={{ color: '#faad14' }} />;
+      case 'word': return <FileWordOutlined style={{ color: '#1890ff' }} />;
       case 'code': return <CodeOutlined style={{ color: '#1890ff' }} />;
       case 'json': return <CodeOutlined style={{ color: '#722ed1' }} />;
       default: return <FileTextOutlined style={{ color: '#666' }} />;
@@ -148,6 +151,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({
           return <PdfPreview content={content as ArrayBuffer} fileName={file.name} />;
         case 'excel':
           return <ExcelPreview content={content as ArrayBuffer} fileName={file.name} />;
+        case 'word':
+          return <WordPreview content={content as ArrayBuffer} fileName={file.name} />;
         default:
           return (
             <Alert

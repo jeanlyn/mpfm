@@ -5,6 +5,7 @@ export type FileType =
   | 'image' 
   | 'pdf' 
   | 'excel' 
+  | 'word'
   | 'unknown';
 
 // 文件扩展名映射
@@ -80,6 +81,10 @@ const FILE_TYPE_MAP: Record<string, FileType> = {
   '.xlsm': 'excel',
   '.xlsb': 'excel',
   '.csv': 'excel', // CSV也可以用Excel预览
+  
+  // Word文件
+  '.docx': 'word',
+  '.doc': 'word',
 };
 
 /**
@@ -119,6 +124,7 @@ export function getFileTypeDisplayName(fileType: FileType): string {
     case 'image': return '图片文件';
     case 'pdf': return 'PDF文档';
     case 'excel': return 'Excel表格';
+    case 'word': return 'Word文档';
     default: return '未知类型';
   }
 }
