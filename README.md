@@ -224,6 +224,7 @@ cargo build --release --bin main_cli
 1. **端口冲突**：如果遇到端口占用，修改 `ui/vite.config.ts` 中的端口号
 2. **权限问题**：确保对目标目录有读写权限
 3. **连接失败**：检查网络连接和存储服务配置
+4. **mac安装失败**: 安装提示, "mpfm"已损坏， 无法打开，你应该将它移到废纸篓。运行`sudo xattr -r -d com.apple.quarantine  /Applications/mpfm.app`解决。
 
 ### 开发调试
 
