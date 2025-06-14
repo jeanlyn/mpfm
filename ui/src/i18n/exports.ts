@@ -11,6 +11,7 @@ export { I18nProvider, useI18nContext } from './contexts/I18nContext';
 export { default as LanguageSwitcher } from './components/LanguageSwitcher';
 export { default as I18nDemo } from './components/I18nDemo';
 export { default as SettingsPage } from './components/SettingsPage';
+export { default as FloatingSettingsButton } from './components/FloatingSettingsButton';
 
 // Types
 export interface I18nConfig {

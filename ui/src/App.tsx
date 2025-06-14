@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, message, Alert, Space } from 'antd';
+import { Layout, message, Alert } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import TabbedFileManager from './components/TabbedFileManager';
-import LanguageSwitcher from './i18n/components/LanguageSwitcher';
+import FloatingSettingsButton from './i18n/components/FloatingSettingsButton';
 import { Connection } from './types';
 import { ApiService } from './services/api';
 import { useAppI18n } from './i18n/hooks/useI18n';
 import { I18nProvider } from './i18n/contexts/I18nContext';
-
-const { Header } = Layout;
-const { Title } = Typography;
 
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
@@ -26,7 +23,7 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
-  const { app, connection } = useAppI18n();
+  const { connection } = useAppI18n();
 
   const loadConnections = async () => {
     try {
@@ -57,23 +54,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="app">
-      <Header style={{ 
-        background: '#fff', 
-        borderBottom: '1px solid #f0f0f0',
-        padding: '0 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-          {app.title}
-        </Title>
-        <Space>
-          <LanguageSwitcher size="small" />
-        </Space>
-      </Header>
-      
+    <div className="app" style={{ position: 'relative', height: '100vh' }}>
       {!isTauriEnvironment() && (
         <Alert
           message="演示模式"
@@ -84,7 +65,7 @@ const AppContent: React.FC = () => {
         />
       )}
       
-      <Layout style={{ height: 'calc(100vh - 64px)' }}>
+      <Layout style={{ height: isTauriEnvironment() ? '100vh' : 'calc(100vh - 80px)' }}>
         <ConnectionManager
           connections={connections}
           currentConnection={currentConnection}
@@ -93,6 +74,9 @@ const AppContent: React.FC = () => {
         />
         <TabbedFileManager selectedConnection={currentConnection} />
       </Layout>
+      
+      {/* 悬浮设置按钮 */}
+      <FloatingSettingsButton />
     </div>
   );
 };
