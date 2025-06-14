@@ -83,12 +83,12 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       // 在Tab环境中，更保守的高度计算
       const windowHeight = window.innerHeight;
       
-      // 在Tab环境中预留更多空间：
-      // Tab栏(48px) + 内容padding(48px) + 工具栏(48px) + 面包屑(32px) + 搜索框(48px) + 分页(80px) + 表格与分页间距(16px) + 其他边距(20px)
-      const reservedHeight = 300;
+      // 在Tab环境中预留空间（搜索框已整合到工具栏中）：
+      // Tab栏(48px) + 内容padding(48px) + 工具栏(48px) + 面包屑(32px) + 分页(80px) + 表格与分页间距(16px) + 其他边距(20px)
+      const reservedHeight = 252;
       
-      // 计算可用高度，最小200px（确保至少能显示几行数据），最大600px
-      const availableHeight = Math.min(600, Math.max(200, windowHeight - reservedHeight));
+      // 计算可用高度，最小200px（确保至少能显示几行数据），最大650px
+      const availableHeight = Math.min(650, Math.max(200, windowHeight - reservedHeight));
       
       setTableHeight(availableHeight);
     };
@@ -537,9 +537,11 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         />
       )} */}
 
+      {/* 优化后的工具栏 - 整合搜索功能到一行 */}
       <div style={{ marginBottom: '16px' }}>
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Space>
+        <Space style={{ width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          {/* 左侧：导航按钮 */}
+          <Space wrap>
             <Button icon={<HomeOutlined />} onClick={() => {
               setCurrentPage(0);
               loadFiles('/');
@@ -559,7 +561,40 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               </Button>
             )}
           </Space>
-          <Space>
+
+          {/* 中间：搜索框 */}
+          <div style={{ flex: 1, maxWidth: '400px', margin: '0 16px' }}>
+            <form onSubmit={handleSearchSubmit}>
+              <Input.Group compact style={{ display: 'flex' }}>
+                <Input
+                  placeholder="搜索文件或目录"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ flex: 1 }}
+                  suffix={
+                    isSearchMode ? (
+                      <Button 
+                        icon={<CloseOutlined />} 
+                        onClick={handleSearchReset} 
+                        size="small"
+                        type="text"
+                        style={{ border: 'none', color: '#999' }}
+                      />
+                    ) : undefined
+                  }
+                />
+                <Button
+                  type="primary"
+                  icon={<SearchOutlined />}
+                  onClick={() => handleSearch()}
+                  loading={loading}
+                />
+              </Input.Group>
+            </form>
+          </div>
+
+          {/* 右侧：操作按钮 */}
+          <Space wrap>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -603,38 +638,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           })
         }
       </Breadcrumb>
-
-      {/* 搜索框 */}
-      <div style={{ marginBottom: '16px' }}>
-        <form onSubmit={handleSearchSubmit}>
-          <Space style={{ width: '100%' }}>
-            <Input
-              placeholder="搜索文件或目录"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ flex: 1 }}
-              suffix={
-                isSearchMode ? (
-                  <Button 
-                    icon={<CloseOutlined />} 
-                    onClick={handleSearchReset} 
-                    size="small"
-                    style={{ border: 'none', color: '#999' }}
-                  />
-                ) : undefined
-              }
-            />
-            <Button
-              type="primary"
-              icon={<SearchOutlined />}
-              onClick={() => handleSearch()}
-              loading={loading}
-            >
-              搜索
-            </Button>
-          </Space>
-        </form>
-      </div>
 
       <div style={{ 
         flex: 1, 
