@@ -339,42 +339,92 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       width: 240,
       align: 'right' as const,
       render: (_: any, record: FileInfo) => (
-        <Space size="small">
-          {!record.is_dir && isPreviewable(record.name) && (
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => handlePreview(record)}
-              style={{ fontSize: '12px' }}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>
+          {/* 预览按钮位置 - 固定宽度确保对齐 */}
+          <div style={{ width: '76px' }}>
+            {!record.is_dir && isPreviewable(record.name) && (
+              <Button
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => handlePreview(record)}
+                style={{ 
+                  fontSize: '12px', 
+                  width: '100%',
+                  padding: '4px 8px',
+                  overflow: 'hidden'
+                }}
+                title={fileManager.table.previewButton}
+              >
+                <span style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'block'
+                }}>
+                  {fileManager.table.previewButton}
+                </span>
+              </Button>
+            )}
+          </div>
+          
+          {/* 下载按钮位置 - 固定宽度确保对齐 */}
+          <div style={{ width: '76px' }}>
+            {!record.is_dir && (
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownload(record)}
+                style={{ 
+                  fontSize: '12px', 
+                  width: '100%',
+                  padding: '4px 8px',
+                  overflow: 'hidden'
+                }}
+                title={fileManager.table.downloadButton}
+              >
+                <span style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'block'
+                }}>
+                  {fileManager.table.downloadButton}
+                </span>
+              </Button>
+            )}
+          </div>
+          
+          {/* 删除按钮位置 - 固定宽度确保对齐 */}
+          <div style={{ width: '76px' }}>
+            <Popconfirm
+              title={fileManager.table.confirmDelete}
+              onConfirm={() => handleDelete(record)}
+              placement="topRight"
             >
-              {fileManager.table.previewButton}
-            </Button>
-          )}
-          {!record.is_dir && (
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(record)}
-              style={{ fontSize: '12px' }}
-            >
-              {fileManager.table.downloadButton}
-            </Button>
-          )}
-          <Popconfirm
-            title={fileManager.table.confirmDelete}
-            onConfirm={() => handleDelete(record)}
-            placement="topRight"
-          >
-            <Button
-              size="small"
-              icon={<DeleteOutlined />}
-              danger
-              style={{ fontSize: '12px' }}
-            >
-              {fileManager.table.deleteButton}
-            </Button>
-          </Popconfirm>
-        </Space>
+              <Button
+                size="small"
+                icon={<DeleteOutlined />}
+                danger
+                style={{ 
+                  fontSize: '12px', 
+                  width: '100%',
+                  padding: '4px 8px',
+                  overflow: 'hidden'
+                }}
+                title={fileManager.table.deleteButton}
+              >
+                <span style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'block'
+                }}>
+                  {fileManager.table.deleteButton}
+                </span>
+              </Button>
+            </Popconfirm>
+          </div>
+        </div>
       ),
     },
   ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview, fileManager]);
