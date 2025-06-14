@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, message, Alert } from 'antd';
+import { Layout, Typography, message, Alert, Space } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import TabbedFileManager from './components/TabbedFileManager';
+import LanguageSwitcher from './i18n/components/LanguageSwitcher';
 import { Connection } from './types';
 import { ApiService } from './services/api';
+import { useAppI18n } from './i18n/hooks/useI18n';
+import { I18nProvider } from './i18n/contexts/I18nContext';
 
 const { Header } = Layout;
 const { Title } = Typography;
@@ -13,15 +16,24 @@ const isTauriEnvironment = (): boolean => {
   return true;
 };
 const App: React.FC = () => {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+};
+
+const AppContent: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
+  const { app, connection } = useAppI18n();
 
   const loadConnections = async () => {
     try {
       const connectionList = await ApiService.getConnections();
       setConnections(connectionList);
     } catch (error) {
-      message.error(`加载连接失败: ${error}`);
+      message.error(`${connection.messages.loadFailed}: ${error}`);
     }
   };
 
@@ -46,17 +58,21 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      {/* <Header style={{ 
+      <Header style={{ 
         background: '#fff', 
         borderBottom: '1px solid #f0f0f0',
         padding: '0 24px',
         display: 'flex',
-        alignItems: 'center'
+        alignItems: 'center',
+        justifyContent: 'space-between'
       }}>
         <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-          多协议文件管理器
+          {app.title}
         </Title>
-      </Header> */}
+        <Space>
+          <LanguageSwitcher size="small" />
+        </Space>
+      </Header>
       
       {!isTauriEnvironment() && (
         <Alert

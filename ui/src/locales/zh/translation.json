@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "多协议文件管理器",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "close": "关闭",
+    "refresh": "刷新"
+  },
+  "connection": {
+    "title": "连接管理",
+    "add": "添加连接",
+    "edit": "编辑连接",
+    "delete": "删除连接",
+    "connect": "连接",
+    "disconnect": "断开连接",
+    "test": "测试连接",
+    "name": "连接名称",
+    "type": "连接类型",
+    "host": "主机地址",
+    "port": "端口",
+    "username": "用户名",
+    "password": "密码",
+    "status": {
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "connecting": "连接中...",
+      "error": "连接错误"
+    },
+    "messages": {
+      "loadFailed": "加载连接失败",
+      "connectSuccess": "连接成功",
+      "connectFailed": "连接失败",
+      "disconnectSuccess": "断开连接成功",
+      "testSuccess": "连接测试成功",
+      "testFailed": "连接测试失败",
+      "saveSuccess": "保存成功",
+      "deleteFailed": "删除失败"
+    }
+  },
+  "fileManager": {
+    "title": "文件管理器",
+    "path": "路径",
+    "name": "名称",
+    "size": "大小",
+    "modified": "修改时间",
+    "type": "类型",
+    "actions": {
+      "upload": "上传",
+      "download": "下载",
+      "newFolder": "新建文件夹",
+      "rename": "重命名",
+      "copy": "复制",
+      "move": "移动",
+      "properties": "属性"
+    },
+    "messages": {
+      "uploadSuccess": "上传成功",
+      "uploadFailed": "上传失败",
+      "downloadSuccess": "下载成功",
+      "downloadFailed": "下载失败",
+      "deleteSuccess": "删除成功",
+      "deleteFailed": "删除失败",
+      "renameSuccess": "重命名成功",
+      "renameFailed": "重命名失败",
+      "copySuccess": "复制成功",
+      "copyFailed": "复制失败",
+      "moveSuccess": "移动成功",
+      "moveFailed": "移动失败"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "theme": "主题",
+    "general": "常规设置",
+    "appearance": "外观设置",
+    "advanced": "高级设置"
+  }
+}

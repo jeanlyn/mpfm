@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "Multi-Protocol File Manager",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "refresh": "Refresh"
+  },
+  "connection": {
+    "title": "Connection Manager",
+    "add": "Add Connection",
+    "edit": "Edit Connection",
+    "delete": "Delete Connection",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "test": "Test Connection",
+    "name": "Connection Name",
+    "type": "Connection Type",
+    "host": "Host",
+    "port": "Port",
+    "username": "Username",
+    "password": "Password",
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "connecting": "Connecting...",
+      "error": "Connection Error"
+    },
+    "messages": {
+      "loadFailed": "Failed to load connections",
+      "connectSuccess": "Connected successfully",
+      "connectFailed": "Connection failed",
+      "disconnectSuccess": "Disconnected successfully",
+      "testSuccess": "Connection test successful",
+      "testFailed": "Connection test failed",
+      "saveSuccess": "Saved successfully",
+      "deleteFailed": "Delete failed"
+    }
+  },
+  "fileManager": {
+    "title": "File Manager",
+    "path": "Path",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "type": "Type",
+    "actions": {
+      "upload": "Upload",
+      "download": "Download",
+      "newFolder": "New Folder",
+      "rename": "Rename",
+      "copy": "Copy",
+      "move": "Move",
+      "properties": "Properties"
+    },
+    "messages": {
+      "uploadSuccess": "Upload successful",
+      "uploadFailed": "Upload failed",
+      "downloadSuccess": "Download successful",
+      "downloadFailed": "Download failed",
+      "deleteSuccess": "Delete successful",
+      "deleteFailed": "Delete failed",
+      "renameSuccess": "Rename successful",
+      "renameFailed": "Rename failed",
+      "copySuccess": "Copy successful",
+      "copyFailed": "Copy failed",
+      "moveSuccess": "Move successful",
+      "moveFailed": "Move failed"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "general": "General Settings",
+    "appearance": "Appearance Settings",
+    "advanced": "Advanced Settings"
+  }
+}
