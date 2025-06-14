@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import { useSortable } from '@dnd-kit/sortable';
 import { DroppableDirectoryProps } from '../types';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 可拖拽放置的目录组件
@@ -21,6 +22,7 @@ export const DroppableDirectory: React.FC<DroppableDirectoryProps & {
   onDelete,
   onAddConnection 
 }) => {
+  const { connection } = useAppI18n();
   const {
     setNodeRef,
     isOver,
@@ -59,7 +61,7 @@ export const DroppableDirectory: React.FC<DroppableDirectoryProps & {
           {directory.name} ({directory.connectionIds.length})
         </span>
         <div style={{ display: 'flex', gap: '2px' }}>
-          <Tooltip title="新建连接到此目录">
+          <Tooltip title={connection.tooltips.addConnectionToDirectory}>
             <Button
               icon={<PlusOutlined />}
               size="small"
@@ -77,7 +79,7 @@ export const DroppableDirectory: React.FC<DroppableDirectoryProps & {
               }}
             />
           </Tooltip>
-          <Tooltip title="编辑目录">
+          <Tooltip title={connection.tooltips.editDirectory}>
             <Button
               icon={<EditOutlined />}
               size="small"
@@ -95,9 +97,9 @@ export const DroppableDirectory: React.FC<DroppableDirectoryProps & {
             />
           </Tooltip>
           {directory.id !== 'default' && (
-            <Tooltip title="删除目录">
+            <Tooltip title={connection.tooltips.deleteDirectory}>
               <Popconfirm
-                title="确定要删除这个目录吗？"
+                title={connection.tooltips.confirmDeleteDirectory}
                 onConfirm={(e) => {
                   e?.stopPropagation();
                   onDelete();

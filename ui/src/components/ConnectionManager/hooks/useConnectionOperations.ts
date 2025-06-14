@@ -3,6 +3,7 @@ import { message, Modal } from 'antd';
 import { ApiService } from '../../../services/api';
 import { MODAL_TYPES, ModalConfig, DirectoryItem } from '../types';
 import { buildConfig } from '../utils.tsx';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 连接操作处理Hook
@@ -14,6 +15,8 @@ export const useConnectionOperations = (
   onConnectionsChange: () => void,
   closeModal: () => void
 ) => {
+  const { connection: i18nConnection, s3, app } = useAppI18n();
+  
   // S3 bucket 检查和创建
   const checkAndCreateS3Bucket = useCallback(async (values: any): Promise<boolean> => {
     if (values.protocolType !== 's3') return true;
@@ -30,10 +33,10 @@ export const useConnectionOperations = (
       if (!bucketExists) {
         return new Promise((resolve) => {
           Modal.confirm({
-            title: 'Bucket 不存在',
-            content: `存储桶 "${values.bucket}" 不存在，是否要创建该存储桶？`,
-            okText: '创建',
-            cancelText: '取消',
+            title: s3.bucketNotExists,
+            content: s3.bucketNotExistsDescription.replace('{bucket}', values.bucket),
+            okText: s3.createBucket,
+            cancelText: app.cancel,
             onOk: async () => {
               try {
                 await ApiService.createS3Bucket(
@@ -43,15 +46,15 @@ export const useConnectionOperations = (
                   values.accessKey,
                   values.secretKey
                 );
-                message.success('存储桶创建成功');
+                message.success(s3.bucketCreateSuccess);
                 resolve(true);
               } catch (error) {
-                message.error(`创建存储桶失败: ${error}`);
+                message.error(`${s3.bucketCreateFailed}: ${error}`);
                 resolve(false);
               }
             },
             onCancel: () => {
-              message.info('已取消操作');
+              message.info(s3.operationCancelled);
               resolve(false);
             }
           });
@@ -59,7 +62,7 @@ export const useConnectionOperations = (
       }
       return true;
     } catch (error) {
-      message.warning(`检查存储桶状态失败: ${error}，将继续尝试操作`);
+      message.warning(`${s3.checkBucketFailed}: ${error}`);
       return true;
     }
   }, []);
@@ -84,17 +87,17 @@ export const useConnectionOperations = (
         case MODAL_TYPES.ADD:
           const addResult = await ApiService.addConnection(values.name, values.protocolType, config);
           newConnectionId = addResult?.id || `conn_${Date.now()}`;
-          message.success('连接添加成功');
+          message.success(i18nConnection.messages.addSuccess);
           break;
         case MODAL_TYPES.COPY:
           const copyResult = await ApiService.addConnection(values.name, values.protocolType, config);
           newConnectionId = copyResult?.id || `conn_${Date.now()}`;
-          message.success('连接复制成功');
+          message.success(i18nConnection.messages.copySuccess);
           break;
         case MODAL_TYPES.EDIT:
           if (!connection) return;
           await ApiService.updateConnection(connection.id, values.name, values.protocolType, config);
-          message.success('连接编辑成功');
+          message.success(i18nConnection.messages.editSuccess);
           break;
       }
 
@@ -132,9 +135,9 @@ export const useConnectionOperations = (
             saveDirectories(newDirectories);
             
             const dirNames = originalConnectionDirectories.map(dir => dir.name).join('、');
-            message.success(`连接复制成功，已添加到目录：${dirNames}`);
+            message.success(i18nConnection.messages.copySuccessWithDirectory.replace('{directories}', dirNames));
           } else {
-            message.success('连接复制成功');
+            message.success(i18nConnection.messages.copySuccess);
           }
         }
       }
@@ -142,8 +145,10 @@ export const useConnectionOperations = (
       closeModal();
       onConnectionsChange();
     } catch (error) {
-      const operationName = type === MODAL_TYPES.ADD ? '添加' : type === MODAL_TYPES.COPY ? '复制' : '编辑';
-      message.error(`${operationName}连接失败: ${error}`);
+      const failedMsg = type === MODAL_TYPES.ADD ? i18nConnection.messages.addFailed :
+                       type === MODAL_TYPES.COPY ? i18nConnection.messages.copyFailed :
+                       i18nConnection.messages.editFailed;
+      message.error(`${failedMsg}: ${error}`);
     }
   }, [
     modalConfig, 
@@ -158,12 +163,12 @@ export const useConnectionOperations = (
   const handleDeleteConnection = useCallback(async (connectionId: string) => {
     try {
       await ApiService.removeConnection(connectionId);
-      message.success('连接删除成功');
+      message.success(i18nConnection.messages.deleteSuccess);
       onConnectionsChange();
     } catch (error) {
-      message.error(`删除连接失败: ${error}`);
+      message.error(`${i18nConnection.messages.deleteFailed}: ${error}`);
     }
-  }, [onConnectionsChange]);
+  }, [onConnectionsChange, i18nConnection]);
 
   return {
     handleConnectionOperation,

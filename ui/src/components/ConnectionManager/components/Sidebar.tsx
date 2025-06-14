@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons';
 import { ConnectionManagerProps } from '../types';
 import { getConnectionIcon } from '../utils.tsx';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 const { Sider } = Layout;
 const { Title } = Typography;
@@ -31,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddConnection,
   children,
 }) => {
+  const { connection } = useAppI18n();
   // 折叠状态的菜单项
   const collapsedMenuItems = connections
     .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
@@ -67,10 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }}>
           {!collapsed && (
             <Title level={4} style={{ margin: 0, fontSize: '16px' }}>
-              <SettingOutlined /> 连接管理
+              <SettingOutlined /> {connection.title}
             </Title>
           )}
-          <Tooltip title={collapsed ? "展开面板" : "收起面板"}>
+          <Tooltip title={collapsed ? connection.sidebar.expand : connection.sidebar.collapse}>
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -88,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* 添加连接按钮 */}
-        <Tooltip title={collapsed ? "添加连接" : ""} placement="right">
+        <Tooltip title={collapsed ? connection.add : ""} placement="right">
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -106,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               })
             }}
           >
-            {!collapsed && '添加连接'}
+            {!collapsed && connection.sidebar.addConnection}
           </Button>
         </Tooltip>
 

@@ -3,12 +3,14 @@ import { message } from 'antd';
 import { DirectoryItem } from '../types';
 import { Connection } from '../../../types';
 import { configService } from '../../../services/configService';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 目录管理相关的Hook
  */
 export const useDirectories = (connections: Connection[]) => {
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
+  const { directory } = useAppI18n();
 
   // 从配置服务加载目录配置
   const loadDirectories = useCallback(async () => {
@@ -31,7 +33,7 @@ export const useDirectories = (connections: Connection[]) => {
         const defaultDirectories: DirectoryItem[] = [
           {
             id: 'default',
-            name: '默认分组',
+            name: directory.defaultGroup,
             connectionIds: connections.map(conn => conn.id),
             expanded: true
           }
@@ -41,10 +43,10 @@ export const useDirectories = (connections: Connection[]) => {
       }
     } catch (error) {
       console.error('加载目录配置失败:', error);
-      message.error('加载目录配置失败');
+      message.error(directory.loadConfigFailed);
       setDirectories([]);
     }
-  }, [connections]);
+  }, [connections, directory]);
 
   // 保存目录配置到配置服务
   const saveDirectories = useCallback(async (dirs: DirectoryItem[]) => {
@@ -64,9 +66,9 @@ export const useDirectories = (connections: Connection[]) => {
       setDirectories(updatedDirs);
     } catch (error) {
       console.error('保存目录配置失败:', error);
-      message.error('保存目录配置失败');
+      message.error(directory.saveConfigFailed);
     }
-  }, [connections]);
+  }, [connections, directory]);
 
   // 目录切换
   const handleDirectoryToggle = useCallback((directoryId: string) => {
@@ -79,13 +81,13 @@ export const useDirectories = (connections: Connection[]) => {
   // 删除目录
   const handleDeleteDirectory = useCallback((directoryId: string) => {
     if (directoryId === 'default') {
-      message.warning('默认分组无法删除');
+      message.warning(directory.defaultGroupCannotDelete);
       return;
     }
     const newDirectories = directories.filter(dir => dir.id !== directoryId);
     saveDirectories(newDirectories);
-    message.success('目录删除成功');
-  }, [directories, saveDirectories]);
+    message.success(directory.deleteSuccess);
+  }, [directories, saveDirectories, directory]);
 
   // 导出目录配置
   const exportDirectories = useCallback(async () => {
@@ -102,12 +104,12 @@ export const useDirectories = (connections: Connection[]) => {
       a.download = `mpfm-directories-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      message.success('目录配置导出成功');
+      message.success(directory.exportSuccess);
     } catch (error) {
       console.error('导出配置失败:', error);
-      message.error('导出配置失败');
+      message.error(directory.exportFailed);
     }
-  }, [directories]);
+  }, [directories, directory]);
 
   // 导入目录配置
   const importDirectories = useCallback((file: File) => {
@@ -118,17 +120,17 @@ export const useDirectories = (connections: Connection[]) => {
         const config = JSON.parse(content);
         if (config.directories && Array.isArray(config.directories)) {
           await saveDirectories(config.directories);
-          message.success('目录配置导入成功');
+          message.success(directory.importSuccess);
         } else {
-          message.error('配置文件格式错误');
+          message.error(directory.configFormatError);
         }
       } catch (error) {
         console.error('导入配置失败:', error);
-        message.error('导入配置失败');
+        message.error(directory.importFailed);
       }
     };
     reader.readAsText(file);
-  }, [saveDirectories]);
+  }, [saveDirectories, directory]);
 
   return {
     directories,

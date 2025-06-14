@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Button, Space, Spin } from 'antd';
 import { LeftOutlined, RightOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface PdfPreviewProps {
   content: ArrayBuffer;
@@ -11,6 +12,7 @@ const PdfPreview: React.FC<PdfPreviewProps> = ({ content, fileName }) => {
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { filePreview } = useAppI18n();
 
   useEffect(() => {
     try {
@@ -33,7 +35,7 @@ const PdfPreview: React.FC<PdfPreviewProps> = ({ content, fileName }) => {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <div style={{ marginTop: '16px' }}>加载PDF中...</div>
+        <div style={{ marginTop: '16px' }}>{filePreview.loading}</div>
       </div>
     );
   }
@@ -41,7 +43,7 @@ const PdfPreview: React.FC<PdfPreviewProps> = ({ content, fileName }) => {
   if (error) {
     return (
       <Alert
-        message="PDF预览失败"
+        message={filePreview.pdfPreviewFailed}
         description={error}
         type="error"
         showIcon

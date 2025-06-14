@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Form, Select, Switch, Divider, Typography, Space } from 'antd';
+import { Card, Form, Select, Switch, Typography, Space } from 'antd';
 import { GlobalOutlined, BgColorsOutlined, SettingOutlined } from '@ant-design/icons';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAppI18n } from '../hooks/useI18n';
@@ -12,7 +12,7 @@ interface SettingsPageProps {
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
-  const { settings, app } = useAppI18n();
+  const { settings } = useAppI18n();
 
   return (
     <div className={className} style={{ padding: '24px' }}>
@@ -36,7 +36,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
               <LanguageSwitcher />
             </Form.Item>
             <Text type="secondary">
-              更改语言后，界面文字将立即更新。设置会自动保存到本地存储。
+              {settings.languageDescription}
             </Text>
           </Form>
         </Card>

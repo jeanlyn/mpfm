@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Button, Space, Spin } from 'antd';
 import { ZoomInOutlined, ZoomOutOutlined, RotateLeftOutlined, RotateRightOutlined } from '@ant-design/icons';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface ImagePreviewProps {
   content: ArrayBuffer;
@@ -8,6 +9,7 @@ interface ImagePreviewProps {
 }
 
 const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
+  const { filePreview } = useAppI18n();
   const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
       };
     } catch (err) {
       console.error('图片加载失败:', err);
-      setError('图片文件加载失败');
+      setError(filePreview.imageFileFailed);
       setLoading(false);
     }
   }, [content]);
@@ -72,7 +74,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <div style={{ marginTop: '16px' }}>加载图片中...</div>
+        <div style={{ marginTop: '16px' }}>{filePreview.loadingImage}</div>
       </div>
     );
   }
@@ -80,7 +82,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
   if (error) {
     return (
       <Alert
-        message="图片加载失败"
+        message={filePreview.imageLoadFailed}
         description={error}
         type="error"
         showIcon
@@ -95,22 +97,22 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
       <div style={{ marginBottom: '16px' }}>
         <Space>
           <Button icon={<ZoomInOutlined />} onClick={handleZoomIn}>
-            放大
+            {filePreview.zoomIn}
           </Button>
           <Button icon={<ZoomOutOutlined />} onClick={handleZoomOut}>
-            缩小
+            {filePreview.zoomOut}
           </Button>
           <Button icon={<RotateLeftOutlined />} onClick={handleRotateLeft}>
-            左转
+            {filePreview.rotateLeft}
           </Button>
           <Button icon={<RotateRightOutlined />} onClick={handleRotateRight}>
-            右转
+            {filePreview.rotateRight}
           </Button>
           <Button onClick={handleReset}>
-            重置
+            {filePreview.reset}
           </Button>
           <span style={{ marginLeft: '16px', color: '#666' }}>
-            缩放: {Math.round(scale * 100)}%
+            {filePreview.zoom}: {Math.round(scale * 100)}%
           </span>
         </Space>
       </div>
@@ -136,7 +138,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ content, fileName }) => {
             display: 'block',
             margin: '20px auto'
           }}
-          onError={() => setError('图片格式不支持或文件损坏')}
+          onError={() => setError(filePreview.imageFormatNotSupported)}
         />
       </div>
     </div>

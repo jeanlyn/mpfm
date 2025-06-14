@@ -19,6 +19,7 @@ import PdfPreview from './PdfPreview';
 import CodePreview from './CodePreview';
 import ExcelPreview from './ExcelPreview';
 import WordPreview from './WordPreview';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 import { getFileType, FileType } from './utils/fileTypeDetector';
 
 interface FilePreviewProps {
@@ -40,6 +41,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
   const [content, setContent] = useState<string | ArrayBuffer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>('unknown');
+  const { filePreview } = useAppI18n();
 
   useEffect(() => {
     if (visible && file && connection && !file.is_dir) {
@@ -69,7 +71,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
       // 对于大文件，只预览前几KB
       const maxSize = 5 * 1024 * 1024; // 5MB
       if (file.size && file.size > maxSize) {
-        setError(`文件太大 (${Math.round(file.size / 1024 / 1024)}MB)，无法预览。请下载后查看。`);
+        setError(filePreview.fileTooLarge.replace('{size}', Math.round(file.size / 1024 / 1024).toString()));
         return;
       }
 
@@ -84,8 +86,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({
         setContent(textContent as string);
       }
     } catch (err) {
-      console.error('加载文件内容失败:', err);
-      setError(`加载文件失败: ${err}`);
+      console.error(filePreview.loadContentFailed, err);
+      setError(`${filePreview.loadFileFailed}: ${err}`);
     } finally {
       setLoading(false);
     }
@@ -108,7 +110,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
       return (
         <div style={{ textAlign: 'center', padding: '50px' }}>
           <Spin size="large" />
-          <div style={{ marginTop: '16px' }}>加载中...</div>
+          <div style={{ marginTop: '16px' }}>{filePreview.loading}</div>
         </div>
       );
     }
@@ -116,7 +118,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
     if (error) {
       return (
         <Alert
-          message="预览失败"
+          message={filePreview.renderPreviewFailed}
           description={error}
           type="error"
           showIcon
@@ -128,8 +130,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({
     if (!content || !file) {
       return (
         <Alert
-          message="无内容"
-          description="文件内容为空或无法读取"
+          message={filePreview.noContent}
+          description={filePreview.noContentDescription}
           type="warning"
           showIcon
           style={{ margin: '20px' }}
@@ -156,8 +158,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({
         default:
           return (
             <Alert
-              message="不支持的文件类型"
-              description={`暂不支持预览 ${file.name} 类型的文件`}
+              message={filePreview.unsupportedFileType}
+              description={filePreview.unsupportedFileDescription.replace('{fileName}', file.name)}
               type="info"
               showIcon
               style={{ margin: '20px' }}
@@ -165,11 +167,11 @@ const FilePreview: React.FC<FilePreviewProps> = ({
           );
       }
     } catch (previewError) {
-      console.error('渲染预览失败:', previewError);
+      console.error(filePreview.renderPreviewFailed, previewError);
       return (
         <Alert
-          message="预览失败"
-          description={`渲染文件预览时出错: ${previewError}`}
+          message={filePreview.renderPreviewFailed}
+          description={filePreview.renderPreviewFailedDescription}
           type="error"
           showIcon
           style={{ margin: '20px' }}
@@ -179,7 +181,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({
   };
 
   const getModalTitle = () => {
-    if (!file) return '文件预览';
+    if (!file) return filePreview.filePreviewTitle;
     
     return (
       <Space>
@@ -213,14 +215,14 @@ const FilePreview: React.FC<FilePreviewProps> = ({
               icon={<DownloadOutlined />}
               onClick={() => onDownload(file)}
             >
-              下载文件
+              {filePreview.downloadFile}
             </Button>
           )}
           <Button
             icon={<CloseOutlined />}
             onClick={onClose}
           >
-            关闭
+            {filePreview.close}
           </Button>
         </Space>
       }

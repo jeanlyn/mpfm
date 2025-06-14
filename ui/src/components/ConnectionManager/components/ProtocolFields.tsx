@@ -1,47 +1,49 @@
 import React from 'react';
 import { Form, Input } from 'antd';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 渲染协议特定的表单字段
  */
 export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolType }) => {
+  const { connection } = useAppI18n();
+  
   if (protocolType === 's3') {
     return (
       <>
         <Form.Item
           name="bucket"
-          label="存储桶名称"
-          rules={[{ required: true, message: '请输入存储桶名称' }]}
+          label={connection.fields.bucketName}
+          rules={[{ required: true, message: connection.fields.bucketNameRequired }]}
         >
-          <Input placeholder="bucket-name" />
+          <Input placeholder={connection.fields.bucketNamePlaceholder} />
         </Form.Item>
         <Form.Item
           name="region"
-          label="区域"
-          rules={[{ required: true, message: '请输入区域' }]}
+          label={connection.fields.region}
+          rules={[{ required: true, message: connection.fields.regionRequired }]}
         >
-          <Input placeholder="us-east-1" />
+          <Input placeholder={connection.fields.regionPlaceholder} />
         </Form.Item>
         <Form.Item
           name="endpoint"
-          label="端点地址"
-          rules={[{ required: true, message: '请输入端点地址' }]}
+          label={connection.fields.endpoint}
         >
-          <Input placeholder="https://s3.amazonaws.com" />
+          <Input placeholder={connection.fields.endpointPlaceholder} />
         </Form.Item>
         <Form.Item
           name="accessKey"
-          label="访问密钥"
-          rules={[{ required: true, message: '请输入访问密钥' }]}
+          label={connection.fields.accessKey}
+          rules={[{ required: true, message: connection.fields.accessKeyRequired }]}
         >
-          <Input placeholder="Access Key" />
+          <Input placeholder={connection.fields.accessKeyPlaceholder} />
         </Form.Item>
         <Form.Item
           name="secretKey"
-          label="密钥"
-          rules={[{ required: true, message: '请输入密钥' }]}
+          label={connection.fields.secretKey}
+          rules={[{ required: true, message: connection.fields.secretKeyRequired }]}
         >
-          <Input.Password placeholder="Secret Key" />
+          <Input.Password placeholder={connection.fields.secretKeyPlaceholder} />
         </Form.Item>
       </>
     );
@@ -51,11 +53,11 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
     return (
       <Form.Item
         name="root_dir"
-        label="根目录"
-        rules={[{ required: true, message: '请输入根目录路径' }]}
+        label={connection.fields.rootDirectory}
+        rules={[{ required: true, message: connection.fields.rootDirectoryRequired }]}
       >
         <Input 
-          placeholder="/path/to/directory" 
+          placeholder={connection.fields.rootDirectoryPlaceholder}
           style={{ width: '100%', height: '32px' }}
         />
       </Form.Item>

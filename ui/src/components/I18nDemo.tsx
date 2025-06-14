@@ -1,8 +1,8 @@
 import React from 'react';
 import { Card, Space, Button, Typography, Divider } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { useAppI18n } from '../hooks/useI18n';
-import LanguageSwitcher from './LanguageSwitcher';
+import { useAppI18n } from '../i18n/hooks/useI18n';
+import LanguageSwitcher from '../i18n/components/LanguageSwitcher';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -12,16 +12,16 @@ interface I18nDemoProps {
 
 const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
   const { t } = useTranslation();
-  const { app, connection, fileManager, settings } = useAppI18n();
+  const { app, connection, fileManager, settings, demo } = useAppI18n();
 
   return (
-    <Card title="国际化 (i18n) 演示" className={className}>
+    <Card title={demo.title} className={className}>
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         
         <div>
-          <Title level={4}>语言切换</Title>
+          <Title level={4}>{demo.languageSwitch}</Title>
           <Paragraph>
-            使用下面的选择器来切换语言：
+            {demo.languageSwitchDescription}
           </Paragraph>
           <LanguageSwitcher />
         </div>
@@ -29,7 +29,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
         <Divider />
 
         <div>
-          <Title level={4}>应用通用文本</Title>
+          <Title level={4}>{demo.appCommonText}</Title>
           <Space wrap>
             <Button type="primary">{app.save}</Button>
             <Button>{app.cancel}</Button>
@@ -42,7 +42,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
         <Divider />
 
         <div>
-          <Title level={4}>连接管理文本</Title>
+          <Title level={4}>{demo.connectionManagementText}</Title>
           <Space direction="vertical">
             <Text strong>{connection.title}</Text>
             <Space wrap>
@@ -51,7 +51,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
               <Button>{connection.test}</Button>
             </Space>
             <div>
-              <Text>状态示例: </Text>
+              <Text>{demo.statusExample} </Text>
               <Text type="success">{connection.status.connected}</Text>
               <Text> | </Text>
               <Text type="warning">{connection.status.connecting}</Text>
@@ -64,7 +64,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
         <Divider />
 
         <div>
-          <Title level={4}>文件管理器文本</Title>
+          <Title level={4}>{demo.fileManagerText}</Title>
           <Space direction="vertical">
             <Text strong>{fileManager.title}</Text>
             <Space wrap>
@@ -74,7 +74,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
               <Button>{fileManager.actions.rename}</Button>
             </Space>
             <div>
-              <Text>字段名称: </Text>
+              <Text>{demo.fieldNames} </Text>
               <Text code>{fileManager.name}</Text>
               <Text> | </Text>
               <Text code>{fileManager.size}</Text>
@@ -87,7 +87,7 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
         <Divider />
 
         <div>
-          <Title level={4}>设置文本</Title>
+          <Title level={4}>{demo.settingsText}</Title>
           <Space wrap>
             <Text>{settings.language}</Text>
             <Text> | </Text>
@@ -100,11 +100,11 @@ const I18nDemo: React.FC<I18nDemoProps> = ({ className }) => {
         <Divider />
 
         <div>
-          <Title level={4}>直接使用 t 函数</Title>
+          <Title level={4}>{demo.directUseTFunction}</Title>
           <Paragraph>
-            <Text>应用标题: <Text strong>{t('app.title')}</Text></Text>
+            <Text>{demo.appTitle} <Text strong>{t('app.title')}</Text></Text>
             <br />
-            <Text>当前语言键值对示例:</Text>
+            <Text>{demo.currentLanguageExample}</Text>
             <br />
             <Text code>t('app.loading') = "{t('app.loading')}"</Text>
             <br />

@@ -117,14 +117,16 @@ export function isPreviewable(fileName: string): boolean {
  * 获取文件类型的显示名称
  */
 export function getFileTypeDisplayName(fileType: FileType): string {
+  // 这里应该使用国际化，但由于这是一个工具函数，
+  // 我们将在组件中处理国际化
   switch (fileType) {
-    case 'text': return '文本文件';
-    case 'json': return 'JSON文件';
-    case 'code': return '代码文件';
-    case 'image': return '图片文件';
-    case 'pdf': return 'PDF文档';
-    case 'excel': return 'Excel表格';
-    case 'word': return 'Word文档';
-    default: return '未知类型';
+    case 'text': return 'Text File';
+    case 'json': return 'JSON File';
+    case 'code': return 'Code File';
+    case 'image': return 'Image File';
+    case 'pdf': return 'PDF Document';
+    case 'excel': return 'Excel Spreadsheet';
+    case 'word': return 'Word Document';
+    default: return 'Unknown Type';
   }
 }

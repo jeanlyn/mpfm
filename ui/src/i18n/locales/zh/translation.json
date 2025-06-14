@@ -11,7 +11,11 @@
     "edit": "编辑",
     "create": "创建",
     "close": "关闭",
-    "refresh": "刷新"
+    "refresh": "刷新",
+    "demo": {
+      "title": "演示模式",
+      "description": "您正在浏览器中查看界面演示。要使用完整功能，请运行 'npm run tauri:dev' 启动 Tauri 应用。"
+    }
   },
   "connection": {
     "title": "连接管理",
@@ -32,17 +36,78 @@
       "disconnected": "未连接",
       "connecting": "连接中...",
       "error": "连接错误"
-    },
-    "messages": {
-      "loadFailed": "加载连接失败",
-      "connectSuccess": "连接成功",
-      "connectFailed": "连接失败",
-      "disconnectSuccess": "断开连接成功",
-      "testSuccess": "连接测试成功",
-      "testFailed": "连接测试失败",
-      "saveSuccess": "保存成功",
-      "deleteFailed": "删除失败"
-    }
+    },      "messages": {
+        "loadFailed": "加载连接失败",
+        "connectSuccess": "连接成功",
+        "connectFailed": "连接失败",
+        "disconnectSuccess": "断开连接成功",
+        "testSuccess": "连接测试成功",
+        "testFailed": "连接测试失败",
+        "saveSuccess": "保存成功",
+        "deleteFailed": "删除失败",
+        "deleteSuccess": "连接删除成功",
+        "addSuccess": "连接添加成功",
+        "copySuccess": "连接复制成功",
+        "copySuccessWithDirectory": "连接复制成功，已添加到目录：{directories}",
+        "editSuccess": "连接编辑成功",
+        "addFailed": "添加连接失败",
+        "copyFailed": "复制连接失败",
+        "editFailed": "编辑连接失败"
+      },
+      "modal": {
+        "addConnectionTitle": "添加新连接",
+        "copyConnectionTitle": "复制连接",
+        "editConnectionTitle": "编辑连接",
+        "defaultTitle": "连接操作",
+        "addConnectionButton": "添加连接",
+        "copyConnectionButton": "复制连接",
+        "editConnectionButton": "编辑连接",
+        "defaultButton": "确定",
+        "nameLabel": "连接名称",
+        "nameRequired": "请输入连接名称",
+        "namePlaceholder": "例如：我的S3存储",
+        "protocolLabel": "协议类型",
+        "protocolRequired": "请选择协议类型",
+        "protocolPlaceholder": "选择协议类型",
+        "protocolS3": "S3 兼容存储",
+        "protocolFs": "本地文件系统",
+        "directoryLabel": "选择目录",
+        "directoryPlaceholder": "选择目录"
+      },
+      "sidebar": {
+        "expand": "展开面板",
+        "collapse": "收起面板",
+        "addConnection": "添加连接"
+      },
+      "tooltips": {
+        "editConnection": "编辑连接",
+        "copyConnection": "复制连接", 
+        "deleteConnection": "删除连接",
+        "confirmDeleteConnection": "确定要删除这个连接吗？",
+        "editDirectory": "编辑目录",
+        "deleteDirectory": "删除目录",
+        "confirmDeleteDirectory": "确定要删除这个目录吗？",
+        "addConnectionToDirectory": "新建连接到此目录"
+      },
+      "fields": {
+        "bucketName": "存储桶名称",
+        "bucketNameRequired": "请输入存储桶名称",
+        "bucketNamePlaceholder": "例如：my-bucket",
+        "region": "区域",
+        "regionRequired": "请输入区域",
+        "regionPlaceholder": "例如：us-east-1", 
+        "endpoint": "端点地址",
+        "endpointPlaceholder": "自定义端点（可选）",
+        "accessKey": "访问密钥",
+        "accessKeyRequired": "请输入访问密钥",
+        "accessKeyPlaceholder": "Access Key",
+        "secretKey": "密钥",
+        "secretKeyRequired": "请输入密钥",
+        "secretKeyPlaceholder": "Secret Key",
+        "rootDirectory": "根目录",
+        "rootDirectoryRequired": "请输入根目录路径",
+        "rootDirectoryPlaceholder": "/path/to/directory"
+      }
   },
   "fileManager": {
     "title": "文件管理器",
@@ -51,6 +116,10 @@
     "size": "大小",
     "modified": "修改时间",
     "type": "类型",
+    "welcome": {
+      "selectConnection": "请选择一个连接",
+      "selectConnectionDescription": "从左侧选择或添加一个连接来开始管理文件"
+    },
     "actions": {
       "upload": "上传",
       "download": "下载",
@@ -60,11 +129,52 @@
       "move": "移动",
       "properties": "属性"
     },
+    "dialogs": {
+      "selectFileToUpload": "选择要上传的文件",
+      "selectSaveLocation": "选择保存位置",
+      "createFolder": "创建文件夹",
+      "folderName": "文件夹名称"
+    },
+    "table": {
+      "confirmDelete": "确定要删除吗？",
+      "deleteButton": "删除",
+      "downloadButton": "下载",
+      "previewButton": "预览"
+    },
+    "breadcrumb": {
+      "root": "根目录"
+    },
+    "toolbar": {
+      "goHome": "根目录",
+      "refresh": "刷新", 
+      "goUp": "上级目录",
+      "search": "搜索文件或目录",
+      "createDirectory": "新建目录",
+      "uploadFile": "上传文件"
+    },
+    "pagination": {
+      "mode": "模式",
+      "total": "总数",
+      "search": "搜索",
+      "yes": "是",
+      "no": "否",
+      "showPerPage": "每页显示",
+      "items": "条",
+      "pageInfo": "第 {start}-{end} 条，共 {total} 条"
+    },
+    "modal": {
+      "createDirectoryTitle": "创建新目录",
+      "directoryNamePlaceholder": "请输入目录名称"
+    },
+    "performance": {
+      "tooManyFiles": "文件数过多，已启用分页模式以提升性能",
+      "performanceDescription": "此目录包含 {count} 个文件，已启用分页模式以提升性能。加载时间: {time}ms"
+    },
     "messages": {
-      "uploadSuccess": "上传成功",
-      "uploadFailed": "上传失败",
-      "downloadSuccess": "下载成功",
-      "downloadFailed": "下载失败",
+      "uploadSuccess": "文件上传成功",
+      "uploadFailed": "文件上传失败",
+      "downloadSuccess": "文件下载成功",
+      "downloadFailed": "文件下载失败",
       "deleteSuccess": "删除成功",
       "deleteFailed": "删除失败",
       "renameSuccess": "重命名成功",
@@ -72,8 +182,123 @@
       "copySuccess": "复制成功",
       "copyFailed": "复制失败",
       "moveSuccess": "移动成功",
-      "moveFailed": "移动失败"
+      "moveFailed": "移动失败",
+      "loadFilesFailed": "加载文件列表失败",
+      "createDirectorySuccess": "目录创建成功",
+      "createDirectoryFailed": "创建目录失败",
+      "directoryCountWarning": "无法获取目录大小，默认使用分页模式",
+      "searchFailed": "搜索文件失败"
     }
+  },
+  "fileTypes": {
+    "text": "文本文件",
+    "json": "JSON文件", 
+    "code": "代码文件",
+    "image": "图片文件",
+    "pdf": "PDF文档",
+    "excel": "Excel表格",
+    "word": "Word文档",
+    "unknown": "未知类型"
+  },
+  "directory": {
+    "title": "目录管理",
+    "defaultGroup": "默认分组",
+    "defaultGroupCannotDelete": "默认分组无法删除",
+    "addDirectory": "添加目录",
+    "saveDirectory": "保存目录",
+    "editDirectory": "编辑目录",
+    "deleteDirectory": "删除目录",
+    "loadConfigFailed": "加载目录配置失败",
+    "saveConfigFailed": "保存目录配置失败",
+    "addSuccess": "目录添加成功",
+    "editSuccess": "目录编辑成功",
+    "deleteSuccess": "目录删除成功",
+    "operationFailed": "目录操作失败",
+    "exportSuccess": "目录配置导出成功",
+    "exportFailed": "导出配置失败",
+    "importSuccess": "目录配置导入成功",
+    "importFailed": "导入配置失败",
+    "configFormatError": "配置文件格式错误",
+    "moveConnectionSuccess": "连接移动成功",
+    "connectionAlreadyInDirectory": "连接已在该目录中",
+    "connectionAlreadyInDirectoryDetailed": "连接 \"{connectionName}\" 已在目录 \"{directoryName}\" 中",
+    "connectionAddedToDirectory": "连接 \"{connectionName}\" 已添加到目录 \"{directoryName}\"",
+    "modal": {
+      "addDirectoryTitle": "添加目录",
+      "editDirectoryTitle": "编辑目录",
+      "directoryNameLabel": "目录名称",
+      "directoryNameRequired": "请输入目录名称",
+      "directoryNamePlaceholder": "例如：我的目录",
+      "associatedConnectionsLabel": "关联连接",
+      "associatedConnectionsPlaceholder": "选择关联的连接",
+      "cancelButton": "取消",
+      "saveDirectoryButton": "保存目录",
+      "addDirectoryButton": "添加目录"
+    },
+    "operations": {
+      "addNewDirectory": "添加新目录"
+    }
+  },
+  "tabs": {
+    "closeOtherTabs": "关闭其他Tab",
+    "closeAllTabs": "关闭所有Tab",
+    "selectConnection": "请从左侧选择连接来打开文件管理器"
+  },
+  "s3": {
+    "bucketNotExists": "Bucket 不存在",
+    "bucketNotExistsDescription": "存储桶 \"{bucket}\" 不存在，是否要创建该存储桶？",
+    "createBucket": "创建",
+    "bucketCreateSuccess": "存储桶创建成功",
+    "bucketCreateFailed": "创建存储桶失败",
+    "checkBucketFailed": "检查存储桶状态失败，将继续尝试操作",
+    "operationCancelled": "已取消操作"
+  },
+  "filePreview": {
+    "loading": "加载中...",
+    "loadingImage": "加载图片中...",
+    "loadingFile": "加载文件中...",
+    "previewFailed": "预览失败",
+    "imageLoadFailed": "图片加载失败",
+    "imageFileFailed": "图片文件加载失败", 
+    "imageFormatNotSupported": "图片格式不支持或文件损坏",
+    "wordParsingDocument": "解析Word文档中...",
+    "wordParseFailed": "解析Word文档失败",
+    "wordConversionWarning": "转换提醒: 检测到 {count} 个格式转换问题，某些元素可能无法完全显示",
+    "pdfPreviewFailed": "PDF预览失败",
+    "jsonParseError": "JSON解析错误",
+    "jsonFormatError": "JSON格式错误",
+    "excelPreviewFailed": "Excel预览失败",
+    "excelParseError": "解析Excel文件失败",
+    "excelNoSheets": "Excel文件中没有工作表",
+    "excelFileEmpty": "Excel文件为空",
+    "excelFileEmptyDescription": "文件中没有可显示的数据",
+    "excelWorksheetEmpty": "工作表为空",
+    "excelWorksheetEmptyDescription": "工作表 \"{sheetName}\" 中没有数据",
+    "excelDisplayRows": "显示 {rows} 行数据 × {cols} 列",
+    "excelLimitedRows": " (仅显示前1000行)",
+    "excelPaginationTotal": "第 {start}-{end} 行，共 {total} 行",
+    "excelColumnPrefix": "列",
+    "fileTooLarge": "文件太大 ({size}MB)，无法预览。请下载后查看。",
+    "loadContentFailed": "加载文件内容失败",
+    "loadFileFailed": "加载文件失败",
+    "filePreviewTitle": "文件预览",
+    "downloadFile": "下载文件",
+    "close": "关闭",
+    "noContent": "无内容",
+    "noContentDescription": "文件内容为空或无法读取",
+    "unsupportedFileType": "不支持的文件类型",
+    "unsupportedFileDescription": "暂不支持预览 {fileName} 类型的文件",
+    "renderPreviewFailed": "预览失败",
+    "renderPreviewFailedDescription": "渲染文件预览时出错",
+    "formatDisplay": "格式化显示",
+    "compressDisplay": "压缩显示",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "rotateLeft": "左转",
+    "rotateRight": "右转",
+    "reset": "重置",
+    "zoom": "缩放",
+    "toolbar": "工具栏"
   },
   "settings": {
     "title": "设置",
@@ -81,6 +306,31 @@
     "theme": "主题",
     "general": "常规设置",
     "appearance": "外观设置",
-    "advanced": "高级设置"
+    "advanced": "高级设置",
+    "languageDescription": "更改语言后，界面文字将立即更新。设置会自动保存到本地存储。",
+    "lightTheme": "浅色",
+    "darkTheme": "深色",
+    "autoTheme": "自动",
+    "compactMode": "紧凑模式",
+    "autoConnect": "自动连接",
+    "showWelcomeOnStartup": "启动时显示欢迎页面",
+    "virtualizeFileList": "文件列表虚拟化",
+    "developerMode": "开发者模式",
+    "verboseLogging": "详细日志",
+    "debugInfo": "调试信息"
+  },
+  "demo": {
+    "title": "国际化 (i18n) 演示",
+    "languageSwitch": "语言切换",
+    "languageSwitchDescription": "使用下面的选择器来切换语言：",
+    "appCommonText": "应用通用文本",
+    "connectionManagementText": "连接管理文本",
+    "statusExample": "状态示例:",
+    "fileManagerText": "文件管理器文本",
+    "fieldNames": "字段名称:",
+    "settingsText": "设置文本",
+    "directUseTFunction": "直接使用 t 函数",
+    "appTitle": "应用标题:",
+    "currentLanguageExample": "当前语言键值对示例:"
   }
 }

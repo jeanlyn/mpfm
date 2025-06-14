@@ -1,8 +1,8 @@
 import React from 'react';
 import { Card, Form, Select, Switch, Divider, Typography, Space } from 'antd';
 import { GlobalOutlined, BgColorsOutlined, SettingOutlined } from '@ant-design/icons';
-import LanguageSwitcher from './LanguageSwitcher';
-import { useAppI18n } from '../hooks/useI18n';
+import LanguageSwitcher from '../i18n/components/LanguageSwitcher';
+import { useAppI18n } from '../i18n/hooks/useI18n';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -36,7 +36,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
               <LanguageSwitcher />
             </Form.Item>
             <Text type="secondary">
-              更改语言后，界面文字将立即更新。设置会自动保存到本地存储。
+              {settings.languageDescription}
             </Text>
           </Form>
         </Card>
@@ -53,12 +53,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
           <Form layout="vertical">
             <Form.Item label={settings.theme}>
               <Select defaultValue="light" style={{ width: 120 }}>
-                <Option value="light">浅色</Option>
-                <Option value="dark">深色</Option>
-                <Option value="auto">自动</Option>
+                <Option value="light">{settings.lightTheme}</Option>
+                <Option value="dark">{settings.darkTheme}</Option>
+                <Option value="auto">{settings.autoTheme}</Option>
               </Select>
             </Form.Item>
-            <Form.Item label="紧凑模式">
+            <Form.Item label={settings.compactMode}>
               <Switch />
             </Form.Item>
           </Form>
@@ -67,13 +67,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
         {/* 常规设置 */}
         <Card title={settings.general}>
           <Form layout="vertical">
-            <Form.Item label="自动连接">
+            <Form.Item label={settings.autoConnect}>
               <Switch defaultChecked />
             </Form.Item>
-            <Form.Item label="启动时显示欢迎页面">
+            <Form.Item label={settings.showWelcomeOnStartup}>
               <Switch defaultChecked />
             </Form.Item>
-            <Form.Item label="文件列表虚拟化">
+            <Form.Item label={settings.virtualizeFileList}>
               <Switch defaultChecked />
             </Form.Item>
           </Form>
@@ -82,13 +82,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
         {/* 高级设置 */}
         <Card title={settings.advanced}>
           <Form layout="vertical">
-            <Form.Item label="开发者模式">
+            <Form.Item label={settings.developerMode}>
               <Switch />
             </Form.Item>
-            <Form.Item label="详细日志">
+            <Form.Item label={settings.verboseLogging}>
               <Switch />
             </Form.Item>
-            <Form.Item label="调试信息">
+            <Form.Item label={settings.debugInfo}>
               <Switch />
             </Form.Item>
           </Form>

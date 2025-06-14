@@ -10,6 +10,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { DraggableConnectionProps } from '../types';
 import { getConnectionIcon } from '../utils.tsx';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 可拖拽的连接组件
@@ -21,6 +22,7 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
   onCopy, 
   onDelete 
 }) => {
+  const { connection: i18n } = useAppI18n();
   const {
     attributes,
     listeners,
@@ -84,7 +86,7 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
           gap: '4px', 
           flexShrink: 0
         }}>
-          <Tooltip title="编辑连接">
+          <Tooltip title={i18n.tooltips.editConnection}>
             <Button
               icon={<EditOutlined />}
               size="small"
@@ -101,7 +103,7 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
               }}
             />
           </Tooltip>
-          <Tooltip title="复制连接">
+          <Tooltip title={i18n.tooltips.copyConnection}>
             <Button
               icon={<CopyOutlined />}
               size="small"
@@ -118,9 +120,9 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
               }}
             />
           </Tooltip>
-          <Tooltip title="删除连接">
+          <Tooltip title={i18n.tooltips.deleteConnection}>
             <Popconfirm
-              title="确定要删除这个连接吗？"
+              title={i18n.tooltips.confirmDeleteConnection}
               onConfirm={(e) => {
                 e?.stopPropagation();
                 onDelete();

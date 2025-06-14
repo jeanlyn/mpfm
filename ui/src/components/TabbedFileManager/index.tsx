@@ -4,6 +4,7 @@ import { Connection } from '../../types';
 import { useTabManager } from './hooks/useTabManager';
 import TabBar from './components/TabBar';
 import FileManagerTab from './components/FileManagerTab';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 import './TabbedFileManager.css';
 
 const { Content } = Layout;
@@ -30,6 +31,8 @@ const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
     closeOtherTabs,
   } = useTabManager();
 
+  const { fileManager } = useAppI18n();
+
   // 当选择新连接时，打开对应的Tab
   React.useEffect(() => {
     if (selectedConnection) {
@@ -41,8 +44,8 @@ const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
   if (!selectedConnection && tabs.length === 0) {
     return (
       <Content style={{ padding: '24px', textAlign: 'center' }}>
-        <Title level={3}>请选择一个连接</Title>
-        <p>从左侧选择或添加一个连接来开始管理文件</p>
+        <Title level={3}>{fileManager.welcome.selectConnection}</Title>
+        <p>{fileManager.welcome.selectConnectionDescription}</p>
       </Content>
     );
   }

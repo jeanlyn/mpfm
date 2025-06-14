@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, Button } from 'antd';
 import { ModalConfig, MODAL_TYPES } from '../types';
 import { DirectoryItem } from '../types';
 import { ProtocolFields } from './ProtocolFields';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 interface ConnectionModalProps {
   modalConfig: ModalConfig;
@@ -22,25 +23,26 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
   onFinish,
   onCancel,
 }) => {
+  const { app, connection } = useAppI18n();
   // 获取模态框标题
   const modalTitle = useMemo(() => {
     switch (modalConfig.type) {
-      case MODAL_TYPES.ADD: return '添加新连接';
-      case MODAL_TYPES.COPY: return '复制连接';
-      case MODAL_TYPES.EDIT: return '编辑连接';
-      default: return '连接操作';
+      case MODAL_TYPES.ADD: return connection.modal.addConnectionTitle;
+      case MODAL_TYPES.COPY: return connection.modal.copyConnectionTitle;
+      case MODAL_TYPES.EDIT: return connection.modal.editConnectionTitle;
+      default: return connection.modal.defaultTitle;
     }
-  }, [modalConfig.type]);
+  }, [modalConfig.type, connection.modal]);
 
   // 获取提交按钮文本
   const submitButtonText = useMemo(() => {
     switch (modalConfig.type) {
-      case MODAL_TYPES.ADD: return '添加连接';
-      case MODAL_TYPES.COPY: return '复制连接';
-      case MODAL_TYPES.EDIT: return '编辑连接';
-      default: return '确定';
+      case MODAL_TYPES.ADD: return connection.modal.addConnectionButton;
+      case MODAL_TYPES.COPY: return connection.modal.copyConnectionButton;
+      case MODAL_TYPES.EDIT: return connection.modal.editConnectionButton;
+      default: return connection.modal.defaultButton;
     }
-  }, [modalConfig.type]);
+  }, [modalConfig.type, connection.modal]);
 
   return (
     <Modal
@@ -59,11 +61,11 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item
           name="name"
-          label="连接名称"
-          rules={[{ required: true, message: '请输入连接名称' }]}
+          label={connection.modal.nameLabel}
+          rules={[{ required: true, message: connection.modal.nameRequired }]}
         >
           <Input 
-            placeholder="例如：我的S3存储" 
+            placeholder={connection.modal.namePlaceholder}
             style={{ width: '100%' }}
             autoComplete="off"
           />
@@ -71,24 +73,24 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
 
         <Form.Item
           name="protocolType"
-          label="协议类型"
-          rules={[{ required: true, message: '请选择协议类型' }]}
+          label={connection.modal.protocolLabel}
+          rules={[{ required: true, message: connection.modal.protocolRequired }]}
         >
           <Select 
-            placeholder="选择协议类型"
+            placeholder={connection.modal.protocolPlaceholder}
             style={{ width: '100%' }}
           >
-            <Select.Option value="s3">S3 兼容存储</Select.Option>
-            <Select.Option value="fs">本地文件系统</Select.Option>
+            <Select.Option value="s3">{connection.modal.protocolS3}</Select.Option>
+            <Select.Option value="fs">{connection.modal.protocolFs}</Select.Option>
           </Select>
         </Form.Item>
 
         <Form.Item
           name="directoryId"
-          label="选择目录"
+          label={connection.modal.directoryLabel}
         >
           <Select
-            placeholder="选择目录"
+            placeholder={connection.modal.directoryPlaceholder}
             options={directories
               .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
               .map(dir => ({ 
@@ -108,7 +110,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
 
         <Form.Item>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <Button onClick={onCancel}>取消</Button>
+            <Button onClick={onCancel}>{app.cancel}</Button>
             <Button type="primary" htmlType="submit">
               {submitButtonText}
             </Button>

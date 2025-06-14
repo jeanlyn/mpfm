@@ -23,7 +23,7 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
-  const { connection } = useAppI18n();
+  const { connection, app } = useAppI18n();
 
   const loadConnections = async () => {
     try {
@@ -57,8 +57,8 @@ const AppContent: React.FC = () => {
     <div className="app" style={{ position: 'relative', height: '100vh' }}>
       {!isTauriEnvironment() && (
         <Alert
-          message="演示模式"
-          description="您正在浏览器中查看界面演示。要使用完整功能，请运行 'npm run tauri:dev' 启动 Tauri 应用。"
+          message={app.demo.title}
+          description={app.demo.description}
           type="info"
           showIcon
           style={{ margin: '16px' }}

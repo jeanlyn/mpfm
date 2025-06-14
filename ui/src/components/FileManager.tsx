@@ -29,6 +29,7 @@ import {
 } from '@ant-design/icons';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo, PaginatedFileList } from '../types';
+import { useAppI18n } from '../i18n/hooks/useI18n';
 import { ApiService } from '../services/api';
 import FilePreview from './FilePreview';
 import { isPreviewable } from './FilePreview/utils/fileTypeDetector';
@@ -42,6 +43,8 @@ interface FileManagerProps {
 }
 
 const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
+  const { fileManager } = useAppI18n();
+  
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [currentPath, setCurrentPath] = useState('/');
   const [loading, setLoading] = useState(false);
@@ -121,7 +124,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         return 'all';
       }
     } catch (error) {
-      console.warn('无法获取目录大小，默认使用分页模式:', error);
+      console.warn(fileManager.messages.directoryCountWarning, error);
       setLoadingMode('pagination');
       return 'pagination';
     }
@@ -158,7 +161,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setCurrentPath(path);
       
     } catch (error) {
-      message.error(`加载文件列表失败: ${error}`);
+      message.error(`${fileManager.messages.loadFilesFailed}: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -178,7 +181,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     try {
       const selected = await open({
         multiple: false,
-        title: '选择要上传的文件',
+        title: fileManager.dialogs.selectFileToUpload,
       });
 
       if (selected && typeof selected === 'string') {
@@ -188,11 +191,11 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           : currentPath + '/' + fileName;
 
         await ApiService.uploadFile(connection.id, selected, remotePath);
-        message.success('文件上传成功');
+        message.success(fileManager.messages.uploadSuccess);
         loadFiles(currentPath, currentPage);
       }
     } catch (error) {
-      message.error(`文件上传失败: ${error}`);
+      message.error(`${fileManager.messages.uploadFailed}: ${error}`);
     }
   };
 
@@ -202,15 +205,15 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     try {
       const savePath = await save({
         defaultPath: file.name,
-        title: '选择保存位置',
+        title: fileManager.dialogs.selectSaveLocation,
       });
 
       if (savePath) {
         await ApiService.downloadFile(connection.id, file.path, savePath);
-        message.success('文件下载成功');
+        message.success(fileManager.messages.downloadSuccess);
       }
     } catch (error) {
-      message.error(`文件下载失败: ${error}`);
+      message.error(`${fileManager.messages.downloadFailed}: ${error}`);
     }
   };
 
@@ -219,10 +222,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
     try {
       await ApiService.deleteFile(connection.id, file.path);
-      message.success('删除成功');
+      message.success(fileManager.messages.deleteSuccess);
       loadFiles(currentPath, currentPage);
     } catch (error) {
-      message.error(`删除失败: ${error}`);
+      message.error(`${fileManager.messages.deleteFailed}: ${error}`);
     }
   };
 
@@ -235,12 +238,12 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         : currentPath + '/' + newDirName.trim();
 
       await ApiService.createDirectory(connection.id, dirPath);
-      message.success('目录创建成功');
+      message.success(fileManager.messages.createDirectorySuccess);
       setCreateDirModalOpen(false);
       setNewDirName('');
       loadFiles(currentPath, currentPage);
     } catch (error) {
-      message.error(`创建目录失败: ${error}`);
+      message.error(`${fileManager.messages.createDirectoryFailed}: ${error}`);
     }
   };
 
@@ -282,7 +285,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
   const columns = useMemo(() => [
     {
-      title: '名称',
+      title: fileManager.name,
       dataIndex: 'name',
       key: 'name',
       width: '40%',
@@ -308,7 +311,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       ),
     },
     {
-      title: '大小',
+      title: fileManager.size,
       dataIndex: 'size',
       key: 'size',
       width: 120,
@@ -317,7 +320,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         record.is_dir ? '-' : formatFileSize(size),
     },
     {
-      title: '修改时间',
+      title: fileManager.modified,
       dataIndex: 'modified',
       key: 'modified',
       width: 180,
@@ -331,7 +334,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         }) : '-',
     },
     {
-      title: '操作',
+      title: fileManager.actions.properties,
       key: 'actions',
       width: 240,
       align: 'right' as const,
@@ -344,7 +347,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               onClick={() => handlePreview(record)}
               style={{ fontSize: '12px' }}
             >
-              预览
+              {fileManager.table.previewButton}
             </Button>
           )}
           {!record.is_dir && (
@@ -354,11 +357,11 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               onClick={() => handleDownload(record)}
               style={{ fontSize: '12px' }}
             >
-              下载
+              {fileManager.table.downloadButton}
             </Button>
           )}
           <Popconfirm
-            title="确定要删除吗？"
+            title={fileManager.table.confirmDelete}
             onConfirm={() => handleDelete(record)}
             placement="topRight"
           >
@@ -368,13 +371,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               danger
               style={{ fontSize: '12px' }}
             >
-              删除
+              {fileManager.table.deleteButton}
             </Button>
           </Popconfirm>
         </Space>
       ),
     },
-  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview]);
+  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview, fileManager]);
 
   // 搜索功能
   const handleSearch = useCallback(async (page: number = 0) => {
@@ -396,7 +399,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setSearchTotal(result.total);
       setSearchPage(result.page);
     } catch (error) {
-      message.error(`搜索文件失败: ${error}`);
+      message.error(`${fileManager.messages.searchFailed}: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -449,7 +452,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setCurrentPath(path);
       
     } catch (error) {
-      message.error(`加载文件列表失败: ${error}`);
+      message.error(`${fileManager.messages.loadFilesFailed}: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -488,7 +491,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       setSearchTotal(result.total);
       setSearchPage(result.page);
     } catch (error) {
-      message.error(`搜索文件失败: ${error}`);
+      message.error(`${fileManager.messages.searchFailed}: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -511,8 +514,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   if (!connection) {
     return (
       <Content style={{ padding: '24px', textAlign: 'center' }}>
-        <Title level={3}>请选择一个连接</Title>
-        <p>从左侧选择或添加一个连接来开始管理文件</p>
+        <Title level={3}>{fileManager.welcome.selectConnection}</Title>
+        <p>{fileManager.welcome.selectConnectionDescription}</p>
       </Content>
     );
   }
@@ -525,17 +528,6 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       flexDirection: 'column',
       overflow: 'auto'
     }}>
-      {/* 性能信息提示 */}
-      {/* {directorySize > 100 && (
-        <Alert
-          message={`文件数过多，已启用分页模式以提升性能`}
-          description={`此目录包含 ${directorySize} 个文件，已启用分页模式以提升性能。加载时间: ${loadTime}ms`}
-          type="info"
-          icon={<InfoCircleOutlined />}
-          style={{ marginBottom: '16px' }}
-          showIcon
-        />
-      )} */}
 
       {/* 优化后的工具栏 - 整合搜索功能到一行 */}
       <div style={{ marginBottom: '16px' }}>
@@ -546,18 +538,18 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               setCurrentPage(0);
               loadFiles('/');
             }}>
-              根目录
+              {fileManager.toolbar.goHome}
             </Button>
             <Button 
               icon={<ReloadOutlined />} 
               onClick={() => loadFiles(currentPath, currentPage)}
               loading={loading}
             >
-              刷新
+              {fileManager.toolbar.refresh}
             </Button>
             {currentPath !== '/' && (
               <Button onClick={navigateUp}>
-                上级目录
+                {fileManager.toolbar.goUp}
               </Button>
             )}
           </Space>
@@ -567,7 +559,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             <form onSubmit={handleSearchSubmit}>
               <Input.Group compact style={{ display: 'flex' }}>
                 <Input
-                  placeholder="搜索文件或目录"
+                  placeholder={fileManager.toolbar.search}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ flex: 1 }}
@@ -600,14 +592,14 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               icon={<PlusOutlined />}
               onClick={() => setCreateDirModalOpen(true)}
             >
-              新建目录
+              {fileManager.toolbar.createDirectory}
             </Button>
             <Button
               type="primary"
               icon={<UploadOutlined />}
               onClick={handleUpload}
             >
-              上传文件
+              {fileManager.toolbar.uploadFile}
             </Button>
           </Space>
         </Space>
@@ -619,6 +611,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           loadFiles('/');
         }}>
           <span style={{ cursor: 'pointer' }}>
+            {fileManager.breadcrumb.root}
           </span>
         </Breadcrumb.Item>
         {currentPath !== '/' && 
@@ -680,7 +673,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           </span> */}
           {/* 左侧：每页显示数量选择 */}
           <Space size="small">
-            <span>每页显示</span>
+            <span>{fileManager.pagination.showPerPage}</span>
             <Select
               value={pageSize}
               onChange={(value) => {
@@ -701,7 +694,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
               <Option value={100}>100</Option>
               <Option value={200}>200</Option>
             </Select>
-            <span>条</span>
+            <span>{fileManager.pagination.items}</span>
           </Space>
 
           {/* 右侧：分页控件 */}
@@ -713,7 +706,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             showSizeChanger={false}
             showQuickJumper
             showTotal={(total, range) => 
-              `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+              fileManager.pagination.pageInfo
+                .replace('{start}', range[0].toString())
+                .replace('{end}', range[1].toString())
+                .replace('{total}', total.toString())
             }
             size="small"
           />
@@ -721,7 +717,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       )}
 
       <Modal
-        title="创建新目录"
+        title={fileManager.modal.createDirectoryTitle}
         open={createDirModalOpen}
         onOk={handleCreateDirectory}
         onCancel={() => {
@@ -730,7 +726,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         }}
       >
         <Input
-          placeholder="请输入目录名称"
+          placeholder={fileManager.modal.directoryNamePlaceholder}
           value={newDirName}
           onChange={(e) => setNewDirName(e.target.value)}
           onPressEnter={handleCreateDirectory}

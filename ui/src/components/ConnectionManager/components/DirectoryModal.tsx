@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Form, Input, Select, Button } from 'antd';
 import { DirectoryItem } from '../types';
 import { Connection } from '../../../types';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 interface DirectoryModalProps {
   isOpen: boolean;
@@ -23,9 +24,10 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
   onFinish,
   onCancel,
 }) => {
+  const { app, directory } = useAppI18n();
   return (
     <Modal
-      title={editingDirectory ? '编辑目录' : '添加目录'}
+      title={editingDirectory ? directory.modal.editDirectoryTitle : directory.modal.addDirectoryTitle}
       open={isOpen}
       onCancel={onCancel}
       footer={null}
@@ -34,19 +36,19 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item
           name="name"
-          label="目录名称"
-          rules={[{ required: true, message: '请输入目录名称' }]}
+          label={directory.modal.directoryNameLabel}
+          rules={[{ required: true, message: directory.modal.directoryNameRequired }]}
         >
-          <Input placeholder="例如：我的目录" />
+          <Input placeholder={directory.modal.directoryNamePlaceholder} />
         </Form.Item>
 
         <Form.Item
           name="connectionIds"
-          label="关联连接"
+          label={directory.modal.associatedConnectionsLabel}
         >
           <Select
             mode="multiple"
-            placeholder="选择关联的连接"
+            placeholder={directory.modal.associatedConnectionsPlaceholder}
             options={connections
               .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
               .map(conn => ({ 
@@ -59,9 +61,9 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
 
         <Form.Item>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <Button onClick={onCancel}>取消</Button>
+            <Button onClick={onCancel}>{directory.modal.cancelButton}</Button>
             <Button type="primary" htmlType="submit">
-              {editingDirectory ? '保存目录' : '添加目录'}
+              {editingDirectory ? directory.modal.saveDirectoryButton : directory.modal.addDirectoryButton}
             </Button>
           </div>
         </Form.Item>

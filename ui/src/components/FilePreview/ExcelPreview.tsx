@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Table, Tabs, Spin } from 'antd';
 import { read, utils, WorkBook } from 'xlsx';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface ExcelPreviewProps {
   content: ArrayBuffer;
@@ -17,6 +18,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<SheetData[]>([]);
+  const { filePreview } = useAppI18n();
 
   useEffect(() => {
     parseExcelFile();
@@ -31,7 +33,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
       const sheetNames = workbook.SheetNames;
       
       if (sheetNames.length === 0) {
-        setError('Excel文件中没有工作表');
+        setError(filePreview.excelNoSheets);
         return;
       }
 
@@ -64,7 +66,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
         // 生成列定义
         const maxCols = Math.max(...limitedData.map(row => row.length));
         const columns = Array.from({ length: maxCols }, (_, index) => ({
-          title: limitedData[0] && limitedData[0][index] ? String(limitedData[0][index]) : `列${index + 1}`,
+          title: limitedData[0] && limitedData[0][index] ? String(limitedData[0][index]) : `${filePreview.excelColumnPrefix}${index + 1}`,
           dataIndex: index,
           key: index,
           width: 150,
@@ -91,7 +93,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
       setSheets(parsedSheets);
       setLoading(false);
     } catch (err) {
-      setError(`解析Excel文件失败: ${err}`);
+      setError(`${filePreview.excelParseError}: ${err}`);
       setLoading(false);
     }
   };
@@ -100,7 +102,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <div style={{ marginTop: '16px' }}>解析Excel文件中...</div>
+        <div style={{ marginTop: '16px' }}>{filePreview.loading}</div>
       </div>
     );
   }
@@ -108,7 +110,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
   if (error) {
     return (
       <Alert
-        message="Excel预览失败"
+        message={filePreview.excelPreviewFailed}
         description={error}
         type="error"
         showIcon
@@ -120,8 +122,8 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
   if (sheets.length === 0) {
     return (
       <Alert
-        message="Excel文件为空"
-        description="文件中没有可显示的数据"
+        message={filePreview.excelFileEmpty}
+        description={filePreview.excelFileEmptyDescription}
         type="warning"
         showIcon
         style={{ margin: '20px' }}
@@ -141,8 +143,10 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
               fontSize: '12px', 
               color: '#666' 
             }}>
-              显示 {sheet.data.length} 行数据 × {sheet.columns.length} 列
-              {sheet.data.length >= 999 && ' (仅显示前1000行)'}
+              {filePreview.excelDisplayRows
+                .replace('{rows}', sheet.data.length.toString())
+                .replace('{cols}', sheet.columns.length.toString())}
+              {sheet.data.length >= 999 && filePreview.excelLimitedRows}
             </div>
             <Table
               columns={sheet.columns}
@@ -154,14 +158,17 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
                 showSizeChanger: true,
                 showQuickJumper: true,
                 showTotal: (total, range) => 
-                  `第 ${range[0]}-${range[1]} 行，共 ${total} 行`,
+                  filePreview.excelPaginationTotal
+                    .replace('{start}', range[0].toString())
+                    .replace('{end}', range[1].toString())
+                    .replace('{total}', total.toString()),
               }}
             />
           </>
         ) : (
           <Alert
-            message="工作表为空"
-            description={`工作表 "${sheet.name}" 中没有数据`}
+            message={filePreview.excelWorksheetEmpty}
+            description={filePreview.excelWorksheetEmptyDescription.replace('{sheetName}', sheet.name)}
             type="info"
             showIcon
           />

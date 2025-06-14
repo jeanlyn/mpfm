@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Alert, Spin, Typography } from 'antd';
 import mammoth from 'mammoth';
 import DOMPurify from 'dompurify';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface WordPreviewProps {
   content: ArrayBuffer;
@@ -9,6 +10,7 @@ interface WordPreviewProps {
 }
 
 const WordPreview: React.FC<WordPreviewProps> = ({ content, fileName }) => {
+  const { filePreview } = useAppI18n();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
@@ -54,7 +56,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ content, fileName }) => {
       setLoading(false);
     } catch (err) {
       console.error('Word文档转换失败:', err);
-      setError(`解析Word文档失败: ${err}`);
+      setError(filePreview.wordParseFailed + `: ${err}`);
       setLoading(false);
     }
   };
@@ -63,7 +65,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ content, fileName }) => {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <div style={{ marginTop: '16px' }}>解析Word文档中...</div>
+        <div style={{ marginTop: '16px' }}>{filePreview.wordParsingDocument}</div>
       </div>
     );
   }
@@ -123,7 +125,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ content, fileName }) => {
       {messages.length > 0 && (
         <div style={{ marginTop: '12px', flexShrink: 0 }}>
           <Alert
-            message={`转换提醒: 检测到 ${messages.length} 个格式转换问题，某些元素可能无法完全显示`}
+            message={filePreview.wordConversionWarning.replace('{count}', messages.length.toString())}
             type="info"
             showIcon
             style={{ fontSize: '12px' }}

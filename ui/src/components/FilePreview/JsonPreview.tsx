@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Button, Space } from 'antd';
 import { CompressOutlined, ExpandOutlined } from '@ant-design/icons';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface JsonPreviewProps {
   content: string;
@@ -10,13 +11,14 @@ interface JsonPreviewProps {
 const JsonPreview: React.FC<JsonPreviewProps> = ({ content, fileName }) => {
   const [isFormatted, setIsFormatted] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { filePreview } = useAppI18n();
 
   const formatJson = (jsonString: string): string => {
     try {
       const parsed = JSON.parse(jsonString);
       return JSON.stringify(parsed, null, 2);
     } catch (err) {
-      setError('JSON格式错误');
+      setError(filePreview.jsonFormatError);
       return jsonString;
     }
   };
@@ -27,7 +29,7 @@ const JsonPreview: React.FC<JsonPreviewProps> = ({ content, fileName }) => {
     return (
       <div style={{ padding: '20px' }}>
         <Alert
-          message="JSON解析错误"
+          message={filePreview.jsonParseError}
           description={error}
           type="error"
           showIcon
@@ -59,7 +61,7 @@ const JsonPreview: React.FC<JsonPreviewProps> = ({ content, fileName }) => {
             icon={isFormatted ? <CompressOutlined /> : <ExpandOutlined />}
             onClick={() => setIsFormatted(!isFormatted)}
           >
-            {isFormatted ? '压缩显示' : '格式化显示'}
+            {isFormatted ? filePreview.compressDisplay : filePreview.formatDisplay}
           </Button>
         </Space>
       </div>

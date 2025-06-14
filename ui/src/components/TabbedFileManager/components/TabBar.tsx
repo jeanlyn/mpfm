@@ -3,6 +3,7 @@ import { Tabs, Dropdown, Button } from 'antd';
 import { CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { FileManagerTab } from '../hooks/useTabManager';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 interface TabBarProps {
   tabs: FileManagerTab[];
@@ -25,6 +26,7 @@ const TabBar: React.FC<TabBarProps> = ({
   onCloseAll,
   onCloseOthers,
 }) => {
+  const { tabs: i18nTabs } = useAppI18n();
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // 当活动标签改变时，滚动到可见区域
@@ -163,13 +165,13 @@ const TabBar: React.FC<TabBarProps> = ({
     items: [
       {
         key: 'closeOthers',
-        label: '关闭其他Tab',
+        label: i18nTabs.closeOtherTabs,
         disabled: tabs.length <= 1 || !activeTabId,
         onClick: () => activeTabId && onCloseOthers(activeTabId),
       },
       {
         key: 'closeAll',
-        label: '关闭所有Tab',
+        label: i18nTabs.closeAllTabs,
         disabled: tabs.length === 0,
         onClick: () => onCloseAll(),
       },
@@ -179,7 +181,7 @@ const TabBar: React.FC<TabBarProps> = ({
   if (tabs.length === 0) {
     return (
       <div className="empty-state">
-        请从左侧选择连接来打开文件管理器
+        {i18nTabs.selectConnection}
       </div>
     );
   }

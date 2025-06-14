@@ -3,7 +3,10 @@
     "title": "Multi-Protocol File Manager",
     "loading": "Loading...",
     "error": "Error",
-    "success": "Success",
+    "moveConnectionSuccess": "Connection moved successfully",
+    "connectionAlreadyInDirectory": "Connection already in directory",
+    "connectionAlreadyInDirectoryDetailed": "Connection \"{connectionName}\" is already in directory \"{directoryName}\"",
+    "connectionAddedToDirectory": "Connection \"{connectionName}\" added to directory \"{directoryName}\"",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "save": "Save",
@@ -11,7 +14,11 @@
     "edit": "Edit",
     "create": "Create",
     "close": "Close",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "demo": {
+      "title": "Demo Mode",
+      "description": "You are viewing the interface demo in a browser. To use full functionality, please run 'npm run tauri:dev' to start the Tauri application."
+    }
   },
   "connection": {
     "title": "Connection Manager",
@@ -32,17 +39,77 @@
       "disconnected": "Disconnected",
       "connecting": "Connecting...",
       "error": "Connection Error"
-    },
-    "messages": {
-      "loadFailed": "Failed to load connections",
-      "connectSuccess": "Connected successfully",
-      "connectFailed": "Connection failed",
-      "disconnectSuccess": "Disconnected successfully",
-      "testSuccess": "Connection test successful",
-      "testFailed": "Connection test failed",
-      "saveSuccess": "Saved successfully",
-      "deleteFailed": "Delete failed"
-    }
+    },      "messages": {
+        "loadFailed": "Failed to load connections",
+        "connectSuccess": "Connected successfully",
+        "connectFailed": "Connection failed",
+        "disconnectSuccess": "Disconnected successfully",
+        "testSuccess": "Connection test successful",
+        "testFailed": "Connection test failed",
+        "saveSuccess": "Saved successfully",
+        "deleteFailed": "Delete failed",
+        "deleteSuccess": "Connection deleted successfully",
+        "addSuccess": "Connection added successfully",
+        "copySuccess": "Connection copied successfully",
+        "copySuccessWithDirectory": "Connection copied successfully, added to directories: {directories}",
+        "editSuccess": "Connection edited successfully",
+        "addFailed": "Failed to add connection",
+        "copyFailed": "Failed to copy connection",
+        "editFailed": "Failed to edit connection"
+      },
+    "modal": {
+      "addConnectionTitle": "Add New Connection",
+      "copyConnectionTitle": "Copy Connection",
+      "editConnectionTitle": "Edit Connection", 
+      "defaultTitle": "Connection Operation",
+      "addConnectionButton": "Add Connection",
+      "copyConnectionButton": "Copy Connection",
+      "editConnectionButton": "Edit Connection",
+      "defaultButton": "OK",
+      "nameLabel": "Connection Name",
+      "nameRequired": "Please enter connection name",
+      "namePlaceholder": "e.g.: My S3 Storage",
+      "protocolLabel": "Protocol Type",
+      "protocolRequired": "Please select protocol type",
+      "protocolPlaceholder": "Select protocol type",
+      "protocolS3": "S3 Compatible Storage",
+      "protocolFs": "Local File System",        "directoryLabel": "Select Directory",
+        "directoryPlaceholder": "Select directory"
+      },
+      "sidebar": {
+        "expand": "Expand Panel",
+        "collapse": "Collapse Panel", 
+        "addConnection": "Add Connection"
+      },
+      "tooltips": {
+        "editConnection": "Edit Connection",
+        "copyConnection": "Copy Connection",
+        "deleteConnection": "Delete Connection", 
+        "confirmDeleteConnection": "Are you sure you want to delete this connection?",
+        "editDirectory": "Edit Directory",
+        "deleteDirectory": "Delete Directory",
+        "confirmDeleteDirectory": "Are you sure you want to delete this directory?",
+        "addConnectionToDirectory": "Add Connection to Directory"
+      },
+      "fields": {
+        "bucketName": "Bucket Name",
+        "bucketNameRequired": "Please enter bucket name",
+        "bucketNamePlaceholder": "e.g.: my-bucket",
+        "region": "Region",
+        "regionRequired": "Please enter region",
+        "regionPlaceholder": "e.g.: us-east-1",
+        "endpoint": "Endpoint",
+        "endpointPlaceholder": "Custom endpoint (optional)",
+        "accessKey": "Access Key",
+        "accessKeyRequired": "Please enter access key",
+        "accessKeyPlaceholder": "Access Key",
+        "secretKey": "Secret Key", 
+        "secretKeyRequired": "Please enter secret key",
+        "secretKeyPlaceholder": "Secret Key",
+        "rootDirectory": "Root Directory",
+        "rootDirectoryRequired": "Please enter root directory path",
+        "rootDirectoryPlaceholder": "/path/to/directory"
+      }
   },
   "fileManager": {
     "title": "File Manager",
@@ -51,6 +118,10 @@
     "size": "Size",
     "modified": "Modified",
     "type": "Type",
+    "welcome": {
+      "selectConnection": "Please select a connection",
+      "selectConnectionDescription": "Select or add a connection from the left side to start managing files"
+    },
     "actions": {
       "upload": "Upload",
       "download": "Download",
@@ -60,20 +131,174 @@
       "move": "Move",
       "properties": "Properties"
     },
+    "dialogs": {
+      "selectFileToUpload": "Select file to upload",
+      "selectSaveLocation": "Select save location",
+      "createFolder": "Create Folder",
+      "folderName": "Folder Name"
+    },
+    "table": {
+      "confirmDelete": "Are you sure you want to delete?",
+      "deleteButton": "Delete",
+      "downloadButton": "Download", 
+      "previewButton": "Preview"
+    },
+    "breadcrumb": {
+      "root": "Root Directory"
+    },
+    "toolbar": {
+      "goHome": "Root Directory",
+      "refresh": "Refresh",
+      "goUp": "Parent Directory", 
+      "search": "Search files or directories",
+      "createDirectory": "New Directory",
+      "uploadFile": "Upload File"
+    },
+    "pagination": {
+      "mode": "Mode",
+      "total": "Total",
+      "search": "Search",
+      "yes": "Yes",
+      "no": "No", 
+      "showPerPage": "Show per page",
+      "items": "items",
+      "pageInfo": "Showing {start}-{end} of {total} items"
+    },
+    "modal": {
+      "createDirectoryTitle": "Create New Directory",
+      "directoryNamePlaceholder": "Please enter directory name"
+    },
+    "performance": {
+      "tooManyFiles": "Too many files, pagination mode enabled for better performance",
+      "performanceDescription": "This directory contains {count} files, pagination mode enabled for better performance. Load time: {time}ms"
+    },
     "messages": {
-      "uploadSuccess": "Upload successful",
-      "uploadFailed": "Upload failed",
-      "downloadSuccess": "Download successful",
-      "downloadFailed": "Download failed",
-      "deleteSuccess": "Delete successful",
+      "uploadSuccess": "File uploaded successfully",
+      "uploadFailed": "File upload failed",
+      "downloadSuccess": "File downloaded successfully",
+      "downloadFailed": "File download failed",
+      "deleteSuccess": "Deleted successfully",
       "deleteFailed": "Delete failed",
-      "renameSuccess": "Rename successful",
+      "renameSuccess": "Renamed successfully",
       "renameFailed": "Rename failed",
-      "copySuccess": "Copy successful",
+      "copySuccess": "Copied successfully",
       "copyFailed": "Copy failed",
-      "moveSuccess": "Move successful",
-      "moveFailed": "Move failed"
+      "moveSuccess": "Moved successfully",
+      "moveFailed": "Move failed",
+      "loadFilesFailed": "Failed to load file list",
+      "createDirectorySuccess": "Directory created successfully",
+      "createDirectoryFailed": "Failed to create directory",
+      "directoryCountWarning": "Unable to get directory size, using pagination mode by default",
+      "searchFailed": "Search files failed"
     }
+  },
+  "fileTypes": {
+    "text": "Text File",
+    "json": "JSON File",
+    "code": "Code File", 
+    "image": "Image File",
+    "pdf": "PDF Document",
+    "excel": "Excel Spreadsheet",
+    "word": "Word Document",
+    "unknown": "Unknown Type"
+  },
+  "directory": {
+    "title": "Directory Management",
+    "defaultGroup": "Default Group",
+    "defaultGroupCannotDelete": "Default group cannot be deleted",
+    "addDirectory": "Add Directory",
+    "saveDirectory": "Save Directory", 
+    "editDirectory": "Edit Directory",
+    "deleteDirectory": "Delete Directory",
+    "loadConfigFailed": "Failed to load directory configuration",
+    "saveConfigFailed": "Failed to save directory configuration",
+    "addSuccess": "Directory added successfully",
+    "editSuccess": "Directory edited successfully",
+    "deleteSuccess": "Directory deleted successfully",
+    "operationFailed": "Directory operation failed",
+    "exportSuccess": "Directory configuration exported successfully",
+    "exportFailed": "Failed to export configuration",
+    "importSuccess": "Directory configuration imported successfully",
+    "importFailed": "Failed to import configuration",
+    "configFormatError": "Configuration file format error",
+    "moveConnectionSuccess": "Connection moved successfully",
+    "connectionAlreadyInDirectory": "Connection is already in this directory",
+    "connectionAlreadyInDirectoryDetailed": "Connection \"{connectionName}\" is already in directory \"{directoryName}\"",
+    "connectionAddedToDirectory": "Connection \"{connectionName}\" added to directory \"{directoryName}\"",
+    "modal": {
+      "addDirectoryTitle": "Add Directory",
+      "editDirectoryTitle": "Edit Directory",
+      "directoryNameLabel": "Directory Name",
+      "directoryNameRequired": "Please enter directory name",
+      "directoryNamePlaceholder": "e.g.: My Directory",
+      "associatedConnectionsLabel": "Associated Connections",
+      "associatedConnectionsPlaceholder": "Select associated connections",
+      "cancelButton": "Cancel",
+      "saveDirectoryButton": "Save Directory",
+      "addDirectoryButton": "Add Directory"
+    },
+    "operations": {
+      "addNewDirectory": "Add New Directory"
+    }
+  },
+  "tabs": {
+    "closeOtherTabs": "Close Other Tabs",
+    "closeAllTabs": "Close All Tabs",
+    "selectConnection": "Please select a connection from the left to open file manager"
+  },
+  "s3": {
+    "bucketNotExists": "Bucket does not exist",
+    "bucketNotExistsDescription": "The bucket \"{bucket}\" does not exist. Do you want to create this bucket?",
+    "createBucket": "Create",
+    "bucketCreateSuccess": "Bucket created successfully",
+    "bucketCreateFailed": "Failed to create bucket",
+    "checkBucketFailed": "Failed to check bucket status, will continue with operation",
+    "operationCancelled": "Operation cancelled"
+  },
+  "filePreview": {
+    "loading": "Loading...",
+    "loadingImage": "Loading image...",
+    "loadingFile": "Loading file...",
+    "previewFailed": "Preview failed",
+    "imageLoadFailed": "Image load failed",
+    "imageFileFailed": "Image file load failed",
+    "imageFormatNotSupported": "Image format not supported or file corrupted",
+    "wordParsingDocument": "Parsing Word document...",
+    "wordParseFailed": "Failed to parse Word document",
+    "wordConversionWarning": "Conversion notice: Detected {count} format conversion issues, some elements may not display completely",
+    "pdfPreviewFailed": "PDF preview failed",
+    "jsonParseError": "JSON parse error",
+    "jsonFormatError": "JSON format error",
+    "excelPreviewFailed": "Excel preview failed",
+    "excelParseError": "Failed to parse Excel file",
+    "excelNoSheets": "No worksheets found in Excel file",
+    "excelFileEmpty": "Excel file is empty",
+    "excelFileEmptyDescription": "No data to display in the file",
+    "excelWorksheetEmpty": "Worksheet is empty",
+    "excelWorksheetEmptyDescription": "No data in worksheet \"{sheetName}\"",
+    "excelDisplayRows": "Showing {rows} rows × {cols} columns",
+    "excelLimitedRows": " (only showing first 1000 rows)",
+    "excelPaginationTotal": "Rows {start}-{end} of {total}",
+    "excelColumnPrefix": "Column",
+    "fileTooLarge": "File too large ({size}MB), cannot preview. Please download to view.",
+    "loadContentFailed": "Failed to load file content",
+    "loadFileFailed": "Failed to load file",
+    "filePreviewTitle": "File Preview",
+    "downloadFile": "Download File",
+    "close": "Close",
+    "noContent": "No Content",
+    "noContentDescription": "File content is empty or cannot be read",
+    "unsupportedFileType": "Unsupported File Type",
+    "unsupportedFileDescription": "Cannot preview {fileName} file type",
+    "renderPreviewFailed": "Preview Failed",
+    "renderPreviewFailedDescription": "Error occurred while rendering file preview",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "rotateLeft": "Rotate Left",
+    "rotateRight": "Rotate Right",
+    "reset": "Reset",
+    "zoom": "Zoom",
+    "toolbar": "Toolbar"
   },
   "settings": {
     "title": "Settings",
@@ -81,6 +306,31 @@
     "theme": "Theme",
     "general": "General Settings",
     "appearance": "Appearance Settings",
-    "advanced": "Advanced Settings"
+    "advanced": "Advanced Settings",
+    "languageDescription": "Interface text will update immediately after changing language. Settings are automatically saved to local storage.",
+    "lightTheme": "Light",
+    "darkTheme": "Dark",
+    "autoTheme": "Auto",
+    "compactMode": "Compact Mode",
+    "autoConnect": "Auto Connect",
+    "showWelcomeOnStartup": "Show Welcome Page on Startup",
+    "virtualizeFileList": "Virtualize File List",
+    "developerMode": "Developer Mode",
+    "verboseLogging": "Verbose Logging",
+    "debugInfo": "Debug Info"
+  },
+  "demo": {
+    "title": "Internationalization (i18n) Demo",
+    "languageSwitch": "Language Switch",
+    "languageSwitchDescription": "Use the selector below to switch languages:",
+    "appCommonText": "App Common Text",
+    "connectionManagementText": "Connection Management Text",
+    "statusExample": "Status Examples:",
+    "fileManagerText": "File Manager Text",
+    "fieldNames": "Field Names:",
+    "settingsText": "Settings Text",
+    "directUseTFunction": "Direct Use of t Function",
+    "appTitle": "App Title:",
+    "currentLanguageExample": "Current Language Key-Value Examples:"
   }
 }

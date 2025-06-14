@@ -13,6 +13,7 @@ import { useDirectoryModal } from './hooks/useDirectoryModal';
 import { useConnectionModal } from './hooks/useConnectionModal';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useConnectionOperations } from './hooks/useConnectionOperations';
+import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 // 组件
 import { Sidebar } from './components/Sidebar';
@@ -33,7 +34,9 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   onConnectionSelect,
   onConnectionsChange,
 }) => {
+  const { directory: i18nDirectory } = useAppI18n();
   const [collapsed, setCollapsed] = useState(false);
+  const { directory } = useAppI18n();
 
   // 目录管理
   const {
@@ -94,7 +97,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
             : dir
         );
         saveDirectories(newDirectories);
-        message.success('目录编辑成功');
+        message.success(directory.editSuccess);
       } else {
         // 添加目录
         const newDirectory: DirectoryItem = {
@@ -104,11 +107,11 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           expanded: true
         };
         saveDirectories([...directories, newDirectory]);
-        message.success('目录添加成功');
+        message.success(directory.addSuccess);
       }
       closeDirectoryModal();
     } catch (error) {
-      message.error('目录操作失败');
+      message.error(directory.operationFailed);
     }
   };
 
@@ -209,7 +212,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           e.currentTarget.style.color = '#666';
         }}
       >
-        <PlusOutlined /> 添加新目录
+        <PlusOutlined /> {i18nDirectory.operations.addNewDirectory}
       </div>
     </div>
   );

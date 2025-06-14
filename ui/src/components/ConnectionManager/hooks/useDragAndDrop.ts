@@ -5,6 +5,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import { Connection } from '../../../types';
 import { DirectoryItem } from '../types';
+import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
 /**
  * 拖拽功能Hook
@@ -15,6 +16,7 @@ export const useDragAndDrop = (
   saveDirectories: (dirs: DirectoryItem[]) => void
 ) => {
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null);
+  const { directory } = useAppI18n();
 
   // 拖拽传感器配置
   const sensors = useSensors(
@@ -86,7 +88,10 @@ export const useDragAndDrop = (
       
       // 检查连接是否已经在目标目录
       if (targetDirectory.connectionIds.includes(connectionId)) {
-        message.info(`连接 "${connection.name}" 已在目录 "${targetDirectory.name}" 中`);
+        const msg = directory.connectionAlreadyInDirectoryDetailed
+          .replace('{connectionName}', connection.name)
+          .replace('{directoryName}', targetDirectory.name);
+        message.info(msg);
         return;
       }
       
@@ -110,7 +115,9 @@ export const useDragAndDrop = (
       });
       
       saveDirectories(newDirectories);
-      message.success(`连接 "${connection.name}" 已添加到目录 "${targetDirectory.name}"`);
+      message.success(directory.connectionAddedToDirectory
+        .replace('{connectionName}', connection.name)
+        .replace('{directoryName}', targetDirectory.name));
     }
   }, [connections, directories, saveDirectories]);
 
