@@ -21,7 +21,7 @@
   },
   "productName": "mpfm",
   "mainBinaryName": "mpfm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.mpfm.app",
   "plugins": {
     "updater": {
@@ -37,7 +37,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "mpfm(多协议文件管理器)",
+        "title": "Multi-Protocol File Manager",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
