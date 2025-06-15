@@ -1,14 +1,11 @@
 import React from 'react';
-import { Typography } from 'antd';
-
-const { Text } = Typography;
 
 interface TextPreviewProps {
   content: string;
   fileName: string;
 }
 
-const TextPreview: React.FC<TextPreviewProps> = ({ content, fileName }) => {
+const TextPreview: React.FC<TextPreviewProps> = ({ content }) => {
   return (
     <div style={{ 
       padding: '20px', 

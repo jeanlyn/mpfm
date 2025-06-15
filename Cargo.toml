@@ -12,9 +12,9 @@ default-run = "multi-protocol-file-manager"  # 添加这一行
 name = "multi-protocol-file-manager"
 path = "src/main.rs"
 
-[[bin]]
-name = "main_cli"
-path = "src/main_cli.rs"
+# [[bin]]
+# name = "main_cli"
+# path = "src/main_cli.rs"
 
 [dependencies]
 opendal = { version = "0.53.1", features = ["services-s3", "services-fs"] }

@@ -14,7 +14,7 @@ interface SheetData {
   columns: any[];
 }
 
-const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content, fileName }) => {
+const ExcelPreview: React.FC<ExcelPreviewProps> = ({ content }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<SheetData[]>([]);

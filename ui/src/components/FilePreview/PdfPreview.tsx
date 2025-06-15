@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Button, Space, Spin } from 'antd';
-import { LeftOutlined, RightOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
+import { Alert, Spin } from 'antd';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 interface PdfPreviewProps {

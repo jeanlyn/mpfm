@@ -1,6 +1,5 @@
 import React from 'react';
 import { Connection } from '../../../types';
-import FileManager from '../../FileManager';
 import FileManagerModular from '../../FileManager/FileManagerModular';
 
 interface FileManagerTabProps {

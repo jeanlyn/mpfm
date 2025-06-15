@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Form, Select, Switch, Divider, Typography, Space } from 'antd';
+import { Card, Form, Select, Switch, Typography, Space } from 'antd';
 import { GlobalOutlined, BgColorsOutlined, SettingOutlined } from '@ant-design/icons';
 import LanguageSwitcher from '../i18n/components/LanguageSwitcher';
 import { useAppI18n } from '../i18n/hooks/useI18n';
@@ -12,7 +12,7 @@ interface SettingsPageProps {
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
-  const { settings, app } = useAppI18n();
+  const { settings } = useAppI18n();
 
   return (
     <div className={className} style={{ padding: '24px' }}>

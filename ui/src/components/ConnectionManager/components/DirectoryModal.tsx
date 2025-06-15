@@ -24,7 +24,7 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
   onFinish,
   onCancel,
 }) => {
-  const { app, directory } = useAppI18n();
+  const { directory } = useAppI18n();
   return (
     <Modal
       title={editingDirectory ? directory.modal.editDirectoryTitle : directory.modal.addDirectoryTitle}

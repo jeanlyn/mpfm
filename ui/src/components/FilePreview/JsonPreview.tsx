@@ -8,7 +8,7 @@ interface JsonPreviewProps {
   fileName: string;
 }
 
-const JsonPreview: React.FC<JsonPreviewProps> = ({ content, fileName }) => {
+const JsonPreview: React.FC<JsonPreviewProps> = ({ content }) => {
   const [isFormatted, setIsFormatted] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { filePreview } = useAppI18n();

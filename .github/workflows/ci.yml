@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ master, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 为所有分支运行基本检查
+  basic-checks:
+    name: Basic Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Check Rust compilation
+        run: cargo check --verbose
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install frontend dependencies
+        run: cd ui && pnpm install
+
+      - name: TypeScript type checking
+        run: cd ui && pnpm run type-check
+
+  # 只为主要分支运行完整测试
+  full-tests:
+    name: Full Tests
+    runs-on: ubuntu-latest
+    if: contains(fromJson('["master", "develop"]'), github.ref_name) || github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build project
+        run: cargo build --verbose
+
+      - name: Run all tests
+        run: cargo test --verbose
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install frontend dependencies
+        run: cd ui && pnpm install
+
+      - name: Build frontend
+        run: cd ui && pnpm run build
