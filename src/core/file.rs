@@ -5,6 +5,7 @@ use std::path::Path;
 use log::{debug, info};
 use opendal::{Entry, Metadata, Operator};
 use serde::{Deserialize, Serialize};
+use zip::{ZipWriter, write::FileOptions, CompressionMethod};
 
 use crate::core::error::{Error, Result};
 
@@ -410,6 +411,61 @@ impl FileManager {
 
         info!("文件读取成功: {} ({} 字节)", path, content.len());
         Ok(content)
+    }
+
+    /// 批量下载文件并打包成ZIP
+    pub async fn batch_download_as_zip(&self, file_paths: &[String], save_path: &str) -> Result<()> {
+        info!("开始批量下载 {} 个文件到: {}", file_paths.len(), save_path);
+
+        // 创建本地目录（如果需要）
+        if let Some(parent) = Path::new(save_path).parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let file = File::create(save_path)?;
+        let mut zip = ZipWriter::new(file);
+        let options = FileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o755);
+
+        for (index, file_path) in file_paths.iter().enumerate() {
+            debug!("下载文件 {}/{}: {}", index + 1, file_paths.len(), file_path);
+            
+            let normalized_path = normalize_path(file_path);
+            
+            // 检查文件是否存在
+            if !self.operator.exists(&normalized_path).await? {
+                debug!("跳过不存在的文件: {}", file_path);
+                continue;
+            }
+
+            // 获取文件元数据
+            let metadata = self.operator.stat(&normalized_path).await?;
+            if metadata.is_dir() {
+                debug!("跳过目录: {}", file_path);
+                continue;
+            }
+
+            // 读取文件内容
+            let data = self.operator.read(&normalized_path).await?;
+            
+            // 生成ZIP内的文件名（去掉前导斜杠）
+            let archive_name = if file_path.starts_with('/') {
+                &file_path[1..]
+            } else {
+                file_path
+            };
+
+            // 添加文件到ZIP
+            zip.start_file(archive_name, options)?;
+            zip.write_all(&data.to_bytes())?;
+        }
+
+        zip.finish()?;
+        info!("批量下载完成，ZIP文件保存到: {}", save_path);
+        Ok(())
     }
 }
 

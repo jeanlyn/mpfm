@@ -590,4 +590,40 @@ if __name__ == "__main__":
       throw new Error(`获取文件内容失败: ${error}`);
     }
   }
+
+  // 批量下载文件并打包成ZIP
+  static async batchDownloadFiles(
+    connectionId: string,
+    filePaths: string[],
+    savePath: string,
+    onProgress?: (current: number, total: number, currentFile: string) => void
+  ): Promise<void> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating batch download');
+      
+      // 模拟下载进度
+      const total = filePaths.length;
+      for (let i = 0; i < total; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 模拟下载延迟
+        onProgress?.(i + 1, total, filePaths[i]);
+      }
+      return Promise.resolve();
+    }
+
+    try {
+      const response: ApiResponse<boolean> = await invoke('batch_download_files', {
+        connectionId,
+        filePaths,
+        savePath,
+        // 注意：进度回调需要通过事件系统实现，这里先简化处理
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || '批量下载失败');
+      }
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`批量下载失败: ${error}`);
+    }
+  }
 }

@@ -129,19 +129,24 @@
       "rename": "Rename",
       "copy": "Copy",
       "move": "Move",
-      "properties": "Properties"
+      "properties": "Properties",
+      "batchDownload": "Batch Download",
+      "selectAll": "Select All",
+      "deselectAll": "Deselect All"
     },
     "dialogs": {
       "selectFileToUpload": "Select file to upload",
       "selectSaveLocation": "Select save location",
       "createFolder": "Create Folder",
-      "folderName": "Folder Name"
+      "folderName": "Folder Name",
+      "selectDownloadLocation": "Select download save location"
     },
     "table": {
       "confirmDelete": "Are you sure you want to delete?",
       "deleteButton": "Delete",
-      "downloadButton": "Download", 
-      "previewButton": "Preview"
+      "downloadButton": "Download",
+      "previewButton": "Preview",
+      "selectFile": "Select File"
     },
     "breadcrumb": {
       "root": "Root Directory"
@@ -189,7 +194,14 @@
       "createDirectorySuccess": "Directory created successfully",
       "createDirectoryFailed": "Failed to create directory",
       "directoryCountWarning": "Unable to get directory size, using pagination mode by default",
-      "searchFailed": "Search files failed"
+      "searchFailed": "Search files failed",
+      "batchDownloadStarted": "Batch download started",
+      "batchDownloadCompleted": "Batch download completed",
+      "batchDownloadFailed": "Batch download failed",
+      "noFilesSelected": "Please select files to download",
+      "selectedFiles": "Selected {count} files",
+      "selectSaveLocation": "Select save location",
+      "batchDownloadProgress": "Downloading {current}/{total} files..."
     }
   },
   "fileTypes": {

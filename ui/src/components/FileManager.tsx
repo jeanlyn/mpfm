@@ -13,6 +13,7 @@ import {
   Pagination,
   Select,
   Spin,
+  Checkbox,
 } from 'antd';
 import {
   FolderOutlined,
@@ -33,6 +34,10 @@ import { useAppI18n } from '../i18n/hooks/useI18n';
 import { ApiService } from '../services/api';
 import FilePreview from './FilePreview';
 import { isPreviewable } from './FilePreview/utils/fileTypeDetector';
+import { useFileSelection } from '../hooks/useFileSelection';
+import BatchOperationToolbar from './FileManager/BatchOperationToolbar';
+import BatchDownloadModal from './FileManager/BatchDownloadModal';
+import { batchDownloadFiles, BatchDownloadProgress } from '../utils/batchDownload';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -68,6 +73,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   
+  // 批量下载相关状态
+  const [batchDownloadVisible, setBatchDownloadVisible] = useState(false);
+  const [batchDownloadProgress, setBatchDownloadProgress] = useState<BatchDownloadProgress | null>(null);
+  
+  // 文件选择功能
+  const fileSelection = useFileSelection();
+  
   // 动态计算表格高度
   const [tableHeight, setTableHeight] = useState(400);
 
@@ -76,9 +88,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       // 重置状态并加载文件
       setCurrentPage(0);
       setFiles([]);
+      fileSelection.clearSelection(); // 清除文件选择
       loadFiles('/');
     }
-  }, [connection]);
+  }, [connection]); // 移除 fileSelection 依赖项，避免循环渲染
 
   // 动态计算表格高度
   useEffect(() => {
@@ -258,6 +271,52 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     setPreviewFile(null);
   }, []);
 
+  // 批量下载处理函数
+  const handleBatchDownload = useCallback(async () => {
+    if (!connection) return;
+    
+    const selectedFiles = fileSelection.getSelectedFiles(isSearchMode ? searchResults : files);
+    if (selectedFiles.length === 0) {
+      message.warning(fileManager.messages.noFilesSelected);
+      return;
+    }
+
+    try {
+      await batchDownloadFiles({
+        connectionId: connection.id,
+        files: selectedFiles,
+        selectSaveLocationTitle: fileManager.messages.selectSaveLocation,
+        onProgress: (progress) => {
+          setBatchDownloadProgress(progress);
+        },
+        onDownloadStart: () => {
+          // 用户选择了保存位置后，才显示进度模态框
+          setBatchDownloadVisible(true);
+          setBatchDownloadProgress({
+            current: 0,
+            total: selectedFiles.length,
+            currentFile: '',
+            completed: false
+          });
+        }
+      });
+
+      // message.success(fileManager.messages.batchDownloadCompleted);
+      fileSelection.clearSelection();
+    } catch (error) {
+      message.error(`${fileManager.messages.batchDownloadFailed}: ${error}`);
+      setBatchDownloadProgress(prev => prev ? {
+        ...prev,
+        error: error instanceof Error ? error.message : String(error)
+      } : null);
+    }
+  }, [connection, fileSelection.getSelectedFiles, fileSelection.clearSelection, files, searchResults, isSearchMode, fileManager]);
+
+  const handleBatchDownloadClose = useCallback(() => {
+    setBatchDownloadVisible(false);
+    setBatchDownloadProgress(null);
+  }, []);
+
   const navigateUp = useCallback(() => {
     if (currentPath === '/') return;
     
@@ -283,12 +342,40 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
   }, []);
 
+  // 计算当前页面是否全选
+  const isAllCurrentPageSelected = useMemo(() => {
+    const currentFiles = isSearchMode ? searchResults : files;
+    const downloadableFiles = currentFiles.filter(file => !file.is_dir);
+    return downloadableFiles.length > 0 && downloadableFiles.every(file => fileSelection.selectedFiles.has(file.path));
+  }, [files, searchResults, isSearchMode, fileSelection.selectedFiles]);
+
   const columns = useMemo(() => [
+    {
+      title: (
+        <Checkbox
+          indeterminate={fileSelection.hasSelection && !isAllCurrentPageSelected}
+          checked={isAllCurrentPageSelected}
+          onChange={() => fileSelection.toggleAllSelection(isSearchMode ? searchResults : files)}
+        />
+      ),
+      dataIndex: 'select',
+      key: 'select',
+      width: 50,
+      align: 'center' as const,
+      render: (_: any, record: FileInfo) => (
+        !record.is_dir ? (
+          <Checkbox
+            checked={fileSelection.selectedFiles.has(record.path)}
+            onChange={() => fileSelection.toggleFileSelection(record.path)}
+          />
+        ) : null
+      ),
+    },
     {
       title: fileManager.name,
       dataIndex: 'name',
       key: 'name',
-      width: '40%',
+      width: '35%',
       minWidth: 200,
       ellipsis: {
         showTitle: false,
@@ -427,7 +514,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         </div>
       ),
     },
-  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview, fileManager]);
+  ], [handleFileDoubleClick, formatFileSize, handleDownload, handleDelete, handlePreview, fileManager, fileSelection.hasSelection, fileSelection.selectedFiles, fileSelection.toggleAllSelection, fileSelection.toggleFileSelection, isAllCurrentPageSelected, files, searchResults, isSearchMode]);
 
   // 搜索功能
   const handleSearch = useCallback(async (page: number = 0) => {
@@ -682,6 +769,15 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         }
       </Breadcrumb>
 
+      {/* 批量操作工具栏 */}
+      <BatchOperationToolbar
+        selection={fileSelection}
+        onBatchDownload={handleBatchDownload}
+        onSelectAll={() => fileSelection.toggleAllSelection(isSearchMode ? searchResults : files)}
+        onDeselectAll={fileSelection.clearSelection}
+        selectedFiles={fileSelection.getSelectedFiles(isSearchMode ? searchResults : files)}
+      />
+
       <div style={{ 
         flex: 1, 
         display: 'flex', 
@@ -790,6 +886,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         visible={previewVisible}
         onClose={handlePreviewClose}
         onDownload={handleDownload}
+      />
+
+      {/* 批量下载进度对话框 */}
+      <BatchDownloadModal
+        visible={batchDownloadVisible}
+        progress={batchDownloadProgress}
+        onClose={handleBatchDownloadClose}
       />
     </Content>
   );

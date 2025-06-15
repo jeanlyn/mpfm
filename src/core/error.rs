@@ -108,5 +108,11 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+impl From<zip::result::ZipError> for Error {
+    fn from(err: zip::result::ZipError) -> Self {
+        Self::new_io(&err.to_string()).with_source(err)
+    }
+}
+
 // 定义结果类型别名
 pub type Result<T> = std::result::Result<T, Error>;

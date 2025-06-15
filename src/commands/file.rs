@@ -334,3 +334,30 @@ pub async fn get_file_content(
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
+
+#[command]
+pub async fn batch_download_files(
+    connection_id: String,
+    file_paths: Vec<String>,
+    save_path: String,
+) -> ApiResponse<bool> {
+    match get_connection_manager() {
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager.batch_download_as_zip(&file_paths, &save_path).await {
+                            Ok(_) => ApiResponse::success(true),
+                            Err(e) => ApiResponse::error(format!("批量下载失败: {}", e)),
+                        }
+                    }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}

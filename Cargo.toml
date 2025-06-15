@@ -34,6 +34,7 @@ uuid = { version = "1.5", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json"] }
 sha2 = "0.10"
 hmac = "0.12"
+zip = "0.6"
 
 # Tauri dependencies
 tauri = { version = "2", features = [] }

@@ -32,6 +32,7 @@ fn main() {
             file::list_files_paginated,
             file::upload_file,
             file::download_file,
+            file::batch_download_files,
             file::delete_file,
             file::create_directory,
             file::get_directory_count,

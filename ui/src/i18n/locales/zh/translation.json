@@ -127,19 +127,24 @@
       "rename": "重命名",
       "copy": "复制",
       "move": "移动",
-      "properties": "属性"
+      "properties": "属性",
+      "batchDownload": "批量下载",
+      "selectAll": "全选",
+      "deselectAll": "取消全选"
     },
     "dialogs": {
       "selectFileToUpload": "选择要上传的文件",
       "selectSaveLocation": "选择保存位置",
       "createFolder": "创建文件夹",
-      "folderName": "文件夹名称"
+      "folderName": "文件夹名称",
+      "selectDownloadLocation": "选择下载保存位置"
     },
     "table": {
       "confirmDelete": "确定要删除吗？",
       "deleteButton": "删除",
       "downloadButton": "下载",
-      "previewButton": "预览"
+      "previewButton": "预览",
+      "selectFile": "选择文件"
     },
     "breadcrumb": {
       "root": "根目录"
@@ -187,7 +192,14 @@
       "createDirectorySuccess": "目录创建成功",
       "createDirectoryFailed": "创建目录失败",
       "directoryCountWarning": "无法获取目录大小，默认使用分页模式",
-      "searchFailed": "搜索文件失败"
+      "searchFailed": "搜索文件失败",
+      "batchDownloadStarted": "批量下载已开始",
+      "batchDownloadCompleted": "批量下载完成",
+      "batchDownloadFailed": "批量下载失败",
+      "noFilesSelected": "请选择要下载的文件",
+      "selectedFiles": "已选择 {count} 个文件",
+      "selectSaveLocation": "选择保存位置",
+      "batchDownloadProgress": "正在下载 {current}/{total} 个文件..."
     }
   },
   "fileTypes": {
