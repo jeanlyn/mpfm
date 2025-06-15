@@ -196,10 +196,12 @@
       "batchDownloadStarted": "批量下载已开始",
       "batchDownloadCompleted": "批量下载完成",
       "batchDownloadFailed": "批量下载失败",
-      "noFilesSelected": "请选择要下载的文件",
-      "selectedFiles": "已选择 {count} 个文件",
+      "noFilesSelected": "请选择要下载的文件或文件夹",
+      "selectedFiles": "已选择 {count} 个项目",
       "selectSaveLocation": "选择保存位置",
-      "batchDownloadProgress": "正在下载 {current}/{total} 个文件..."
+      "batchDownloadProgress": "正在下载 {current}/{total} 个文件...",
+      "processingDirectories": "正在处理文件夹，请稍候...",
+      "downloadingFromDirectories": "正在从文件夹中下载文件..."
     }
   },
   "fileTypes": {

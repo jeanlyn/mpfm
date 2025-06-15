@@ -32,17 +32,17 @@ export function useFileSelection(): FileSelectionState & FileSelectionActions {
 
   const toggleAllSelection = useCallback((files: FileInfo[]) => {
     setSelectedFiles(prev => {
-      const downloadableFiles = files.filter(file => !file.is_dir);
-      const allDownloadableSelected = downloadableFiles.every(file => prev.has(file.path));
+      // 现在支持选择所有文件，包括文件夹
+      const allDownloadableSelected = files.every(file => prev.has(file.path));
       
       const newSet = new Set(prev);
       
       if (allDownloadableSelected) {
-        // 如果全部可下载文件都被选中，则取消全选
-        downloadableFiles.forEach(file => newSet.delete(file.path));
+        // 如果全部文件都被选中，则取消全选
+        files.forEach(file => newSet.delete(file.path));
       } else {
-        // 否则选中所有可下载文件
-        downloadableFiles.forEach(file => newSet.add(file.path));
+        // 否则选中所有文件（包括文件夹）
+        files.forEach(file => newSet.add(file.path));
       }
       
       return newSet;

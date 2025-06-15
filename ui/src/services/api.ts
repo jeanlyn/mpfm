@@ -626,4 +626,28 @@ if __name__ == "__main__":
       throw new Error(`批量下载失败: ${error}`);
     }
   }
+
+  // 递归列出目录下的所有文件
+  static async listFilesRecursive(connectionId: string, path: string): Promise<string[]> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning empty file list');
+      return [];
+    }
+
+    try {
+      const response: ApiResponse<string[]> = await invoke('list_files_recursive', {
+        connectionId,
+        path,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || '递归列出文件失败');
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`递归列出文件失败: ${error}`);
+    }
+  }
 }

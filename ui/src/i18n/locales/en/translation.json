@@ -198,10 +198,12 @@
       "batchDownloadStarted": "Batch download started",
       "batchDownloadCompleted": "Batch download completed",
       "batchDownloadFailed": "Batch download failed",
-      "noFilesSelected": "Please select files to download",
-      "selectedFiles": "Selected {count} files",
+      "noFilesSelected": "Please select files or folders to download",
+      "selectedFiles": "Selected {count} items",
       "selectSaveLocation": "Select save location",
-      "batchDownloadProgress": "Downloading {current}/{total} files..."
+      "batchDownloadProgress": "Downloading {current}/{total} files...",
+      "processingDirectories": "Processing directories, please wait...",
+      "downloadingFromDirectories": "Downloading files from directories..."
     }
   },
   "fileTypes": {

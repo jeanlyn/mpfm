@@ -413,9 +413,9 @@ impl FileManager {
         Ok(content)
     }
 
-    /// 批量下载文件并打包成ZIP
+    /// 批量下载文件并打包成ZIP（支持文件夹递归下载）
     pub async fn batch_download_as_zip(&self, file_paths: &[String], save_path: &str) -> Result<()> {
-        info!("开始批量下载 {} 个文件到: {}", file_paths.len(), save_path);
+        info!("开始批量下载 {} 个项目到: {}", file_paths.len(), save_path);
 
         // 创建本地目录（如果需要）
         if let Some(parent) = Path::new(save_path).parent() {
@@ -430,42 +430,185 @@ impl FileManager {
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o755);
 
-        for (index, file_path) in file_paths.iter().enumerate() {
-            debug!("下载文件 {}/{}: {}", index + 1, file_paths.len(), file_path);
+        // 收集所有需要下载的文件路径
+        let mut all_files_to_download = Vec::new();
+        
+        for file_path in file_paths {
+            let normalized_path = normalize_path(file_path);
+            
+            // 检查路径是否存在
+            if !self.operator.exists(&normalized_path).await? {
+                debug!("跳过不存在的路径: {}", file_path);
+                continue;
+            }
+
+            // 获取元数据
+            let metadata = self.operator.stat(&normalized_path).await?;
+            
+            if metadata.is_dir() {
+                // 如果是目录，递归获取所有文件
+                debug!("递归处理目录: {}", file_path);
+                match self.list_files_recursive(file_path).await {
+                    Ok(recursive_files) => {
+                        all_files_to_download.extend(recursive_files);
+                    }
+                    Err(e) => {
+                        debug!("递归列出目录 {} 失败: {}", file_path, e);
+                        continue;
+                    }
+                }
+            } else {
+                // 如果是文件，直接添加
+                all_files_to_download.push(file_path.clone());
+            }
+        }
+
+        info!("总共需要下载 {} 个文件", all_files_to_download.len());
+
+        // 下载所有文件到ZIP
+        for (index, file_path) in all_files_to_download.iter().enumerate() {
+            debug!("下载文件 {}/{}: {}", index + 1, all_files_to_download.len(), file_path);
             
             let normalized_path = normalize_path(file_path);
             
-            // 检查文件是否存在
+            // 再次检查文件是否存在（防止递归过程中文件被删除）
             if !self.operator.exists(&normalized_path).await? {
                 debug!("跳过不存在的文件: {}", file_path);
                 continue;
             }
 
-            // 获取文件元数据
-            let metadata = self.operator.stat(&normalized_path).await?;
-            if metadata.is_dir() {
-                debug!("跳过目录: {}", file_path);
-                continue;
-            }
-
             // 读取文件内容
-            let data = self.operator.read(&normalized_path).await?;
-            
-            // 生成ZIP内的文件名（去掉前导斜杠）
-            let archive_name = if file_path.starts_with('/') {
-                &file_path[1..]
-            } else {
-                file_path
-            };
+            match self.operator.read(&normalized_path).await {
+                Ok(data) => {
+                    // 生成ZIP内的文件名（去掉前导斜杠）
+                    let archive_name = if file_path.starts_with('/') {
+                        &file_path[1..]
+                    } else {
+                        file_path
+                    };
 
-            // 添加文件到ZIP
-            zip.start_file(archive_name, options)?;
-            zip.write_all(&data.to_bytes())?;
+                    // 添加文件到ZIP
+                    if let Err(e) = zip.start_file(archive_name, options) {
+                        debug!("创建ZIP文件条目失败 {}: {}", archive_name, e);
+                        continue;
+                    }
+                    
+                    if let Err(e) = zip.write_all(&data.to_bytes()) {
+                        debug!("写入ZIP文件数据失败 {}: {}", archive_name, e);
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    debug!("读取文件内容失败 {}: {}", file_path, e);
+                    continue;
+                }
+            }
         }
 
         zip.finish()?;
         info!("批量下载完成，ZIP文件保存到: {}", save_path);
         Ok(())
+    }
+
+    /// 递归列出目录下的所有文件（不包括目录）- 使用迭代方式避免递归问题
+    pub async fn list_files_recursive(&self, path: &str) -> Result<Vec<String>> {
+        debug!("递归列出目录下所有文件: {}", path);
+
+        let mut all_files = std::collections::HashSet::new(); // 使用HashSet防止重复
+        let mut dirs_to_visit = vec![path.to_string()];
+        let mut visited_dirs = std::collections::HashSet::new();
+        let max_items = 1000; // 防止无限制地收集文件
+
+        while let Some(current_dir) = dirs_to_visit.pop() {
+            // 规范化当前目录路径，确保一致性
+            let normalized_current_dir = if current_dir.starts_with('/') {
+                current_dir.clone()
+            } else {
+                format!("/{}", current_dir)
+            };
+
+            // 防止无限循环
+            if visited_dirs.contains(&normalized_current_dir) {
+                debug!("跳过已访问的目录: {}", normalized_current_dir);
+                continue;
+            }
+            visited_dirs.insert(normalized_current_dir.clone());
+
+            // 限制文件数量，防止内存溢出
+            if all_files.len() >= max_items {
+                debug!("达到最大文件数量限制 {}, 停止递归", max_items);
+                break;
+            }
+
+            let normalized_path = normalize_path(&current_dir);
+            
+            // 确保路径以 / 结尾（对于目录）
+            let list_path = if normalized_path.is_empty() {
+                "".to_string()
+            } else if normalized_path.ends_with('/') {
+                normalized_path
+            } else {
+                format!("{}/", normalized_path)
+            };
+
+            debug!("处理目录: {} (原始路径: {})", list_path, current_dir);
+
+            // 获取目录内容
+            match self.operator.list(&list_path).await {
+                Ok(entries) => {
+                    debug!("目录 {} 包含 {} 个条目", list_path, entries.len());
+                    
+                    for entry in entries {
+                        let entry_name = entry.name();
+                        let entry_path = entry.path();
+                        
+                        // 跳过特殊目录
+                        if entry_name == "." || entry_name == ".." {
+                            continue;
+                        }
+                        
+                        if entry.metadata().is_dir() {
+                            // 如果是目录，添加到待访问列表
+                            let sub_dir_path = if entry_path.starts_with('/') {
+                                entry_path.to_string()
+                            } else {
+                                format!("/{}", entry_path)
+                            };
+                            
+                            debug!("发现子目录: {}", sub_dir_path);
+                            
+                            // 防止重复添加目录，使用规范化的路径进行比较
+                            if !visited_dirs.contains(&sub_dir_path) {
+                                dirs_to_visit.push(sub_dir_path);
+                            }
+                        } else {
+                            // 添加文件到结果，使用规范化的路径
+                            let file_path = if entry_path.starts_with('/') {
+                                entry_path.to_string()
+                            } else {
+                                format!("/{}", entry_path)
+                            };
+                            
+                            debug!("找到文件: {}", file_path);
+                            // 使用HashSet自动去重
+                            all_files.insert(file_path);
+                        }
+                    }
+                }
+                Err(e) => {
+                    debug!("无法列出目录 {}: {}", list_path, e);
+                    // 继续处理其他目录
+                    continue;
+                }
+            }
+        }
+
+        // 将HashSet转换为Vec并排序
+        let mut result: Vec<String> = all_files.into_iter().collect();
+        result.sort();
+        
+        info!("递归找到 {} 个文件", result.len());
+        Ok(result)
     }
 }
 
@@ -480,3 +623,216 @@ fn normalize_path(path: &str) -> String {
 
     path
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal::{services, Operator};
+    use tempfile::TempDir;
+    use tokio;
+
+    /// 创建一个测试用的内存文件系统
+    async fn create_test_operator() -> (Operator, tempfile::TempDir) {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp directory");
+        
+        // 使用 fs 服务创建测试操作符
+        let mut builder = services::Fs::default();
+        let root_path = temp_dir.path().to_str().unwrap();
+        builder = builder.root(root_path);
+        
+        let operator = Operator::new(builder)
+            .expect("Failed to create operator")
+            .finish();
+            
+        (operator, temp_dir)
+    }
+
+    /// 创建测试文件结构
+    async fn setup_test_files(operator: &Operator) -> Result<()> {
+        // 创建测试目录结构
+        // /
+        // ├── file1.txt
+        // ├── file2.txt  
+        // ├── dir1/
+        // │   ├── file3.txt
+        // │   └── subdir1/
+        // │       └── file4.txt
+        // └── dir2/
+        //     ├── file5.txt
+        //     └── empty_dir/
+
+        // 创建根文件
+        operator.write("file1.txt", "content of file1").await?;
+        operator.write("file2.txt", "content of file2").await?;
+
+        // 创建目录
+        operator.create_dir("dir1/").await?;
+        operator.create_dir("dir1/subdir1/").await?;
+        operator.create_dir("dir2/").await?;
+        operator.create_dir("dir2/empty_dir/").await?;
+
+        // 创建目录中的文件
+        operator.write("dir1/file3.txt", "content of file3").await?;
+        operator.write("dir1/subdir1/file4.txt", "content of file4").await?;
+        operator.write("dir2/file5.txt", "content of file5").await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_simple() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 设置测试文件
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        // 测试递归列出根目录的所有文件
+        let files = file_manager.list_files_recursive("/").await.unwrap();
+        
+        println!("Found files: {:?}", files);
+        
+        // 验证找到了所有文件
+        assert_eq!(files.len(), 5);
+        
+        // 验证文件路径
+        let mut expected_files = vec![
+            "/file1.txt",
+            "/file2.txt", 
+            "/dir1/file3.txt",
+            "/dir1/subdir1/file4.txt",
+            "/dir2/file5.txt",
+        ];
+        expected_files.sort();
+        
+        let mut actual_files = files.clone();
+        actual_files.sort();
+        
+        assert_eq!(actual_files, expected_files);
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_specific_dir() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 设置测试文件
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        // 测试递归列出特定目录的文件
+        let files = file_manager.list_files_recursive("/dir1").await.unwrap();
+        
+        println!("Found files in dir1: {:?}", files);
+        
+        // 验证找到了 dir1 下的所有文件
+        assert_eq!(files.len(), 2);
+        
+        let mut expected_files = vec![
+            "/dir1/file3.txt",
+            "/dir1/subdir1/file4.txt",
+        ];
+        expected_files.sort();
+        
+        let mut actual_files = files.clone();
+        actual_files.sort();
+        
+        assert_eq!(actual_files, expected_files);
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_empty_dir() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 只创建空目录
+        file_manager.operator.create_dir("empty/").await.unwrap();
+
+        // 测试递归列出空目录
+        let files = file_manager.list_files_recursive("/empty").await.unwrap();
+        
+        // 空目录应该返回空列表
+        assert_eq!(files.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_download_single_file() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 设置测试文件
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        // 创建临时ZIP文件
+        let temp_zip = TempDir::new().unwrap();
+        let zip_path = temp_zip.path().join("test.zip");
+
+        // 测试下载单个文件
+        let file_paths = vec!["/file1.txt".to_string()];
+        let result = file_manager.batch_download_as_zip(&file_paths, zip_path.to_str().unwrap()).await;
+        
+        assert!(result.is_ok());
+        assert!(zip_path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_batch_download_directory() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 设置测试文件
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        // 创建临时ZIP文件
+        let temp_zip = TempDir::new().unwrap();
+        let zip_path = temp_zip.path().join("test_dir.zip");
+
+        // 测试下载整个目录
+        let file_paths = vec!["/dir1".to_string()];
+        let result = file_manager.batch_download_as_zip(&file_paths, zip_path.to_str().unwrap()).await;
+        
+        assert!(result.is_ok());
+        assert!(zip_path.exists());
+        
+        // 验证ZIP文件大小大于0
+        let metadata = std::fs::metadata(&zip_path).unwrap();
+        assert!(metadata.len() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_download_mixed_files_and_dirs() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        // 设置测试文件
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        // 创建临时ZIP文件
+        let temp_zip = TempDir::new().unwrap();
+        let zip_path = temp_zip.path().join("test_mixed.zip");
+
+        // 测试下载混合的文件和目录
+        let file_paths = vec![
+            "/file1.txt".to_string(),
+            "/dir1".to_string(),
+            "/file2.txt".to_string(),
+        ];
+        let result = file_manager.batch_download_as_zip(&file_paths, zip_path.to_str().unwrap()).await;
+        
+        assert!(result.is_ok());
+        assert!(zip_path.exists());
+        
+        // 验证ZIP文件包含所有期望的文件
+        let metadata = std::fs::metadata(&zip_path).unwrap();
+        assert!(metadata.len() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_normalize_path() {
+        // 测试路径规范化函数
+        assert_eq!(normalize_path("/test/path"), "test/path");
+        assert_eq!(normalize_path("test/path"), "test/path");
+        assert_eq!(normalize_path("/"), "");
+        assert_eq!(normalize_path(""), "");
+    }
+}
+

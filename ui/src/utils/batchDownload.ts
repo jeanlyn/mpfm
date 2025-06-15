@@ -20,10 +20,11 @@ export interface BatchDownloadOptions {
 }
 
 /**
- * 过滤出可下载的文件（排除目录）
+ * 现在支持文件夹下载，不再过滤掉目录
  */
 export function filterDownloadableFiles(files: FileInfo[]): FileInfo[] {
-  return files.filter(file => !file.is_dir);
+  // 现在允许下载所有类型的文件和文件夹
+  return files;
 }
 
 /**
@@ -40,11 +41,11 @@ export function generateZipFileName(baseName: string = 'batch_download'): string
 export async function batchDownloadFiles(options: BatchDownloadOptions): Promise<void> {
   const { connectionId, files, onProgress, onDownloadStart, zipFileName, selectSaveLocationTitle } = options;
   
-  // 过滤出可下载的文件
+  // 现在支持下载所有类型的文件（包括文件夹）
   const downloadableFiles = filterDownloadableFiles(files);
   
   if (downloadableFiles.length === 0) {
-    throw new Error('No downloadable files selected');
+    throw new Error('No files selected for download');
   }
 
   // 选择保存位置
@@ -68,7 +69,7 @@ export async function batchDownloadFiles(options: BatchDownloadOptions): Promise
   }
 
   try {
-    // 调用后端批量下载API
+    // 调用后端批量下载API（现在支持文件夹）
     await ApiService.batchDownloadFiles(
       connectionId,
       downloadableFiles.map(f => f.path),

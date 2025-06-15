@@ -28,10 +28,25 @@ const BatchOperationToolbar: React.FC<BatchOperationToolbarProps> = ({
     return null;
   }
 
-  // 计算选中文件的总大小
+  // 计算选中文件的总大小以及文件和文件夹的数量
   const totalSize = selectedFiles.reduce((total, file) => {
     return total + (file.size || 0);
   }, 0);
+
+  const fileCount = selectedFiles.filter(file => !file.is_dir).length;
+  const folderCount = selectedFiles.filter(file => file.is_dir).length;
+
+  // 构建显示文本
+  const getSelectionText = () => {
+    const parts = [];
+    if (fileCount > 0) {
+      parts.push(`${fileCount} 个文件`);
+    }
+    if (folderCount > 0) {
+      parts.push(`${folderCount} 个文件夹`);
+    }
+    return `已选择 ${parts.join('，')}`;
+  };
 
   return (
     <div style={{
@@ -44,7 +59,7 @@ const BatchOperationToolbar: React.FC<BatchOperationToolbarProps> = ({
       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
         <Space>
           <Text>
-            {fileManager.messages.selectedFiles.replace('{count}', selection.selectedCount.toString())}
+            {getSelectionText()}
             {totalSize > 0 && (
               <span style={{ color: '#666', marginLeft: '8px' }}>
                 ({formatFileSize(totalSize)})

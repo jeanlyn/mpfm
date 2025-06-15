@@ -56,12 +56,10 @@ export const useTableColumns = ({
       width: COLUMN_WIDTHS.select,
       align: 'center' as const,
       render: (_: any, record: FileInfo) => (
-        !record.is_dir ? (
-          <Checkbox
-            checked={fileSelection.selectedFiles.has(record.path)}
-            onChange={() => fileSelection.toggleFileSelection(record.path)}
-          />
-        ) : null
+        <Checkbox
+          checked={fileSelection.selectedFiles.has(record.path)}
+          onChange={() => fileSelection.toggleFileSelection(record.path)}
+        />
       ),
     },
     {

@@ -87,8 +87,8 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   // 计算当前页面是否全选
   const isAllCurrentPageSelected = useMemo(() => {
     const currentFiles = state.isSearchMode ? state.searchResults : state.files;
-    const downloadableFiles = currentFiles.filter(file => !file.is_dir);
-    return downloadableFiles.length > 0 && downloadableFiles.every(file => fileSelection.selectedFiles.has(file.path));
+    // 现在支持选择所有文件，包括文件夹
+    return currentFiles.length > 0 && currentFiles.every(file => fileSelection.selectedFiles.has(file.path));
   }, [state.files, state.searchResults, state.isSearchMode, fileSelection.selectedFiles]);
 
   // 表格列定义
