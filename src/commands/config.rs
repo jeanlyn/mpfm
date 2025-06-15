@@ -15,7 +15,7 @@ pub async fn save_app_config(
             if let Err(e) = std::fs::create_dir_all(&config_dir) {
                 return ApiResponse::error(format!("创建配置目录失败: {}", e));
             }
-            
+
             let config_file = config_dir.join(format!("{}.json", key));
             match std::fs::write(&config_file, data) {
                 Ok(_) => ApiResponse::success(true),
@@ -27,10 +27,7 @@ pub async fn save_app_config(
 }
 
 #[command]
-pub async fn load_app_config(
-    app: tauri::AppHandle,
-    key: String,
-) -> ApiResponse<String> {
+pub async fn load_app_config(app: tauri::AppHandle, key: String) -> ApiResponse<String> {
     match app.path().app_config_dir() {
         Ok(config_dir) => {
             let config_file = config_dir.join(format!("{}.json", key));
@@ -48,10 +45,7 @@ pub async fn load_app_config(
 }
 
 #[command]
-pub async fn delete_app_config(
-    app: tauri::AppHandle,
-    key: String,
-) -> ApiResponse<bool> {
+pub async fn delete_app_config(app: tauri::AppHandle, key: String) -> ApiResponse<bool> {
     match app.path().app_config_dir() {
         Ok(config_dir) => {
             let config_file = config_dir.join(format!("{}.json", key));
@@ -100,7 +94,7 @@ pub async fn import_app_config(
             if let Err(e) = std::fs::create_dir_all(&config_dir) {
                 return ApiResponse::error(format!("创建配置目录失败: {}", e));
             }
-            
+
             for (key, data) in config_data {
                 let config_file = config_dir.join(format!("{}.json", key));
                 if let Err(e) = std::fs::write(&config_file, data) {

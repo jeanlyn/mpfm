@@ -347,7 +347,10 @@ pub async fn batch_download_files(
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
-                        match file_manager.batch_download_as_zip(&file_paths, &save_path).await {
+                        match file_manager
+                            .batch_download_as_zip(&file_paths, &save_path)
+                            .await
+                        {
                             Ok(_) => ApiResponse::success(true),
                             Err(e) => ApiResponse::error(format!("批量下载失败: {}", e)),
                         }
@@ -363,10 +366,7 @@ pub async fn batch_download_files(
 }
 
 #[command]
-pub async fn list_files_recursive(
-    connection_id: String, 
-    path: String
-) -> ApiResponse<Vec<String>> {
+pub async fn list_files_recursive(connection_id: String, path: String) -> ApiResponse<Vec<String>> {
     match get_connection_manager() {
         Ok(manager) => match manager.get_connection(&connection_id) {
             Some(config) => match create_protocol(&config.protocol_type, &config.config) {

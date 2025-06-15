@@ -76,7 +76,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install frontend dependencies
-        run: cd ui && pnpm install
+        run: pnpm install && cd ui && pnpm install
 
       - name: TypeScript type checking
         run: cd ui && pnpm run type-check
@@ -114,7 +114,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install frontend dependencies
-        run: cd ui && pnpm install
+        run: pnpm install && cd ui && pnpm install
 
       - name: Run npm audit
         run: cd ui && pnpm audit || echo "Audit completed with warnings"

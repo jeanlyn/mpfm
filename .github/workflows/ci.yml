@@ -48,7 +48,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install frontend dependencies
-        run: cd ui && pnpm install
+        run: pnpm install && cd ui && pnpm install
 
       - name: TypeScript type checking
         run: cd ui && pnpm run type-check
@@ -95,7 +95,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install frontend dependencies
-        run: cd ui && pnpm install
+        run: pnpm install && cd ui && pnpm install
 
       - name: Build frontend
         run: cd ui && pnpm run build
