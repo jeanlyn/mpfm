@@ -1,6 +1,7 @@
 import React from 'react';
 import { Connection } from '../../../types';
 import FileManager from '../../FileManager';
+import FileManagerModular from '../../FileManager/FileManagerModular';
 
 interface FileManagerTabProps {
   connection: Connection;
@@ -33,7 +34,7 @@ const FileManagerTab: React.FC<FileManagerTabProps> = ({
         zIndex: visible ? 1 : 0,
       }}
     >
-      <FileManager connection={connection} />
+      <FileManagerModular connection={connection} />
     </div>
   );
 };

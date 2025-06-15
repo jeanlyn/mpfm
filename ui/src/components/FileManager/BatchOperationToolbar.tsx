@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Space, Typography, Tooltip } from 'antd';
 import { DownloadOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
-import { FileSelectionState } from '../../hooks/useFileSelection';
+import { FileSelectionState } from './hooks/useFileSelection';
 import { formatFileSize } from '../../utils/batchDownload';
 
 const { Text } = Typography;
