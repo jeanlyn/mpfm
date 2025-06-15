@@ -377,7 +377,7 @@ impl FileManager {
         let metadata = self.operator.stat(&path).await?;
 
         let file_info = FileInfo {
-            name: path.split('/').last().unwrap_or(&path).to_string(),
+            name: path.split('/').next_back().unwrap_or(&path).to_string(),
             path: if path.is_empty() {
                 "/".to_string()
             } else {

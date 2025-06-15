@@ -86,7 +86,7 @@ pub async fn upload_file(
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
                         match file_manager
-                            .upload(&std::path::Path::new(&local_path), &remote_path)
+                            .upload(std::path::Path::new(&local_path), &remote_path)
                             .await
                         {
                             Ok(_) => ApiResponse::success(true),
@@ -116,7 +116,7 @@ pub async fn download_file(
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
                         match file_manager
-                            .download(&remote_path, &std::path::Path::new(&local_path))
+                            .download(&remote_path, std::path::Path::new(&local_path))
                             .await
                         {
                             Ok(_) => ApiResponse::success(true),
