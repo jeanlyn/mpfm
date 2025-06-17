@@ -7,6 +7,11 @@ authors = ["MultiProtocolFileManager <info@example.com>"]
 license = "MIT"
 default-run = "multi-protocol-file-manager"  # 添加这一行
 
+# 定义库目标
+# [lib]
+# name = "multi_protocol_file_manager"
+# path = "src/lib.rs"
+
 # 定义二进制目标
 [[bin]]
 name = "multi-protocol-file-manager"

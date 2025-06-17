@@ -53,10 +53,10 @@ jobs:
         run: cargo build --verbose
 
       - name: Run unit tests
-        run: cargo test --lib --verbose
+        run: cargo test --verbose
 
-      - name: Run integration tests
-        run: cargo test --test '*' --verbose
+      # - name: Run integration tests
+      #   run: cargo test --test '*' --verbose
 
       - name: Run documentation tests
         run: cargo test --doc --verbose
