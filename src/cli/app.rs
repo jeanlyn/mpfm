@@ -11,10 +11,12 @@ use serde_json::Value;
 use crate::core::operator;
 use crate::core::{ConnectionConfig, ConnectionManager, Error, Result};
 
+#[allow(dead_code)]
 pub struct App {
     conn_manager: ConnectionManager,
 }
 
+#[allow(dead_code)]
 impl App {
     pub fn new() -> Result<Self> {
         // 初始化应用程序

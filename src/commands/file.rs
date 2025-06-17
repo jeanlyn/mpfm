@@ -364,26 +364,3 @@ pub async fn batch_download_files(
         Err(e) => ApiResponse::error(e.to_string()),
     }
 }
-
-#[command]
-pub async fn list_files_recursive(connection_id: String, path: String) -> ApiResponse<Vec<String>> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager.list_files_recursive(&path).await {
-                            Ok(files) => ApiResponse::success(files),
-                            Err(e) => ApiResponse::error(format!("递归列出文件失败: {}", e)),
-                        }
-                    }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
-            },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
-    }
-}

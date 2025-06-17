@@ -5,6 +5,7 @@ use crate::core::error::Result;
 
 /// 文件系统或存储服务的能力描述
 #[derive(Debug, Default, Clone)]
+#[allow(dead_code)]
 pub struct Capabilities {
     pub can_list: bool,
     pub can_read: bool,
@@ -16,6 +17,7 @@ pub struct Capabilities {
     pub can_batch_delete: bool,
 }
 
+#[allow(dead_code)]
 impl Capabilities {
     pub fn with_list(mut self, value: bool) -> Self {
         self.can_list = value;
@@ -59,6 +61,7 @@ impl Capabilities {
 }
 
 /// 存储协议接口特性
+#[allow(dead_code)]
 pub trait Protocol: Debug + Send + Sync {
     /// 创建 OpenDAL 操作符
     fn create_operator(&self) -> Result<Operator>;

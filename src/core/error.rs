@@ -1,16 +1,5 @@
 use std::fmt;
 
-/// 错误类型枚举
-#[derive(Debug)]
-pub enum ErrorKind {
-    Io,
-    Config,
-    Protocol,
-    NotFound,
-    NotSupported,
-    Other,
-}
-
 /// 错误结构体
 #[derive(Debug)]
 pub struct Error {
