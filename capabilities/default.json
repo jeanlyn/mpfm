@@ -12,6 +12,7 @@
     "fs:allow-exists",
     "fs:allow-create",
     "fs:allow-mkdir",
-    "fs:scope-config"
+    "fs:scope-config",
+    "notification:default"
   ]
 }
