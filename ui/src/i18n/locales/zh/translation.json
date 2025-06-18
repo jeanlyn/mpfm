@@ -147,7 +147,10 @@
       "selectFile": "选择文件"
     },
     "breadcrumb": {
-      "root": "根目录"
+      "root": "根目录",
+      "pathInputPlaceholder": "输入路径并按 Enter 快速跳转",
+      "pathInputTooltip": "点击路径区域输入路径进行快速跳转",
+      "invalidPath": "路径格式不正确"
     },
     "toolbar": {
       "goHome": "根目录",

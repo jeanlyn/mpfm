@@ -149,7 +149,10 @@
       "selectFile": "Select File"
     },
     "breadcrumb": {
-      "root": "Root Directory"
+      "root": "Root Directory",
+      "pathInputPlaceholder": "Enter path and press Enter to jump quickly",
+      "pathInputTooltip": "Click path area to input path for quick navigation",
+      "invalidPath": "Invalid path format"
     },
     "toolbar": {
       "goHome": "Root Directory",

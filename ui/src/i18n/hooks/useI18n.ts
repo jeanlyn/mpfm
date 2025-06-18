@@ -209,6 +209,9 @@ export const useAppI18n = () => {
       },
       breadcrumb: {
         root: t('fileManager.breadcrumb.root'),
+        pathInputPlaceholder: t('fileManager.breadcrumb.pathInputPlaceholder'),
+        pathInputTooltip: t('fileManager.breadcrumb.pathInputTooltip'),
+        invalidPath: t('fileManager.breadcrumb.invalidPath'),
       },
       toolbar: {
         goHome: t('fileManager.toolbar.goHome'),
