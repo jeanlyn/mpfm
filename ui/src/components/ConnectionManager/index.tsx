@@ -129,7 +129,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   // 初始化时加载目录
   useEffect(() => {
     loadDirectories();
-  }, [loadDirectories]);
+  }, []);
 
   // 渲染展开状态的目录和连接列表
   const renderExpandedContent = () => (

@@ -24,7 +24,7 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
         </Space>
       }
       style={{ width: 200, margin: 0 }}
-      bodyStyle={{ padding: '12px' }}
+      styles={{ body: { padding: '12px' } }}
     >
       <Space direction="vertical" style={{ width: '100%' }}>
         <div>

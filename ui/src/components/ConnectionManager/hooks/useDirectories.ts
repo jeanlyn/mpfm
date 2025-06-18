@@ -46,7 +46,7 @@ export const useDirectories = (connections: Connection[]) => {
       message.error(directory.loadConfigFailed);
       setDirectories([]);
     }
-  }, [connections, directory]);
+  }, [connections]);
 
   // 保存目录配置到配置服务
   const saveDirectories = useCallback(async (dirs: DirectoryItem[]) => {

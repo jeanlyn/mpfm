@@ -52,10 +52,12 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
       footer={null}
       width={600}
       style={{ maxWidth: '90vw' }}
-      bodyStyle={{ 
-        maxHeight: '70vh', 
-        overflowY: 'auto',
-        padding: '20px'
+      styles={{ 
+        body: {
+          maxHeight: '70vh', 
+          overflowY: 'auto',
+          padding: '20px'
+        }
       }}
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>

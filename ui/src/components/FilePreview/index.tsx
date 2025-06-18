@@ -203,10 +203,12 @@ const FilePreview: React.FC<FilePreviewProps> = ({
       onCancel={onClose}
       width="80vw"
       style={{ maxWidth: '1200px', top: '20px' }}
-      bodyStyle={{ 
-        height: '70vh', 
-        overflow: 'auto',
-        padding: 0
+      styles={{ 
+        body: {
+          height: '70vh', 
+          overflow: 'auto',
+          padding: 0
+        }
       }}
       footer={
         <Space>
