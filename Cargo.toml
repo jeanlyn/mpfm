@@ -22,7 +22,7 @@ path = "src/main.rs"
 # path = "src/main_cli.rs"
 
 [dependencies]
-opendal = { version = "0.53.1", features = ["services-s3", "services-fs"] }
+opendal = { version = "0.53.1", features = ["services-s3", "services-fs", "services-ftp"] }
 tokio = { version = "1.32", features = ["full"] }
 clap = { version = "4.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

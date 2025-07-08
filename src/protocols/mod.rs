@@ -1,5 +1,6 @@
 pub mod fs;
 pub mod s3;
+pub mod ftp;
 pub mod traits;
 
 pub use traits::Protocol;
@@ -17,6 +18,10 @@ pub fn create_protocol(
         "fs" => {
             let protocal = fs::FSProtocol::from_config(config)?;
             Ok(Box::new(protocal))
+        }
+        "ftp" => {
+            let protocol = ftp::FtpProtocol::from_config(config)?;
+            Ok(Box::new(protocol))
         }
         // 其他协议类型在这里添加
         _ => Err(crate::core::error::Error::new_not_supported(&format!(
