@@ -6,12 +6,19 @@ A cross-platform multi-protocol file manager based on [Apache OpenDAL™](https:
 
 ## 📋 Features
 
-- 🌐 **Multi-Protocol Support**: Support for local filesystem, S3-compatible storage, and other protocols
+- 🌐 **Multi-Protocol Support**: Support for local filesystem, S3-compatible storage, FTP and other protocols
 - 🖥️ **Dual Interface**: Provides both command-line tools and modern graphical interface
 - 🔧 **Connection Management**: Save and manage multiple storage connection configurations
 - 📁 **Complete File Operations**: Support for file/directory listing, upload, download, delete, create, and more
 - 🚀 **Cross-Platform**: Support for Windows, Linux, and macOS
 - ⚡ **High Performance**: Built with Rust, featuring async I/O operations
+
+## 📚 Documentation
+
+- [Quick Start Guide (English)](docs/QUICK_START_EN.md) | [快速开始指南 (中文)](docs/QUICK_START.md)
+- [Adding New Protocol Support (English)](docs/ADDING_NEW_PROTOCOL_EN.md) | [新增协议支持指南 (中文)](docs/ADDING_NEW_PROTOCOL_ZH.md)
+- [FTP Testing Guide](tests/FTP_TEST_README.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
 
 ## 📸 Demo
 
@@ -241,6 +248,13 @@ cargo clippy
 cargo test
 ```
 
+## 📚 Documentation
+
+- [Quick Start Guide](docs/QUICK_START.md) - Get started quickly
+- [Development Guide](docs/DEVELOPMENT.md) - Detailed development documentation
+- [Adding New Protocols](docs/ADD_NEW_PROTOCOL.md) - How to add new protocol support
+- [FTP Testing Guide](tests/FTP_TEST_README.md) - FTP protocol testing instructions
+
 ## 🤝 Contributing
 
 Welcome to contribute code, report issues, or suggest improvements!
@@ -250,6 +264,8 @@ Welcome to contribute code, report issues, or suggest improvements!
 3. Commit your changes: `git commit -m 'Add some amazing feature'`
 4. Push to the branch: `git push origin feature/amazing-feature`
 5. Submit a Pull Request
+
+Please read our [Development Guide](docs/DEVELOPMENT.md) for coding standards and contribution guidelines.
 
 ## 📄 License
 
