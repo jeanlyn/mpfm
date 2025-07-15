@@ -201,11 +201,11 @@ cargo run --bin main_cli -- stat --connection <connection-id> <path>
 
 - ✅ **Local Filesystem (fs)**: Local disk file operations
 - ✅ **S3 Protocol**: AWS S3, MinIO, Ceph, and other S3-compatible storage
+- ✅ **FTP Protocal**: File Transfer Protocol
 
 ### Planned Support
 
 - 🔄 SFTP
-- 🔄 FTP
 - 🔄 WebDAV
 - 🔄 Azure Blob Storage
 - 🔄 Google Cloud Storage
