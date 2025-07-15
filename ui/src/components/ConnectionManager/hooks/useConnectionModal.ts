@@ -51,6 +51,26 @@ export const useConnectionModal = (directories: any[]) => {
           ...initialValues,
           root_dir: connection.config.root_dir,
         };
+      } else if (connection.protocol_type === 'ftp') {
+        initialValues = {
+          ...initialValues,
+          host: connection.config.host,
+          port: connection.config.port,
+          username: connection.config.username,
+          password: connection.config.password,
+          root_dir: connection.config.root_dir,
+          secure: connection.config.secure === 'true',
+        };
+      } else if (connection.protocol_type === 'ftp') {
+        initialValues = {
+          ...initialValues,
+          host: connection.config.host,
+          port: connection.config.port,
+          username: connection.config.username,
+          password: connection.config.password,
+          root_dir: connection.config.root_dir,
+          secure: connection.config.secure === 'true',
+        };
       }
     } else if (type === MODAL_TYPES.EDIT && connection) {
       // 找到原连接所在的目录（编辑模式需要显示目录信息）
@@ -81,6 +101,26 @@ export const useConnectionModal = (directories: any[]) => {
         initialValues = {
           ...initialValues,
           root_dir: connection.config.root_dir,
+        };
+      } else if (connection.protocol_type === 'ftp') {
+        initialValues = {
+          ...initialValues,
+          host: connection.config.host,
+          port: connection.config.port,
+          username: connection.config.username,
+          password: connection.config.password,
+          root_dir: connection.config.root_dir,
+          secure: connection.config.secure === 'true',
+        };
+      } else if (connection.protocol_type === 'ftp') {
+        initialValues = {
+          ...initialValues,
+          host: connection.config.host,
+          port: connection.config.port,
+          username: connection.config.username,
+          password: connection.config.password,
+          root_dir: connection.config.root_dir,
+          secure: connection.config.secure === 'true',
         };
       }
     }

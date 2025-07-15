@@ -84,6 +84,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
           >
             <Select.Option value="s3">{connection.modal.protocolS3}</Select.Option>
             <Select.Option value="fs">{connection.modal.protocolFs}</Select.Option>
+            <Select.Option value="ftp">{connection.modal.protocolFtp}</Select.Option>
           </Select>
         </Form.Item>
 

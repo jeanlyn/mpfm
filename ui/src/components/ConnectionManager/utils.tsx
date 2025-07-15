@@ -32,6 +32,13 @@ export const buildConfig = (values: any): Record<string, string> => {
     config.secret_key = values.secretKey;
   } else if (values.protocolType === 'fs') {
     config.root_dir = values.root_dir;
+  } else if (values.protocolType === 'ftp') {
+    config.host = values.host;
+    config.port = values.port?.toString() || '21';
+    config.username = values.username;
+    config.password = values.password;
+    config.root_dir = values.root_dir || '/';
+    config.secure = values.secure ? 'true' : 'false';
   }
   
   return config;

@@ -71,6 +71,7 @@
         "protocolPlaceholder": "选择协议类型",
         "protocolS3": "S3 兼容存储",
         "protocolFs": "本地文件系统",
+        "protocolFtp": "FTP 服务器",
         "directoryLabel": "选择目录",
         "directoryPlaceholder": "选择目录"
       },
@@ -104,9 +105,28 @@
         "secretKey": "密钥",
         "secretKeyRequired": "请输入密钥",
         "secretKeyPlaceholder": "Secret Key",
+        "host": "主机地址",
+        "hostRequired": "请输入主机地址",
+        "hostPlaceholder": "ftp.example.com 或 192.168.1.100",
+        "hostTooltip": "FTP服务器的主机名或IP地址",
+        "port": "端口",
+        "portRequired": "请输入端口",
+        "portPlaceholder": "21 (标准FTP) 或 990 (FTPS)",
+        "portTooltip": "FTP服务端口，标准端口为21，FTPS通常为990",
+        "username": "用户名",
+        "usernameRequired": "请输入用户名",
+        "usernamePlaceholder": "anonymous 或您的用户名",
+        "usernameTooltip": "FTP账户用户名，匿名访问可填写 'anonymous'",
+        "password": "密码",
+        "passwordRequired": "请输入密码",
+        "passwordPlaceholder": "密码或邮箱(匿名访问)",
+        "passwordTooltip": "FTP账户密码，匿名访问可填写邮箱地址",
         "rootDirectory": "根目录",
         "rootDirectoryRequired": "请输入根目录路径",
-        "rootDirectoryPlaceholder": "/path/to/directory"
+        "rootDirectoryPlaceholder": "/public_html 或留空从根目录开始",
+        "rootDirectoryTooltip": "连接后的初始目录，留空则从根目录开始",
+        "secureConnection": "启用FTPS安全连接",
+        "secureConnectionTooltip": "启用FTPS安全连接（FTP over SSL/TLS）"
       }
   },
   "fileManager": {

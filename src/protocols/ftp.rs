@@ -13,6 +13,7 @@ pub struct FtpProtocol {
     username: String,
     password: String,
     root: Option<String>,
+    secure: bool,
 }
 
 impl FtpProtocol {
@@ -22,6 +23,7 @@ impl FtpProtocol {
         username: String,
         password: String,
         root: Option<String>,
+        secure: bool,
     ) -> Self {
         Self {
             host,
@@ -29,6 +31,7 @@ impl FtpProtocol {
             username,
             password,
             root,
+            secure,
         }
     }
 
@@ -54,9 +57,15 @@ impl FtpProtocol {
             .ok_or_else(|| Error::new_config("FTP配置缺少 'password' 参数"))?
             .clone();
 
-        let root = config.get("root").cloned();
+        let root = config.get("root_dir").or_else(|| config.get("root")).cloned();
 
-        Ok(Self::new(host, port, username, password, root))
+        let secure = config
+            .get("secure")
+            .map(|s| s.parse::<bool>())
+            .unwrap_or(Ok(false))
+            .unwrap_or(false);
+
+        Ok(Self::new(host, port, username, password, root, secure))
     }
 }
 
@@ -68,8 +77,9 @@ impl Protocol for FtpProtocol {
         );
 
         // 创建 FTP 服务配置
+        let protocol = if self.secure { "ftps" } else { "ftp" };
         let mut builder = services::Ftp::default()
-            .endpoint(&format!("ftp://{}:{}", self.host, self.port))
+            .endpoint(&format!("{}://{}:{}", protocol, self.host, self.port))
             .user(&self.username)
             .password(&self.password);
 
@@ -92,7 +102,8 @@ impl Protocol for FtpProtocol {
     }
 
     fn get_name(&self) -> String {
-        format!("FTP ({}@{}:{})", self.username, self.host, self.port)
+        let protocol = if self.secure { "FTPS" } else { "FTP" };
+        format!("{} ({}@{}:{})", protocol, self.username, self.host, self.port)
     }
 
     fn get_capabilities(&self) -> Capabilities {
@@ -100,9 +111,11 @@ impl Protocol for FtpProtocol {
             .with_list(true)
             .with_read(true)
             .with_write(true)
-            .with_delete(true)
             .with_create_dir(true)
+            .with_delete(true)
+            .with_copy(false)
             .with_rename(true)
+            .with_batch_delete(false)
     }
 }
 
@@ -158,6 +171,7 @@ mod tests {
             "user".to_string(),
             "pass".to_string(),
             None,
+            false,
         );
         assert_eq!(protocol.get_id(), "ftp://user@example.com:21");
     }
@@ -170,6 +184,7 @@ mod tests {
             "user".to_string(),
             "pass".to_string(),
             None,
+            false,
         );
         assert_eq!(protocol.get_name(), "FTP (user@example.com:2121)");
     }
@@ -182,6 +197,7 @@ mod tests {
             "user".to_string(),
             "pass".to_string(),
             None,
+            false,
         );
         let caps = protocol.get_capabilities();
         assert!(caps.can_list);

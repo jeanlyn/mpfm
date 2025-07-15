@@ -73,7 +73,9 @@
       "protocolRequired": "Please select protocol type",
       "protocolPlaceholder": "Select protocol type",
       "protocolS3": "S3 Compatible Storage",
-      "protocolFs": "Local File System",        "directoryLabel": "Select Directory",
+      "protocolFs": "Local File System",
+      "protocolFtp": "FTP Server",
+      "directoryLabel": "Select Directory",
         "directoryPlaceholder": "Select directory"
       },
       "sidebar": {
@@ -106,9 +108,28 @@
         "secretKey": "Secret Key", 
         "secretKeyRequired": "Please enter secret key",
         "secretKeyPlaceholder": "Secret Key",
+        "host": "Host",
+        "hostRequired": "Please enter host address",
+        "hostPlaceholder": "ftp.example.com or 192.168.1.100",
+        "hostTooltip": "Hostname or IP address of the FTP server",
+        "port": "Port",
+        "portRequired": "Please enter port",
+        "portPlaceholder": "21 (standard FTP) or 990 (FTPS)",
+        "portTooltip": "FTP service port, standard is 21, FTPS typically uses 990",
+        "username": "Username",
+        "usernameRequired": "Please enter username",
+        "usernamePlaceholder": "anonymous or your username",
+        "usernameTooltip": "FTP account username, use 'anonymous' for anonymous access",
+        "password": "Password",
+        "passwordRequired": "Please enter password",
+        "passwordPlaceholder": "password or email (anonymous access)",
+        "passwordTooltip": "FTP account password, use email address for anonymous access",
         "rootDirectory": "Root Directory",
         "rootDirectoryRequired": "Please enter root directory path",
-        "rootDirectoryPlaceholder": "/path/to/directory"
+        "rootDirectoryPlaceholder": "/public_html or leave empty for root",
+        "rootDirectoryTooltip": "Initial directory after connection, empty starts from root",
+        "secureConnection": "Enable FTPS Secure Connection",
+        "secureConnectionTooltip": "Enable FTPS secure connection (FTP over SSL/TLS)"
       }
   },
   "fileManager": {

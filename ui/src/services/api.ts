@@ -19,6 +19,12 @@ const mockConnections: Connection[] = [
     name: 'S3存储桶',
     protocol_type: 's3',
     config: { bucket: 'demo-bucket', region: 'us-east-1' },
+  },
+  {
+    id: 'mock-3',
+    name: 'FTP服务器',
+    protocol_type: 'ftp',
+    config: { host: 'ftp.example.com', port: '21', username: 'demo', password: 'demo', root_dir: '/' },
   }
 ];
 
