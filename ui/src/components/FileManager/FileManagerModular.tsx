@@ -179,6 +179,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         onSearchQueryChange={(value) => updateState('searchQuery', value)}
         onCreateDirectory={() => updateState('createDirModalOpen', true)}
         onUpload={fileOperations.handleUpload}
+        onUploadDirectory={fileOperations.handleUploadDirectory}
       />
 
       {/* 面包屑导航 */}

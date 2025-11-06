@@ -154,6 +154,7 @@
     },
     "dialogs": {
       "selectFileToUpload": "选择要上传的文件",
+      "selectDirectoryToUpload": "选择要上传的文件夹",
       "selectSaveLocation": "选择保存位置",
       "createFolder": "创建文件夹",
       "folderName": "文件夹名称",
@@ -178,7 +179,8 @@
       "goUp": "上级目录",
       "search": "搜索文件或目录",
       "createDirectory": "新建目录",
-      "uploadFile": "上传文件"
+      "uploadFile": "上传文件",
+      "uploadDirectory": "上传文件夹"
     },
     "pagination": {
       "mode": "模式",
@@ -201,6 +203,9 @@
     "messages": {
       "uploadSuccess": "文件上传成功",
       "uploadFailed": "文件上传失败",
+      "uploadingDirectory": "正在上传文件夹...",
+      "uploadDirectorySuccess": "文件夹上传成功，共上传 {count} 个文件",
+      "uploadDirectoryFailed": "上传文件夹失败",
       "downloadSuccess": "文件下载成功",
       "downloadFailed": "文件下载失败",
       "deleteSuccess": "删除成功",

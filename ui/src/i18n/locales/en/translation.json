@@ -157,6 +157,7 @@
     },
     "dialogs": {
       "selectFileToUpload": "Select file to upload",
+      "selectDirectoryToUpload": "Select directory to upload",
       "selectSaveLocation": "Select save location",
       "createFolder": "Create Folder",
       "folderName": "Folder Name",
@@ -181,7 +182,8 @@
       "goUp": "Parent Directory", 
       "search": "Search files or directories",
       "createDirectory": "New Directory",
-      "uploadFile": "Upload File"
+      "uploadFile": "Upload File",
+      "uploadDirectory": "Upload Directory"
     },
     "pagination": {
       "mode": "Mode",
@@ -204,6 +206,9 @@
     "messages": {
       "uploadSuccess": "File uploaded successfully",
       "uploadFailed": "File upload failed",
+      "uploadingDirectory": "Uploading directory...",
+      "uploadDirectorySuccess": "Directory uploaded successfully, {count} files uploaded",
+      "uploadDirectoryFailed": "Directory upload failed",
       "downloadSuccess": "File downloaded successfully",
       "downloadFailed": "File download failed",
       "deleteSuccess": "Deleted successfully",

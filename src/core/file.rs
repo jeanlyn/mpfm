@@ -111,6 +111,132 @@ impl FileManager {
         Ok(())
     }
 
+    /// 上传整个目录（递归上传文件夹内的所有文件，保持目录结构）
+    pub async fn upload_directory(
+        &self,
+        local_dir_path: &Path,
+        remote_base_path: &str,
+    ) -> Result<usize> {
+        debug!(
+            "上传目录: {} -> {}",
+            local_dir_path.display(),
+            remote_base_path
+        );
+
+        if !local_dir_path.exists() {
+            return Err(Error::new_not_found(&format!(
+                "本地目录不存在: {}",
+                local_dir_path.display()
+            )));
+        }
+
+        if !local_dir_path.is_dir() {
+            return Err(Error::new_config(&format!(
+                "路径不是目录: {}",
+                local_dir_path.display()
+            )));
+        }
+
+        let mut uploaded_count = 0;
+        let mut dirs_to_visit = vec![local_dir_path.to_path_buf()];
+        let local_base = local_dir_path.parent().unwrap_or(local_dir_path);
+
+        while let Some(current_dir) = dirs_to_visit.pop() {
+            debug!("处理目录: {}", current_dir.display());
+
+            // 读取目录内容
+            let entries = match std::fs::read_dir(&current_dir) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    debug!("无法读取目录 {}: {}", current_dir.display(), e);
+                    continue;
+                }
+            };
+
+            for entry in entries {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(e) => {
+                        debug!("读取目录项失败: {}", e);
+                        continue;
+                    }
+                };
+
+                let path = entry.path();
+                let metadata = match entry.metadata() {
+                    Ok(metadata) => metadata,
+                    Err(e) => {
+                        debug!("获取元数据失败 {}: {}", path.display(), e);
+                        continue;
+                    }
+                };
+
+                // 计算相对路径
+                let relative_path = match path.strip_prefix(local_base) {
+                    Ok(rel_path) => rel_path,
+                    Err(_) => {
+                        debug!("无法获取相对路径: {}", path.display());
+                        continue;
+                    }
+                };
+
+                // 构建远程路径
+                let remote_path = if remote_base_path.is_empty() || remote_base_path == "/" {
+                    relative_path.to_string_lossy().replace('\\', "/")
+                } else {
+                    format!(
+                        "{}/{}",
+                        remote_base_path.trim_end_matches('/'),
+                        relative_path.to_string_lossy().replace('\\', "/")
+                    )
+                };
+
+                if metadata.is_dir() {
+                    // 如果是目录，创建远程目录并添加到待访问列表
+                    let remote_dir_path = if remote_path.ends_with('/') {
+                        remote_path.clone()
+                    } else {
+                        format!("{}/", remote_path)
+                    };
+
+                    debug!("创建远程目录: {}", remote_dir_path);
+                    if let Err(e) = self.create_dir(&remote_dir_path).await {
+                        debug!("创建远程目录失败 {}: {}", remote_dir_path, e);
+                        // 目录可能已存在，继续处理
+                    }
+
+                    dirs_to_visit.push(path);
+                } else if metadata.is_file() {
+                    // 如果是文件，上传
+                    debug!("上传文件: {} -> {}", path.display(), remote_path);
+
+                    match self.upload(&path, &remote_path).await {
+                        Ok(_) => {
+                            uploaded_count += 1;
+                            info!(
+                                "文件上传成功 ({}/...): {} -> {}",
+                                uploaded_count,
+                                path.display(),
+                                remote_path
+                            );
+                        }
+                        Err(e) => {
+                            debug!("上传文件失败 {}: {}", path.display(), e);
+                            // 继续上传其他文件
+                        }
+                    }
+                }
+            }
+        }
+
+        info!(
+            "目录上传完成: {} (共上传 {} 个文件)",
+            local_dir_path.display(),
+            uploaded_count
+        );
+        Ok(uploaded_count)
+    }
+
     /// 下载文件
     pub async fn download(&self, remote_path: &str, local_path: &Path) -> Result<()> {
         debug!("下载文件: {} -> {}", remote_path, local_path.display());

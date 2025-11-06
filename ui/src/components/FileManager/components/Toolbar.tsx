@@ -7,6 +7,7 @@ import {
   CloseOutlined,
   PlusOutlined,
   UploadOutlined,
+  FolderAddOutlined,
 } from '@ant-design/icons';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
@@ -24,6 +25,7 @@ interface ToolbarProps {
   onSearchQueryChange: (value: string) => void;
   onCreateDirectory: () => void;
   onUpload: () => void;
+  onUploadDirectory: () => void;
 }
 
 /**
@@ -43,6 +45,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSearchQueryChange,
   onCreateDirectory,
   onUpload,
+  onUploadDirectory,
 }) => {
   const { fileManager } = useAppI18n();
 
@@ -100,7 +103,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         </div>
 
         {/* 右侧：操作按钮 */}
-        <Space wrap>
+        <Space size="small" wrap>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -114,6 +117,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={onUpload}
           >
             {fileManager.toolbar.uploadFile}
+          </Button>
+          <Button
+            type="primary"
+            icon={<FolderAddOutlined />}
+            onClick={onUploadDirectory}
+          >
+            {fileManager.toolbar.uploadDirectory}
           </Button>
         </Space>
       </Space>

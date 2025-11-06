@@ -104,6 +104,36 @@ pub async fn upload_file(
 }
 
 #[command]
+pub async fn upload_directory(
+    connection_id: String,
+    local_dir_path: String,
+    remote_base_path: String,
+) -> ApiResponse<usize> {
+    match get_connection_manager() {
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+                Ok(protocol) => match protocol.create_operator() {
+                    Ok(operator) => {
+                        let file_manager = FileManager::new(operator);
+                        match file_manager
+                            .upload_directory(std::path::Path::new(&local_dir_path), &remote_base_path)
+                            .await
+                        {
+                            Ok(count) => ApiResponse::success(count),
+                            Err(e) => ApiResponse::error(format!("上传目录失败: {}", e)),
+                        }
+                    }
+                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
+#[command]
 pub async fn download_file(
     connection_id: String,
     remote_path: String,

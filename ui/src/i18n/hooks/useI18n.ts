@@ -188,6 +188,7 @@ export const useAppI18n = () => {
       },
       dialogs: {
         selectFileToUpload: t('fileManager.dialogs.selectFileToUpload'),
+        selectDirectoryToUpload: t('fileManager.dialogs.selectDirectoryToUpload'),
         selectSaveLocation: t('fileManager.dialogs.selectSaveLocation'),
         createFolder: t('fileManager.dialogs.createFolder'),
         folderName: t('fileManager.dialogs.folderName'),
@@ -239,6 +240,7 @@ export const useAppI18n = () => {
         search: t('fileManager.toolbar.search'),
         createDirectory: t('fileManager.toolbar.createDirectory'),
         uploadFile: t('fileManager.toolbar.uploadFile'),
+        uploadDirectory: t('fileManager.toolbar.uploadDirectory'),
       },
       pagination: {
         mode: t('fileManager.pagination.mode'),

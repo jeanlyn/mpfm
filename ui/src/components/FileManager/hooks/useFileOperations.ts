@@ -115,6 +115,42 @@ export const useFileOperations = (
     }
   }, [connection, currentPath, currentPage, loadFiles, fileManager.dialogs.selectFileToUpload, fileManager.messages.uploadSuccess, fileManager.messages.uploadFailed]);
 
+  // 上传文件夹
+  const handleUploadDirectory = useCallback(async () => {
+    if (!connection) return;
+
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: true,
+        title: fileManager.dialogs.selectDirectoryToUpload || '选择要上传的文件夹',
+      });
+
+      if (selected && typeof selected === 'string') {
+        const hideLoading = message.loading(fileManager.messages.uploadingDirectory || '正在上传文件夹...', 0);
+        
+        try {
+          const count = await ApiService.uploadDirectory(
+            connection.id, 
+            selected, 
+            currentPath
+          );
+          hideLoading();
+          message.success(
+            (fileManager.messages.uploadDirectorySuccess || '文件夹上传成功，共上传 {count} 个文件')
+              .replace('{count}', count.toString())
+          );
+          loadFiles(currentPath, currentPage);
+        } catch (error) {
+          hideLoading();
+          throw error;
+        }
+      }
+    } catch (error) {
+      message.error(`${fileManager.messages.uploadDirectoryFailed || '上传文件夹失败'}: ${error}`);
+    }
+  }, [connection, currentPath, currentPage, loadFiles, fileManager.dialogs, fileManager.messages]);
+
   // 下载文件
   const handleDownload = useCallback(async (file: FileInfo) => {
     if (!connection || file.is_dir) return;
@@ -181,6 +217,7 @@ export const useFileOperations = (
     loadFiles,
     handleFileDoubleClick,
     handleUpload,
+    handleUploadDirectory,
     handleDownload,
     handleDelete,
     handleCreateDirectory,

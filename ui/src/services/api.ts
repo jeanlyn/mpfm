@@ -256,6 +256,32 @@ export class ApiService {
     }
   }
 
+  static async uploadDirectory(
+    connectionId: string,
+    localDirPath: string,
+    remoteBasePath: string
+  ): Promise<number> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating directory upload');
+      return Promise.resolve(0);
+    }
+
+    try {
+      const response: ApiResponse<number> = await invoke('upload_directory', {
+        connectionId,
+        localDirPath,
+        remoteBasePath,
+      });
+      if (!response.success) {
+        throw new Error(response.error || '上传目录失败');
+      }
+      return response.data || 0;
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`上传目录失败: ${error}`);
+    }
+  }
+
   static async downloadFile(
     connectionId: string,
     remotePath: string,
