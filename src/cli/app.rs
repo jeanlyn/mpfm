@@ -379,7 +379,7 @@ impl App {
                     let percent = ((current as f64 / total as f64) * 100.0) as u64;
                     let last_percent = progress_clone.load(Ordering::Relaxed);
 
-                    if percent > last_percent && percent % 10 == 0 {
+                    if percent > last_percent && percent.is_multiple_of(10) {
                         println!("下载进度: {}%", percent);
                         progress_clone.store(percent, Ordering::Relaxed);
                     }
