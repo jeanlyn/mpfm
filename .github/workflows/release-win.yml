@@ -61,6 +61,35 @@ jobs:
           invoke-webrequest -uri https://github.com/westinyang/WebView2RuntimeArchive/releases/download/109.0.1518.78/Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab -outfile Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab
           Expand .\Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab -F:* ./
 
+      - name: build and rename artifacts
+        shell: pwsh
+        run: |
+          pnpm tauri build --config tauri.win.conf.json ${{ matrix.args }}
+          $bundleDir = "./target/release/bundle"
+          Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix)."
+          Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
+              $file = $_
+              $newName = $null
+              if ($file.Name -match "^(.*)(\.msi\.zip)$") {
+                  $base = $matches[1]
+                  $extPart = $matches[2]
+                  $newName = "${base}-fixed-webview2${extPart}"
+              } elseif ($file.Name -match "^(.*)(\.(msi|exe))$") {
+                  $base = $matches[1]
+                  $extPart = $matches[2]
+                  $newName = "${base}-fixed-webview2${extPart}"
+              }
+              if ($newName) {
+                  try {
+                      Rename-Item -Path $file.FullName -NewName $newName -Force
+                      Write-Host "Successfully renamed '$($file.Name)' to '$newName' in $($file.DirectoryName)"
+                  } catch {
+                      Write-Error "Failed to rename '$($file.Name)' to '$newName'. Error: $($_.Exception.Message)"
+                  }
+              }
+          }
+          Write-Host "Artifact renaming process finished."
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,38 +105,4 @@ jobs:
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
-          tauriScript: pnpm run tauri
-          args: --config tauri.win.conf.json
-          afterBuildCommand: |
-            powershell -ExecutionPolicy Bypass -Command '
-              $ErrorActionPreference = "Stop";
-              $bundleDir = "./target/release/bundle";
-              Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix).";
-              Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
-                  $file = $_;
-                  $newName = $null;
-
-                  # Regex to capture base name and the extension part for specific file types
-                  # Example: "my_app_1.0.0.msi.zip" -> $base="my_app_1.0.0", $extPart=".msi.zip"
-                  # Example: "my_app_1.0.0.msi" -> $base="my_app_1.0.0", $extPart=".msi"
-                  if ($file.Name -match "^(.*)(\.msi\.zip)$") {
-                      $base = $matches[1];
-                      $extPart = $matches[2];
-                      $newName = "${base}-fixed-webview2${extPart}";
-                  } elseif ($file.Name -match "^(.*)(\.(msi|exe))$") {
-                      $base = $matches[1];
-                      $extPart = $matches[2];
-                      $newName = "${base}-fixed-webview2${extPart}";
-                  }
-
-                  if ($newName) {
-                      try {
-                          Rename-Item -Path $file.FullName -NewName $newName -Force;
-                          Write-Host "Successfully renamed ''$($file.Name)'' to ''$newName'' in $($file.DirectoryName)";
-                      } catch {
-                          Write-Error "Failed to rename ''$($file.Name)'' to ''$newName''. Error: $($_.Exception.Message)";
-                      }
-                  }
-              };
-              Write-Host "Artifact renaming process finished.";
-            '
+          tauriScript: echo
