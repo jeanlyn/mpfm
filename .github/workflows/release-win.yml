@@ -63,9 +63,19 @@ jobs:
 
       - name: build and rename artifacts
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          RUSTFLAGS: -C target-feature=+crt-static
         run: |
           pnpm tauri build --config tauri.win.conf.json ${{ matrix.args }}
-          $bundleDir = "./target/release/bundle"
+          # 自动查找 bundle 目录，兼容不同 target 路径
+          $bundleDir = Get-ChildItem -Path "./target" -Recurse -Directory -Filter "bundle" | Select-Object -First 1 -ExpandProperty FullName
+          if (!$bundleDir) {
+              Write-Error "Could not find bundle directory in ./target"
+              exit 1
+          }
           Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix)."
           Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
               $file = $_
@@ -90,19 +100,24 @@ jobs:
           }
           Write-Host "Artifact renaming process finished."
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: get version
+        id: get_version
+        shell: pwsh
+        run: |
+          $version = (Get-Content tauri.win.conf.json | ConvertFrom-Json).version
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: mpfm v${{ steps.get_version.outputs.version }}
+          draft: true
+          prerelease: false
+          files: |
+            target/**/bundle/msi/*-fixed-webview2.msi
+            target/**/bundle/nsis/*-fixed-webview2.exe
+            target/**/bundle/msi/*-fixed-webview2.msi.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 注入私钥到环境变量
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          # 可选：显式设置密钥密码（如果有）
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          RUSTFLAGS: -C target-feature=+crt-static
           TAURI_FIPS_COMPLIANT: true
-        with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
-          tauriScript: echo
