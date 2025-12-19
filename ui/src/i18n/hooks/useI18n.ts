@@ -87,6 +87,7 @@ export const useAppI18n = () => {
         addFailed: t('connection.messages.addFailed'),
         copyFailed: t('connection.messages.copyFailed'),
         editFailed: t('connection.messages.editFailed'),
+        uploadingDirectory: t('connection.modal.uploadingDirectory'),
       },
       modal: {
         addConnectionTitle: t('connection.modal.addConnectionTitle'),
@@ -105,6 +106,7 @@ export const useAppI18n = () => {
         protocolPlaceholder: t('connection.modal.protocolPlaceholder'),
         protocolS3: t('connection.modal.protocolS3'),
         protocolFs: t('connection.modal.protocolFs'),
+        protocolFtp: t('connection.modal.protocolFtp'),
         directoryLabel: t('connection.modal.directoryLabel'),
         directoryPlaceholder: t('connection.modal.directoryPlaceholder'),
       },
@@ -219,6 +221,9 @@ export const useAppI18n = () => {
         selectedFiles: t('fileManager.messages.selectedFiles'),
         selectSaveLocation: t('fileManager.messages.selectSaveLocation'),
         batchDownloadProgress: t('fileManager.messages.batchDownloadProgress'),
+        uploadDirectorySuccess: t('fileManager.messages.uploadDirectorySuccess'),
+        uploadDirectoryFailed: t('fileManager.messages.uploadDirectoryFailed'),
+        uploadingDirectory: t('fileManager.messages.uploadingDirectory'),
       },
       table: {
         confirmDelete: t('fileManager.table.confirmDelete'),
