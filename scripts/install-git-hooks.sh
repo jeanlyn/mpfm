@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# If invoked with `sh scripts/install-git-hooks.sh`, re-run under bash.
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

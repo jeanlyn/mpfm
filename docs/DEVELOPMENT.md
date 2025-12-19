@@ -108,6 +108,8 @@ chmod +x ./scripts/*.sh
 ./scripts/fix.sh
 ```
 
+说明：CI 里还有 `clippy -D warnings` 的门禁；`check.sh` 会执行同样的 clippy 严格检查，`fix.sh` 会先尝试 `cargo fix --clippy` 自动修复（并非所有 clippy 报错都能自动修）。
+
 也可以安装可选的 `pre-push` 钩子，让每次 `git push` 前自动执行上述检查：
 
 ```bash

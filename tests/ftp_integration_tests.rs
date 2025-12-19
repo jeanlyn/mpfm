@@ -1,6 +1,5 @@
 use multi_protocol_file_manager::protocols::{create_protocol, ftp::FtpProtocol, Protocol};
 use std::collections::HashMap;
-use tokio;
 
 /// 基础单元测试，不需要真实的FTP服务器
 #[cfg(test)]
