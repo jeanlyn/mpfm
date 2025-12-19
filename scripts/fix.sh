@@ -7,6 +7,11 @@ fi
 
 set -euo pipefail
 
+# Ensure cargo and other tools are in PATH (especially for Git hooks)
+export PATH="$HOME/.cargo/bin:$PATH"
+# If using nvm/node/pnpm via common paths
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
