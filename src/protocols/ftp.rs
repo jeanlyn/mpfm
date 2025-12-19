@@ -57,7 +57,10 @@ impl FtpProtocol {
             .ok_or_else(|| Error::new_config("FTP配置缺少 'password' 参数"))?
             .clone();
 
-        let root = config.get("root_dir").or_else(|| config.get("root")).cloned();
+        let root = config
+            .get("root_dir")
+            .or_else(|| config.get("root"))
+            .cloned();
 
         let secure = config
             .get("secure")
@@ -103,7 +106,10 @@ impl Protocol for FtpProtocol {
 
     fn get_name(&self) -> String {
         let protocol = if self.secure { "FTPS" } else { "FTP" };
-        format!("{} ({}@{}:{})", protocol, self.username, self.host, self.port)
+        format!(
+            "{} ({}@{}:{})",
+            protocol, self.username, self.host, self.port
+        )
     }
 
     fn get_capabilities(&self) -> Capabilities {

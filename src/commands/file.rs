@@ -116,7 +116,10 @@ pub async fn upload_directory(
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
                         match file_manager
-                            .upload_directory(std::path::Path::new(&local_dir_path), &remote_base_path)
+                            .upload_directory(
+                                std::path::Path::new(&local_dir_path),
+                                &remote_base_path,
+                            )
                             .await
                         {
                             Ok(count) => ApiResponse::success(count),

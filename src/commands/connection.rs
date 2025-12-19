@@ -109,7 +109,6 @@ pub async fn update_connection(
     }
 }
 
-
 #[command]
 pub async fn check_s3_bucket_exists(
     bucket: String,

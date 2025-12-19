@@ -27,6 +27,8 @@ jobs:
 
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Install Basic lib
         run: |
@@ -37,6 +39,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
 
       - name: Check Rust compilation
         run: cargo check --verbose
@@ -51,12 +56,18 @@ jobs:
         with:
           node-version: '18'
           cache: 'pnpm'
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
 
       - name: Install frontend dependencies
-        run: pnpm install && cd ui && pnpm install
+        run: pnpm install --frozen-lockfile && cd ui && pnpm install --frozen-lockfile
 
       - name: TypeScript type checking
         run: cd ui && pnpm run type-check
+
+      - name: Build frontend
+        run: cd ui && pnpm run build
 
   # 只为主要分支运行完整测试
   full-tests:
@@ -103,9 +114,12 @@ jobs:
         with:
           node-version: '18'
           cache: 'pnpm'
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
 
       - name: Install frontend dependencies
-        run: pnpm install && cd ui && pnpm install
+        run: pnpm install --frozen-lockfile && cd ui && pnpm install --frozen-lockfile
 
       - name: Build frontend
         run: cd ui && pnpm run build

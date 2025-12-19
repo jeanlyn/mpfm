@@ -1,6 +1,6 @@
 pub mod fs;
-pub mod s3;
 pub mod ftp;
+pub mod s3;
 pub mod traits;
 
 pub use traits::Protocol;

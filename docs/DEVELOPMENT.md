@@ -88,6 +88,42 @@ src/
 3. **配置管理**：通过 `HashMap<String, String>` 传递配置
 4. **测试覆盖**：确保单元测试和集成测试覆盖
 
+### 提交前自检（推荐）
+
+为了避免 push 到 GitHub 后才因为 Rust 格式化或前端编译失败导致 CI 红灯，建议在本地先跑一次统一检查：
+
+```bash
+./scripts/check.sh
+```
+
+如果遇到权限问题：
+
+```bash
+chmod +x ./scripts/*.sh
+```
+
+如果只需要自动修复 Rust 格式化：
+
+```bash
+./scripts/fix.sh
+```
+
+也可以安装可选的 `pre-push` 钩子，让每次 `git push` 前自动执行上述检查：
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+### GitHub 分支保护（强烈推荐）
+
+在 GitHub 仓库设置里为 `master`/`develop` 开启 Branch protection：
+
+1. 勾选 **Require a pull request before merging**（禁止直接 push 到主分支）
+2. 勾选 **Require status checks to pass before merging**
+3. 将 CI 的工作流检查（例如 `Basic Checks`、`Full Tests`）设为必需
+
+这样即使有人忘了本地检查，也无法把会导致构建失败的代码合并进主分支。
+
 ### 依赖管理
 
 核心依赖：
