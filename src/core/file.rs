@@ -306,14 +306,31 @@ impl FileManager {
         Ok(())
     }
 
-    /// 删除文件
+    /// 删除文件或目录（目录会递归删除）
     pub async fn delete(&self, path: &str) -> Result<()> {
-        debug!("删除文件: {}", path);
+        debug!("删除文件或目录: {}", path);
 
         let path = normalize_path(path);
-        self.operator.delete(&path).await?;
 
-        info!("文件删除成功: {}", path);
+        // 检查路径是否存在
+        if !self.operator.exists(&path).await? {
+            return Err(Error::new_not_found(&format!("路径不存在: {}", path)));
+        }
+
+        // 获取元数据以判断是文件还是目录
+        let metadata = self.operator.stat(&path).await?;
+
+        if metadata.is_dir() {
+            // 如果是目录，使用 remove_all 递归删除
+            debug!("递归删除目录: {}", path);
+            self.operator.remove_all(&path).await?;
+            info!("目录删除成功: {}", path);
+        } else {
+            // 如果是文件，直接删除
+            self.operator.delete(&path).await?;
+            info!("文件删除成功: {}", path);
+        }
+
         Ok(())
     }
 
