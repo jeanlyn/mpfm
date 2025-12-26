@@ -92,10 +92,10 @@ impl From<opendal::Error> for Error {
         // OpenDAL 的 FTP backend 可能把 FTP 550 (Permission denied) 归类成 NotFound。
         // 这会误导用户去怀疑“路径不存在”。这里做一次兜底识别，给出更准确的提示。
         let lowered = message.to_lowercase();
-        let is_ftp_permission_denied =
-            (lowered.contains("ftp") || lowered.contains("service: ftp"))
-                && lowered.contains("550")
-                && (lowered.contains("permission denied") || lowered.contains("access denied"));
+        let is_ftp_permission_denied = (lowered.contains("ftp")
+            || lowered.contains("service: ftp"))
+            && lowered.contains("550")
+            && (lowered.contains("permission denied") || lowered.contains("access denied"));
 
         if is_ftp_permission_denied {
             return Self::new_protocol("FTP 权限不足：服务器返回 550 Permission denied（常见原因：账号无读取权限，或 root_dir 配置与实际登录目录不匹配）")
