@@ -91,9 +91,6 @@ jobs:
       - name: install frontend dependencies
         run: cd ui && pnpm install
 
-      - name: prebuild check
-        run: pnpm run prebuild ${{ matrix.target }}
-
       - name: Download and setup WebView2 Runtime
         shell: pwsh
         run: |
