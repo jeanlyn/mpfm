@@ -37,7 +37,14 @@ export const buildConfig = (values: any): Record<string, string> => {
     config.port = values.port?.toString() || '21';
     config.username = values.username;
     config.password = values.password;
-    config.root_dir = values.root_dir || '/';
+    // UI 上 root_dir 输入框有 addonBefore="/"，用户通常会输入类似 "upload"。
+    // 为了和后端/OpenDAL 保持一致，这里统一存成以 "/" 开头的绝对路径。
+    const rawRootDir = (values.root_dir ?? '').toString().trim();
+    if (!rawRootDir || rawRootDir === '/') {
+      config.root_dir = '/';
+    } else {
+      config.root_dir = rawRootDir.startsWith('/') ? rawRootDir : `/${rawRootDir}`;
+    }
     config.secure = values.secure ? 'true' : 'false';
   }
   

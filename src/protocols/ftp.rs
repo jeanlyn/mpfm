@@ -60,7 +60,21 @@ impl FtpProtocol {
         let root = config
             .get("root_dir")
             .or_else(|| config.get("root"))
-            .cloned();
+            .cloned()
+            .and_then(|raw| {
+                let trimmed = raw.trim().to_string();
+                if trimmed.is_empty() {
+                    return None;
+                }
+                if trimmed == "/" {
+                    return Some("/".to_string());
+                }
+                if trimmed.starts_with('/') {
+                    Some(trimmed)
+                } else {
+                    Some(format!("/{}", trimmed))
+                }
+            });
 
         let secure = config
             .get("secure")
@@ -145,6 +159,18 @@ mod tests {
         assert_eq!(protocol.username, "testuser");
         assert_eq!(protocol.password, "testpass");
         assert_eq!(protocol.root, Some("/upload".to_string()));
+    }
+
+    #[test]
+    fn test_ftp_protocol_root_dir_normalization() {
+        let mut config = HashMap::new();
+        config.insert("host".to_string(), "127.0.0.1".to_string());
+        config.insert("username".to_string(), "user".to_string());
+        config.insert("password".to_string(), "pass".to_string());
+        config.insert("root_dir".to_string(), "ftp".to_string());
+
+        let protocol = FtpProtocol::from_config(&config).unwrap();
+        assert_eq!(protocol.root, Some("/ftp".to_string()));
     }
 
     #[test]

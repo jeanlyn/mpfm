@@ -302,8 +302,11 @@ export class ApiService {
         throw new Error(response.error || '下载文件失败');
       }
     } catch (error) {
+      if (error instanceof Error && error.message.includes('下载文件失败')) {
+        throw error;
+      }
       console.error('Tauri invoke error:', error);
-      throw new Error(`下载文件失败: ${error}`);
+      throw error;
     }
   }
 

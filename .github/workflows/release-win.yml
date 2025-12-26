@@ -6,80 +6,162 @@ on:
     branches:
       - release-win
 
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  HUSKY: 0
+
+concurrency:
+  group: "${{ github.workflow }} - ${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
+  check-version:
+    name: Check Release Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check tauri.win.conf.json version
+        id: check_version
+        run: |
+          VERSION=$(jq -r .version tauri.win.conf.json)
+          echo "tauri.win.conf.json version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+    outputs:
+      version: ${{ steps.check_version.outputs.version }}
+
   publish-tauri:
+    name: Build and Publish
+    needs: [check-version]
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-msvc'
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            arch: arm64
 
-    runs-on: ${{ matrix.platform }} 
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-   
+          run_install: false
+
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: 'pnpm' # Set this to npm, yarn or pnpm.
-      
+          cache: 'pnpm'
 
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable # Set this to dtolnay/rust-toolchain@nightly
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          toolchain: "1.91.0"
+          targets: ${{ matrix.target }}
+
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './ -> target'
+          save-if: ${{ github.ref == 'refs/heads/release-win' }}
+          prefix-key: "v1-rust-win"
+          key: "rust-stable-${{ matrix.os }}-${{ matrix.target }}"
+          workspaces: |
+            . -> target
+          cache-all-crates: true
+          cache-workspace-crates: true
 
-      - name: install root dependencies
+      - name: install dependencies
         run: pnpm install
 
       - name: install frontend dependencies
         run: cd ui && pnpm install
-      
-      - name: Download WebView2 Runtime
-        run: |
-          invoke-webrequest -uri https://github.com/westinyang/WebView2RuntimeArchive/releases/download/109.0.1518.78/Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab -outfile Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab
-          Expand .\Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x86.cab -F:* ./
 
-      - name: build and rename artifacts
+      - name: prebuild check
+        run: pnpm run prebuild ${{ matrix.target }}
+
+      - name: Download and setup WebView2 Runtime
+        shell: pwsh
+        run: |
+          $webviewVersion = "133.0.3065.92"
+          $arch = "${{ matrix.arch }}"
+          $fileName = "Microsoft.WebView2.FixedVersionRuntime.$webviewVersion.$arch.cab"
+          $extractPath = "Microsoft.WebView2.FixedVersionRuntime.$webviewVersion.$arch"
+          $url = "https://github.com/westinyang/WebView2RuntimeArchive/releases/download/$webviewVersion/$fileName"
+
+          Write-Host "Downloading WebView2 Runtime for $arch from $webviewVersion..."
+          try {
+              Invoke-WebRequest -Uri $url -OutFile $fileName -UseBasicParsing
+              Write-Host "Successfully downloaded $fileName"
+
+              Write-Host "Extracting WebView2 Runtime to $extractPath..."
+              Expand .\$fileName -F:* ./
+              Write-Host "Successfully extracted WebView2 Runtime"
+          } catch {
+              Write-Error "Failed to download or extract WebView2 Runtime: $($_.Exception.Message)"
+              exit 1
+          }
+
+          # Update tauri.win.conf.json with the correct WebView2 path
+          Write-Host "Updating tauri.win.conf.json with WebView2 path: $extractPath"
+          try {
+              $config = Get-Content "tauri.win.conf.json" -Raw | ConvertFrom-Json
+              $config.bundle.windows.webviewInstallMode.path = "./$extractPath/"
+              $config | ConvertTo-Json -Depth 10 | Set-Content "tauri.win.conf.json" -Encoding UTF8
+              Write-Host "Successfully updated tauri.win.conf.json"
+          } catch {
+              Write-Error "Failed to update tauri.win.conf.json: $($_.Exception.Message)"
+              exit 1
+          }
+
+      - name: Build Tauri application
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           RUSTFLAGS: -C target-feature=+crt-static
+          NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          pnpm tauri build --config tauri.win.conf.json ${{ matrix.args }}
-          # 自动查找 bundle 目录，兼容不同 target 路径
-          $bundleDir = Get-ChildItem -Path "./target" -Recurse -Directory -Filter "bundle" | Select-Object -First 1 -ExpandProperty FullName
-          if (!$bundleDir) {
-              Write-Error "Could not find bundle directory in ./target"
+          try {
+              pnpm tauri build --config tauri.win.conf.json --target ${{ matrix.target }}
+              Write-Host "Build completed successfully"
+          } catch {
+              Write-Error "Build failed: $($_.Exception.Message)"
               exit 1
           }
-          Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix)."
+
+      - name: Rename artifacts with fixed-webview2 suffix
+        shell: pwsh
+        run: |
+          # 自动查找 bundle 目录
+          $bundleDir = Get-ChildItem -Path ".\target\${{ matrix.target }}" -Recurse -Directory -Filter "bundle" | Select-Object -First 1 -ExpandProperty FullName
+          if (!$bundleDir) {
+              Write-Error "Could not find bundle directory in .\target\${{ matrix.target }}"
+              exit 1
+          }
+
+          Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix)..."
+          $renamedFiles = @()
+
           Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
               $file = $_
               $newName = $null
+
               if ($file.Name -match "^(.*)(\.msi\.zip)$") {
                   $base = $matches[1]
                   $extPart = $matches[2]
@@ -89,35 +171,33 @@ jobs:
                   $extPart = $matches[2]
                   $newName = "${base}-fixed-webview2${extPart}"
               }
+
               if ($newName) {
                   try {
+                      $newPath = Join-Path $file.DirectoryName $newName
                       Rename-Item -Path $file.FullName -NewName $newName -Force
-                      Write-Host "Successfully renamed '$($file.Name)' to '$newName' in $($file.DirectoryName)"
+                      $renamedFiles += $newPath
+                      Write-Host "✓ Renamed '$($file.Name)' to '$newName'"
                   } catch {
-                      Write-Error "Failed to rename '$($file.Name)' to '$newName'. Error: $($_.Exception.Message)"
+                      Write-Error "✗ Failed to rename '$($file.Name)' to '$newName': $($_.Exception.Message)"
                   }
               }
           }
-          Write-Host "Artifact renaming process finished."
 
-      - name: get version
-        id: get_version
-        shell: pwsh
-        run: |
-          $version = (Get-Content tauri.win.conf.json | ConvertFrom-Json).version
-          echo "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Artifact renaming process finished. Renamed $($renamedFiles.Count) files."
 
-      - name: release
-        uses: softprops/action-gh-release@v1
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: mpfm v${{ steps.get_version.outputs.version }}
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: mpfm v${{ needs.check-version.outputs.version }}
           draft: true
           prerelease: false
+          generate_release_notes: true
           files: |
-            target/**/bundle/msi/*-fixed-webview2.msi
-            target/**/bundle/nsis/*-fixed-webview2.exe
-            target/**/bundle/msi/*-fixed-webview2.msi.zip
+            target/${{ matrix.target }}/release/bundle/msi/*-fixed-webview2.msi
+            target/${{ matrix.target }}/release/bundle/nsis/*-fixed-webview2.exe
+            target/${{ matrix.target }}/release/bundle/msi/*-fixed-webview2.msi.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_FIPS_COMPLIANT: true
