@@ -100,6 +100,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     isAllCurrentPageSelected,
     onFileDoubleClick: fileOperations.handleFileDoubleClick,
     onDownload: fileOperations.handleDownload,
+    onCopyDownloadCommand: fileOperations.handleCopyDownloadCommand,
     onDelete: fileOperations.handleDelete,
     onPreview: previewAndBatch.handlePreview,
   });

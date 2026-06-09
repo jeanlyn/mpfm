@@ -1,9 +1,73 @@
+use std::collections::{BTreeMap, HashMap};
+
 use crate::core::file::FileManager;
+use crate::core::{Error, Result};
 use crate::protocols::create_protocol;
 use tauri::command;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::types::{ApiResponse, FileInfo, PaginatedFileList};
 use super::utils::get_connection_manager;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CliShell {
+    Bash,
+    PowerShell,
+}
+
+impl CliShell {
+    fn from_target(target_shell: &str) -> Result<Self> {
+        match target_shell {
+            "bash" => Ok(Self::Bash),
+            "powershell" => Ok(Self::PowerShell),
+            other => Err(Error::new_config(&format!(
+                "不支持的目标 shell: {}",
+                other
+            ))),
+        }
+    }
+}
+
+fn shell_escape(value: &str, shell: CliShell) -> String {
+    match shell {
+        CliShell::Bash => format!("'{}'", value.replace('\'', "'\\''")),
+        CliShell::PowerShell => format!("'{}'", value.replace('\'', "''")),
+    }
+}
+
+fn build_download_cli_command(
+    binary_name: &str,
+    protocol_type: &str,
+    config: &HashMap<String, String>,
+    remote_path: &str,
+    local_path: &str,
+    shell: CliShell,
+) -> Result<String> {
+    let ordered_config: BTreeMap<String, String> =
+        config.iter().map(|(key, value)| (key.clone(), value.clone())).collect();
+
+    let config_json = serde_json::to_string(&ordered_config)
+        .map_err(|e| Error::new_config(&format!("序列化连接配置失败: {}", e)))?;
+
+    Ok(format!(
+        "{} download --type {} --config {} {} {}",
+        binary_name,
+        shell_escape(protocol_type, shell),
+        shell_escape(&config_json, shell),
+        shell_escape(remote_path, shell),
+        shell_escape(local_path, shell)
+    ))
+}
+
+fn default_download_target(remote_path: &str) -> String {
+    let file_name = remote_path
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .next_back()
+        .unwrap_or("downloaded-file");
+
+    format!("./{}", file_name)
+}
 
 #[command]
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
@@ -167,6 +231,42 @@ pub async fn download_file(
 }
 
 #[command]
+pub async fn build_download_command(
+    connection_id: String,
+    remote_path: String,
+    target_shell: String,
+) -> ApiResponse<String> {
+    match get_connection_manager() {
+        Ok(manager) => match manager.get_connection(&connection_id) {
+            Some(config) => match CliShell::from_target(&target_shell) {
+                Ok(shell) => match build_download_cli_command(
+                    "main_cli",
+                    &config.protocol_type,
+                    &config.config,
+                    &remote_path,
+                    &default_download_target(&remote_path),
+                    shell,
+                ) {
+                    Ok(command) => ApiResponse::success(command),
+                    Err(e) => ApiResponse::error(format!("生成下载命令失败: {}", e)),
+                },
+                Err(e) => ApiResponse::error(format!("生成下载命令失败: {}", e)),
+            },
+            None => ApiResponse::error("Connection not found".to_string()),
+        },
+        Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
+#[command]
+pub fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> ApiResponse<bool> {
+    match app.clipboard().write_text(text) {
+        Ok(_) => ApiResponse::success(true),
+        Err(e) => ApiResponse::error(format!("复制到剪贴板失败: {}", e)),
+    }
+}
+
+#[command]
 pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_manager() {
         Ok(manager) => match manager.get_connection(&connection_id) {
@@ -237,6 +337,61 @@ pub async fn get_directory_count(connection_id: String, path: String) -> ApiResp
             None => ApiResponse::error("Connection not found".to_string()),
         },
         Err(e) => ApiResponse::error(e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::{build_download_cli_command, CliShell};
+
+    #[test]
+    fn builds_bash_download_command_with_inline_protocol_config() {
+        let mut config = HashMap::new();
+        config.insert("host".to_string(), "ftp.example.com".to_string());
+        config.insert("port".to_string(), "21".to_string());
+        config.insert("username".to_string(), "demo".to_string());
+        config.insert("password".to_string(), "secret".to_string());
+
+        let command = build_download_cli_command(
+            "main_cli",
+            "ftp",
+            &config,
+            "/packages/app.tar.gz",
+            "./app.tar.gz",
+            CliShell::Bash,
+        )
+        .unwrap();
+
+        assert_eq!(
+            command,
+            r#"main_cli download --type 'ftp' --config '{"host":"ftp.example.com","password":"secret","port":"21","username":"demo"}' '/packages/app.tar.gz' './app.tar.gz'"#
+        );
+    }
+
+    #[test]
+    fn builds_powershell_download_command_with_escaped_quotes() {
+        let mut config = HashMap::new();
+        config.insert("bucket".to_string(), "team's-bucket".to_string());
+        config.insert("region".to_string(), "us-east-1".to_string());
+        config.insert("access_key".to_string(), "AKIA123".to_string());
+        config.insert("secret_key".to_string(), "secret".to_string());
+
+        let command = build_download_cli_command(
+            "main_cli",
+            "s3",
+            &config,
+            "/release packages/app's build.tar.gz",
+            "./app's build.tar.gz",
+            CliShell::PowerShell,
+        )
+        .unwrap();
+
+        assert_eq!(
+            command,
+            "main_cli download --type 's3' --config '{\"access_key\":\"AKIA123\",\"bucket\":\"team''s-bucket\",\"region\":\"us-east-1\",\"secret_key\":\"secret\"}' '/release packages/app''s build.tar.gz' './app''s build.tar.gz'"
+        );
     }
 }
 

@@ -17,6 +17,8 @@ export const MAX_TABLE_HEIGHT = 650;
 
 // 操作按钮宽度
 export const ACTION_BUTTON_WIDTH = 76;
+// 下载拆分按钮（主按钮 + 复制命令下拉箭头）所需宽度
+export const ACTION_DOWNLOAD_WIDTH = 96;
 
 // 列宽定义
 export const COLUMN_WIDTHS = {
@@ -24,5 +26,5 @@ export const COLUMN_WIDTHS = {
   name: '35%',
   size: 120,
   modified: 180,
-  actions: 240,
+  actions: 272,
 } as const;

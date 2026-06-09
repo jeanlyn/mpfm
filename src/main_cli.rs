@@ -3,7 +3,7 @@ mod core;
 mod protocols;
 mod utils;
 
-use cli::App;
+use cli::app::App;
 use log::{error, info};
 use std::process;
 

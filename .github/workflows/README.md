@@ -21,20 +21,32 @@
 - 完整测试套件
 - 前端构建
 
-### 2. 测试套件 (`tests.yml`)
-**触发条件：** master/develop 分支的源码变更
-**用途：** 深度测试和安全审计
-
-**包含内容：**
-- Rust 单元测试
-- Rust 集成测试
-- 文档测试
-- 前端测试
-- 安全漏洞审计（仅主分支）
-
-### 3. 发布流程 (`release.yml`, `release-win.yml`)
+### 2. 发布流程 (`release.yml`, `release-win.yml`, `release-cli.yml`)
 **触发条件：** release 分支或手动触发
 **用途：** 构建和发布应用程序
+
+**包含内容：**
+- `release.yml`: macOS / Linux / 默认 Windows 桌面应用发布
+- `release-win.yml`: 带 fixed WebView2 的 Windows 桌面应用发布
+- `release-cli.yml`: `main_cli` 的跨平台发布包
+
+### 3. CLI 发布矩阵 (`release-cli.yml`)
+**触发条件：**
+- `release`
+- `release-win`
+- 手动触发
+
+**用途：**
+- 直接产出 `main_cli` 的跨平台压缩包
+- Linux 使用 `musl` 目标，默认得到更易分发的静态二进制
+
+**当前产物目标：**
+- `x86_64-unknown-linux-musl`
+- `aarch64-unknown-linux-musl`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+- `x86_64-pc-windows-msvc`
+- `aarch64-pc-windows-msvc`
 
 ## 避免重复执行的设计
 
@@ -83,14 +95,15 @@ pnpm run build         # 构建验证
 | 分支类型 | 触发的 Workflow | 运行的测试 |
 |---------|----------------|-----------|
 | feature/* | ci.yml (basic-checks) | 编译检查 + 类型检查 |
-| master/develop | ci.yml (full-tests) + tests.yml | 完整测试套件 |
-| PR to master/develop | ci.yml (full-tests) + tests.yml | 完整测试套件 |
-| release | release.yml | 构建和发布 |
+| master/develop | ci.yml (full-tests) | 完整测试套件 |
+| PR to master/develop | ci.yml (full-tests) | 完整测试套件 |
+| release | ci.yml + release.yml + release-cli.yml | 检查 + 桌面端发布 + CLI 发布 |
+| release-win | release-win.yml + release-cli.yml | Windows 桌面端发布 + CLI 发布 |
 
 ## 解决重复测试的方法
 
 之前的问题是多个 workflow 文件在相同条件下都会执行测试，导致：
-- `ci.yml`, `unit-tests.yml`, `test.yml` 同时运行
+- 多个 CI / 测试 workflow 在相同分支重复运行
 - 相同的测试命令被执行多次
 
 **解决方案：**

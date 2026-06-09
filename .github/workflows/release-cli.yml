@@ -1,0 +1,182 @@
+name: publish-cli
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release
+      - release-win
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  HUSKY: 0
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  check-version:
+    name: Check CLI Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "Failed to read version from Cargo.toml" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: [check-version]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            binary_name: main_cli
+            use_zig: true
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-musl
+            archive: tar.gz
+            binary_name: main_cli
+            use_zig: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+            binary_name: main_cli
+            use_zig: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+            binary_name: main_cli
+            use_zig: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            binary_name: main_cli.exe
+            use_zig: false
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            archive: zip
+            binary_name: main_cli.exe
+            use_zig: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli-release
+          key: ${{ matrix.os }}-${{ matrix.target }}
+          workspaces: |
+            . -> target
+
+      - name: Install Zig
+        if: ${{ matrix.use_zig }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIG_VERSION=0.14.1
+          curl -fL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          tar -xf zig.tar.xz
+          echo "$PWD/zig-x86_64-linux-${ZIG_VERSION}" >> "$GITHUB_PATH"
+
+      - name: Install cargo-zigbuild
+        if: ${{ matrix.use_zig }}
+        shell: bash
+        run: cargo install --locked cargo-zigbuild
+
+      - name: Build CLI with cargo-zigbuild
+        if: ${{ matrix.use_zig }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo zigbuild --release --bin main_cli --target "${{ matrix.target }}" --no-default-features --features cli
+
+      - name: Build CLI with cargo
+        if: ${{ !matrix.use_zig }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --bin main_cli --target "${{ matrix.target }}" --no-default-features --features cli
+
+      - name: Package CLI archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-version.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          OUT_DIR="dist"
+          mkdir -p "$OUT_DIR"
+          cp "target/$TARGET/release/${{ matrix.binary_name }}" "$OUT_DIR/main_cli"
+          tar -C "$OUT_DIR" -czf "$OUT_DIR/main_cli-v${VERSION}-${TARGET}.tar.gz" main_cli
+
+      - name: Package CLI archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.check-version.outputs.version }}"
+          $target = "${{ matrix.target }}"
+          $outDir = "dist"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          Copy-Item "target/$target/release/${{ matrix.binary_name }}" "$outDir/main_cli.exe"
+          Compress-Archive -Path "$outDir/main_cli.exe" -DestinationPath "$outDir/main_cli-v$version-$target.zip" -Force
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish-cli-release:
+    name: Publish CLI Release
+    needs: [check-version, build-cli]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: find release-assets -maxdepth 1 -type f | sort
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: mpfm v${{ needs.check-version.outputs.version }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          overwrite_files: true
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

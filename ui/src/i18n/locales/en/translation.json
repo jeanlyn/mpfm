@@ -146,6 +146,9 @@
     "actions": {
       "upload": "Upload",
       "download": "Download",
+      "copyCliCommand": "Copy Download Command",
+      "copyBashCommand": "Copy Bash Command",
+      "copyPowerShellCommand": "Copy PowerShell Command",
       "newFolder": "New Folder",
       "rename": "Rename",
       "copy": "Copy",
@@ -167,6 +170,7 @@
       "confirmDelete": "Are you sure you want to delete?",
       "deleteButton": "Delete",
       "downloadButton": "Download",
+      "copyCommandButton": "Copy Command",
       "previewButton": "Preview",
       "selectFile": "Select File"
     },

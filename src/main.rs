@@ -19,6 +19,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             connection::get_connections,
@@ -33,6 +34,8 @@ fn main() {
             file::upload_file,
             file::upload_directory,
             file::download_file,
+            file::build_download_command,
+            file::copy_text_to_clipboard,
             file::batch_download_files,
             file::delete_file,
             file::create_directory,

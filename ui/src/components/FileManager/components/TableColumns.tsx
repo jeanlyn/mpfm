@@ -1,18 +1,20 @@
 import { useMemo } from 'react';
-import { Space, Button, Popconfirm, Checkbox } from 'antd';
+import { Space, Button, Popconfirm, Checkbox, Dropdown } from 'antd';
 import {
   FolderOutlined,
   FileOutlined,
   DownloadOutlined,
   DeleteOutlined,
   EyeOutlined,
+  CopyOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { FileInfo } from '../../../types';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { isPreviewable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { formatFileSize, formatModifiedTime } from '../utils';
-import { COLUMN_WIDTHS, ACTION_BUTTON_WIDTH } from '../constants';
+import { COLUMN_WIDTHS, ACTION_BUTTON_WIDTH, ACTION_DOWNLOAD_WIDTH } from '../constants';
 
 interface TableColumnsProps {
   files: FileInfo[];
@@ -22,6 +24,7 @@ interface TableColumnsProps {
   isAllCurrentPageSelected: boolean;
   onFileDoubleClick: (file: FileInfo) => void;
   onDownload: (file: FileInfo) => void;
+  onCopyDownloadCommand: (file: FileInfo, targetShell: 'bash' | 'powershell') => void;
   onDelete: (file: FileInfo) => void;
   onPreview: (file: FileInfo) => void;
 }
@@ -37,6 +40,7 @@ export const useTableColumns = ({
   isAllCurrentPageSelected,
   onFileDoubleClick,
   onDownload,
+  onCopyDownloadCommand,
   onDelete,
   onPreview,
 }: TableColumnsProps) => {
@@ -138,30 +142,47 @@ export const useTableColumns = ({
             )}
           </div>
           
-          {/* 下载按钮位置 - 固定宽度确保对齐 */}
-          <div style={{ width: ACTION_BUTTON_WIDTH }}>
+          {/* 下载按钮位置 - 主按钮直接下载，下拉箭头提供复制 CLI 命令 */}
+          <div style={{ width: ACTION_DOWNLOAD_WIDTH, display: 'flex', justifyContent: 'flex-end' }}>
             {!record.is_dir && (
-              <Button
+              <Dropdown.Button
                 size="small"
-                icon={<DownloadOutlined />}
+                trigger={['click']}
+                placement="bottomRight"
+                icon={<DownOutlined />}
+                buttonsRender={([left, right]) => [
+                  left,
+                  <span key="caret" title={fileManager.actions.copyCliCommand}>
+                    {right}
+                  </span>,
+                ]}
                 onClick={() => onDownload(record)}
-                style={{ 
-                  fontSize: '12px', 
-                  width: '100%',
-                  padding: '4px 8px',
-                  overflow: 'hidden'
+                menu={{
+                  items: [
+                    {
+                      type: 'group',
+                      label: fileManager.actions.copyCliCommand,
+                      children: [
+                        {
+                          key: 'bash',
+                          icon: <CopyOutlined />,
+                          label: fileManager.actions.copyBashCommand,
+                          onClick: () => onCopyDownloadCommand(record, 'bash'),
+                        },
+                        {
+                          key: 'powershell',
+                          icon: <CopyOutlined />,
+                          label: fileManager.actions.copyPowerShellCommand,
+                          onClick: () => onCopyDownloadCommand(record, 'powershell'),
+                        },
+                      ],
+                    },
+                  ],
                 }}
-                title={fileManager.table.downloadButton}
               >
-                <span style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  display: 'block'
-                }}>
-                  {fileManager.table.downloadButton}
-                </span>
-              </Button>
+                <DownloadOutlined />
+                <span style={{ fontSize: '12px' }}>{fileManager.table.downloadButton}</span>
+              </Dropdown.Button>
             )}
           </div>
           
@@ -206,6 +227,11 @@ export const useTableColumns = ({
     searchResults,
     isSearchMode,
     fileManager,
+    onFileDoubleClick,
+    onDownload,
+    onCopyDownloadCommand,
+    onDelete,
+    onPreview,
   ]);
 
   return columns;

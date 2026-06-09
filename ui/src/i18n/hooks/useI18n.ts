@@ -179,6 +179,9 @@ export const useAppI18n = () => {
       actions: {
         upload: t('fileManager.actions.upload'),
         download: t('fileManager.actions.download'),
+        copyCliCommand: t('fileManager.actions.copyCliCommand'),
+        copyBashCommand: t('fileManager.actions.copyBashCommand'),
+        copyPowerShellCommand: t('fileManager.actions.copyPowerShellCommand'),
         newFolder: t('fileManager.actions.newFolder'),
         rename: t('fileManager.actions.rename'),
         copy: t('fileManager.actions.copy'),
@@ -230,6 +233,7 @@ export const useAppI18n = () => {
         deleteButton: t('fileManager.table.deleteButton'),
         downloadButton: t('fileManager.table.downloadButton'),
         previewButton: t('fileManager.table.previewButton'),
+        copyCommandButton: t('fileManager.table.copyCommandButton'),
         selectFile: t('fileManager.table.selectFile'),
       },
       breadcrumb: {

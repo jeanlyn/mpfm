@@ -170,6 +170,22 @@ export const useFileOperations = (
     }
   }, [connection, fileManager.dialogs.selectSaveLocation, fileManager.messages.downloadSuccess, fileManager.messages.downloadFailed]);
 
+  // 复制 CLI 下载命令
+  const handleCopyDownloadCommand = useCallback(async (
+    file: FileInfo,
+    targetShell: 'bash' | 'powershell'
+  ) => {
+    if (!connection || file.is_dir) return;
+
+    try {
+      const command = await ApiService.buildDownloadCommand(connection.id, file.path, targetShell);
+      await ApiService.copyTextToClipboard(command);
+      message.success(fileManager.messages.copySuccess);
+    } catch (error) {
+      message.error(`${fileManager.messages.copyFailed}: ${error}`);
+    }
+  }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
+
   // 删除文件
   const handleDelete = useCallback(async (file: FileInfo) => {
     if (!connection) return;
@@ -219,6 +235,7 @@ export const useFileOperations = (
     handleUpload,
     handleUploadDirectory,
     handleDownload,
+    handleCopyDownloadCommand,
     handleDelete,
     handleCreateDirectory,
     navigateUp,

@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{ArgMatches, Command};
 use log::debug;
 use serde_json::Value;
 
 use crate::core::operator;
 use crate::core::{ConnectionConfig, ConnectionManager, Error, Result};
+use crate::protocols::create_protocol;
 
 #[allow(dead_code)]
 pub struct App {
@@ -53,133 +54,7 @@ impl App {
     }
 
     fn build_cli(&self) -> Command {
-        Command::new("mpfm")
-            .about("多协议文件管理器")
-            .version(env!("CARGO_PKG_VERSION"))
-            .subcommand_required(true)
-            .arg_required_else_help(true)
-            .subcommand(
-                Command::new("connection")
-                    .about("管理连接配置")
-                    .subcommand_required(true)
-                    .subcommand(Command::new("list").about("列出所有连接"))
-                    .subcommand(
-                        Command::new("show")
-                            .about("显示连接详情")
-                            .arg(Arg::new("id").help("连接 ID").required(true)),
-                    )
-                    .subcommand(
-                        Command::new("add")
-                            .about("添加新连接")
-                            .arg(
-                                Arg::new("name")
-                                    .short('n')
-                                    .long("name")
-                                    .help("连接名称")
-                                    .required(true),
-                            )
-                            .arg(
-                                Arg::new("type")
-                                    .short('t')
-                                    .long("type")
-                                    .help("协议类型 (s3, fs 等)")
-                                    .required(true),
-                            )
-                            .arg(
-                                Arg::new("config")
-                                    .short('c')
-                                    .long("config")
-                                    .help("连接配置 (JSON 格式)")
-                                    .required(true),
-                            ),
-                    )
-                    .subcommand(
-                        Command::new("remove")
-                            .about("删除连接")
-                            .arg(Arg::new("id").help("连接 ID").required(true)),
-                    ),
-            )
-            .subcommand(
-                Command::new("ls")
-                    .about("列出文件和目录")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("path").help("远程路径").default_value("/")),
-            )
-            .subcommand(
-                Command::new("upload")
-                    .about("上传文件")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("local_path").help("本地文件路径").required(true))
-                    .arg(Arg::new("remote_path").help("远程文件路径").required(true)),
-            )
-            .subcommand(
-                Command::new("download")
-                    .about("下载文件")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("remote_path").help("远程文件路径").required(true))
-                    .arg(Arg::new("local_path").help("本地文件路径").required(true)),
-            )
-            .subcommand(
-                Command::new("rm")
-                    .about("删除文件或目录")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("path").help("远程路径").required(true))
-                    .arg(
-                        Arg::new("recursive")
-                            .short('r')
-                            .long("recursive")
-                            .help("递归删除目录")
-                            .action(ArgAction::SetTrue),
-                    ),
-            )
-            .subcommand(
-                Command::new("mkdir")
-                    .about("创建目录")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("path").help("远程路径").required(true)),
-            )
-            .subcommand(
-                Command::new("stat")
-                    .about("获取文件或目录信息")
-                    .arg(
-                        Arg::new("connection")
-                            .short('c')
-                            .long("connection")
-                            .help("连接 ID")
-                            .required(true),
-                    )
-                    .arg(Arg::new("path").help("远程路径").required(true)),
-            )
+        crate::cli::commands::build_cli()
     }
 
     async fn handle_connection_command(&mut self, matches: &ArgMatches) -> Result<()> {
@@ -351,13 +226,34 @@ impl App {
         }
     }
 
+    fn parse_string_config(config_json: &str) -> Result<HashMap<String, String>> {
+        serde_json::from_str::<HashMap<String, String>>(config_json)
+            .map_err(|e| Error::new_config(&format!("无效的 JSON 配置: {}", e)))
+    }
+
+    fn create_file_manager_for_download(&self, matches: &ArgMatches) -> Result<crate::core::FileManager> {
+        let protocol = if let Some(connection_id) = matches.get_one::<String>("connection") {
+            self.conn_manager.create_protocol(connection_id)?
+        } else {
+            let protocol_type = matches
+                .get_one::<String>("type")
+                .ok_or_else(|| Error::new_config("缺少协议类型，请使用 --type"))?;
+            let config_json = matches
+                .get_one::<String>("config")
+                .ok_or_else(|| Error::new_config("缺少连接配置，请使用 --config"))?;
+            let config = Self::parse_string_config(config_json)?;
+
+            create_protocol(protocol_type, &config)?
+        };
+
+        operator::create_file_manager(protocol.as_ref())
+    }
+
     async fn handle_download_command(&self, matches: &ArgMatches) -> Result<()> {
-        let connection_id = matches.get_one::<String>("connection").unwrap();
         let remote_path = matches.get_one::<String>("remote_path").unwrap();
         let local_path = matches.get_one::<String>("local_path").unwrap();
 
-        let protocol = self.conn_manager.create_protocol(connection_id)?;
-        let file_manager = operator::create_file_manager(protocol.as_ref())?;
+        let file_manager = self.create_file_manager_for_download(matches)?;
 
         // 获取远程文件元信息
         let meta = file_manager.stat(remote_path).await?;

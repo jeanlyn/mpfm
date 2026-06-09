@@ -310,6 +310,56 @@ export class ApiService {
     }
   }
 
+  static async buildDownloadCommand(
+    connectionId: string,
+    remotePath: string,
+    targetShell: 'bash' | 'powershell'
+  ): Promise<string> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock download command');
+      return Promise.resolve(
+        `main_cli download --connection '${connectionId}' '${remotePath}' './${remotePath.split('/').pop() || 'downloaded-file'}'`
+      );
+    }
+
+    try {
+      const response: ApiResponse<string> = await invoke('build_download_command', {
+        connectionId,
+        remotePath,
+        targetShell,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || 'Failed to build download command');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`Failed to build download command: ${error}`);
+    }
+  }
+
+  static async copyTextToClipboard(text: string): Promise<void> {
+    if (!isTauriEnvironment()) {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    try {
+      const response: ApiResponse<boolean> = await invoke('copy_text_to_clipboard', {
+        text,
+      });
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to copy to clipboard');
+      }
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`Failed to copy to clipboard: ${error}`);
+    }
+  }
+
   static async deleteFile(connectionId: string, path: string): Promise<void> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, simulating file deletion');
