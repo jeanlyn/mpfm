@@ -1,13 +1,14 @@
 import React from 'react';
-import { Button, Space, Input } from 'antd';
+import { Button, Space, Input, Dropdown, Tooltip } from 'antd';
 import {
   HomeOutlined,
   ReloadOutlined,
   SearchOutlined,
-  CloseOutlined,
   PlusOutlined,
   UploadOutlined,
   FolderAddOutlined,
+  ArrowUpOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
@@ -41,7 +42,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onNavigateUp,
   onSearch,
   onSearchReset,
-  onSearchSubmit,
   onSearchQueryChange,
   onCreateDirectory,
   onUpload,
@@ -50,82 +50,73 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const { fileManager } = useAppI18n();
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <Space style={{ width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        {/* 左侧：导航按钮 */}
-        <Space wrap>
-          <Button icon={<HomeOutlined />} onClick={onGoHome}>
-            {fileManager.toolbar.goHome}
-          </Button>
-          <Button 
-            icon={<ReloadOutlined />} 
-            onClick={onRefresh}
-            loading={loading}
-          >
-            {fileManager.toolbar.refresh}
-          </Button>
-          {currentPath !== '/' && (
-            <Button onClick={onNavigateUp}>
-              {fileManager.toolbar.goUp}
-            </Button>
-          )}
-        </Space>
+    <div
+      style={{
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        flexWrap: 'nowrap',
+      }}
+    >
+      {/* 左侧：导航操作（图标按钮分段组，次要操作不抢视觉权重） */}
+      <Space.Compact style={{ flex: '0 0 auto' }}>
+        <Tooltip title={fileManager.toolbar.goHome}>
+          <Button icon={<HomeOutlined />} onClick={onGoHome} />
+        </Tooltip>
+        <Tooltip title={fileManager.toolbar.refresh}>
+          <Button icon={<ReloadOutlined />} onClick={onRefresh} loading={loading} />
+        </Tooltip>
+        <Tooltip title={fileManager.toolbar.goUp}>
+          <Button
+            icon={<ArrowUpOutlined />}
+            onClick={onNavigateUp}
+            disabled={currentPath === '/'}
+          />
+        </Tooltip>
+      </Space.Compact>
 
-        {/* 中间：搜索框 */}
-        <div style={{ flex: 1, maxWidth: '400px', margin: '0 16px' }}>
-          <form onSubmit={onSearchSubmit}>
-            <Input.Group compact style={{ display: 'flex' }}>
-              <Input
-                placeholder={fileManager.toolbar.search}
-                value={searchQuery}
-                onChange={(e) => onSearchQueryChange(e.target.value)}
-                style={{ flex: 1 }}
-                suffix={
-                  isSearchMode ? (
-                    <Button 
-                      icon={<CloseOutlined />} 
-                      onClick={onSearchReset} 
-                      size="small"
-                      type="text"
-                      style={{ border: 'none', color: '#999' }}
-                    />
-                  ) : undefined
-                }
-              />
-              <Button
-                type="primary"
-                icon={<SearchOutlined />}
-                onClick={onSearch}
-                loading={loading}
-              />
-            </Input.Group>
-          </form>
-        </div>
+      {/* 中间：搜索框（自适应填满剩余空间，消除中部空隙） */}
+      <Input.Search
+        style={{ flex: '1 1 auto', minWidth: 0 }}
+        placeholder={fileManager.toolbar.search}
+        value={searchQuery}
+        loading={loading}
+        allowClear
+        enterButton={<SearchOutlined />}
+        onChange={(e) => {
+          const value = e.target.value;
+          onSearchQueryChange(value);
+          if (value === '' && isSearchMode) {
+            onSearchReset();
+          }
+        }}
+        onSearch={onSearch}
+      />
 
-        {/* 右侧：操作按钮 */}
-        <Space size="small" wrap>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onCreateDirectory}
-          >
-            {fileManager.toolbar.createDirectory}
-          </Button>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={onUpload}
-          >
-            {fileManager.toolbar.uploadFile}
-          </Button>
-          <Button
-            type="primary"
-            icon={<FolderAddOutlined />}
-            onClick={onUploadDirectory}
-          >
-            {fileManager.toolbar.uploadDirectory}
-          </Button>
-        </Space>
+      {/* 右侧：操作按钮（上传为唯一主操作，新建目录为次要操作） */}
+      <Space size="small" style={{ flex: '0 0 auto' }}>
+        <Button icon={<PlusOutlined />} onClick={onCreateDirectory}>
+          {fileManager.toolbar.createDirectory}
+        </Button>
+        <Dropdown.Button
+          type="primary"
+          icon={<DownOutlined />}
+          onClick={onUpload}
+          menu={{
+            items: [
+              {
+                key: 'upload-directory',
+                icon: <FolderAddOutlined />,
+                label: fileManager.toolbar.uploadDirectory,
+                onClick: onUploadDirectory,
+              },
+            ],
+          }}
+        >
+          <UploadOutlined />
+          <span style={{ marginInlineStart: 6 }}>{fileManager.toolbar.uploadFile}</span>
+        </Dropdown.Button>
       </Space>
     </div>
   );
