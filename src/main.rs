@@ -1,16 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod cli;
-mod commands;
-mod core;
-mod protocols;
-mod utils;
-
-// Import commands directly
-use commands::config;
-use commands::connection;
-use commands::file;
+use multi_protocol_file_manager::commands::{config, connection, file};
 
 fn main() {
     env_logger::init();

@@ -231,7 +231,10 @@ impl App {
             .map_err(|e| Error::new_config(&format!("无效的 JSON 配置: {}", e)))
     }
 
-    fn create_file_manager_for_download(&self, matches: &ArgMatches) -> Result<crate::core::FileManager> {
+    fn create_file_manager_for_download(
+        &self,
+        matches: &ArgMatches,
+    ) -> Result<crate::core::FileManager> {
         let protocol = if let Some(connection_id) = matches.get_one::<String>("connection") {
             self.conn_manager.create_protocol(connection_id)?
         } else {

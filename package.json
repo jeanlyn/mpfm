@@ -1,6 +1,6 @@
 {
   "name": "multi-protocol-file-manager",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "description": "Multi-protocol file manager with GUI interface",
   "scripts": {
     "tauri": "tauri",

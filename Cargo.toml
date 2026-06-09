@@ -1,11 +1,14 @@
 [package]
 name = "multi-protocol-file-manager"
-version = "0.1.0"
+version = "0.2.3"
 edition = "2021"
 description = "A multi-protocol file manager built on OpenDAL"
 authors = ["MultiProtocolFileManager <info@example.com>"]
 license = "MIT"
 default-run = "multi-protocol-file-manager"  # 添加这一行
+
+[lib]
+doctest = false
 
 # 定义库目标
 # [lib]

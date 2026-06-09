@@ -20,10 +20,7 @@ impl CliShell {
         match target_shell {
             "bash" => Ok(Self::Bash),
             "powershell" => Ok(Self::PowerShell),
-            other => Err(Error::new_config(&format!(
-                "不支持的目标 shell: {}",
-                other
-            ))),
+            other => Err(Error::new_config(&format!("不支持的目标 shell: {}", other))),
         }
     }
 }
@@ -43,8 +40,10 @@ fn build_download_cli_command(
     local_path: &str,
     shell: CliShell,
 ) -> Result<String> {
-    let ordered_config: BTreeMap<String, String> =
-        config.iter().map(|(key, value)| (key.clone(), value.clone())).collect();
+    let ordered_config: BTreeMap<String, String> = config
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
 
     let config_json = serde_json::to_string(&ordered_config)
         .map_err(|e| Error::new_config(&format!("序列化连接配置失败: {}", e)))?;
@@ -62,8 +61,7 @@ fn build_download_cli_command(
 fn default_download_target(remote_path: &str) -> String {
     let file_name = remote_path
         .split('/')
-        .filter(|part| !part.is_empty())
-        .next_back()
+        .rfind(|part| !part.is_empty())
         .unwrap_or("downloaded-file");
 
     format!("./{}", file_name)

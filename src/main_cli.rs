@@ -1,10 +1,5 @@
-mod cli;
-mod core;
-mod protocols;
-mod utils;
-
-use cli::app::App;
 use log::{error, info};
+use multi_protocol_file_manager::cli::app::App;
 use std::process;
 
 fn main() {
