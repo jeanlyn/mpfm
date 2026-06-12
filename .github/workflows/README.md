@@ -1,126 +1,86 @@
 # GitHub Actions CI/CD 配置
 
-本项目配置了多个 GitHub Actions 工作流程来确保代码质量和自动化测试。
+本项目现在采用单一的 `tag-first` 发版方式：日常提交走 `ci.yml`，正式发版通过推送 `v*` tag 触发 [release.yml](/Users/jeanlyn/code/wlb/mpfm/.github/workflows/release.yml)，在同一个 Draft Release 中同时产出桌面端、CLI 和 fixed WebView2 Windows 包。
 
 ## 工作流程说明
 
 ### 1. CI Pipeline (`ci.yml`)
-**触发条件：** 
-- 所有分支的提交（排除文档变更）
-- 向 master/develop 分支的 PR
 
-**用途：** 
-- **basic-checks**: 为所有分支运行基本编译和类型检查
-- **full-tests**: 仅为主要分支和 PR 运行完整测试套件
-
-**包含内容：**
-- Rust 编译检查
-- TypeScript 类型检查  
-- 代码格式检查 (cargo fmt)
-- 静态分析 (cargo clippy)
-- 完整测试套件
-- 前端构建
-
-### 2. 发布流程 (`release.yml`, `release-win.yml`, `release-cli.yml`)
-**触发条件：** release 分支或手动触发
-**用途：** 构建和发布应用程序
-
-**包含内容：**
-- `release.yml`: macOS / Linux / 默认 Windows 桌面应用发布
-- `release-win.yml`: 带 fixed WebView2 的 Windows 桌面应用发布
-- `release-cli.yml`: `main_cli` 的跨平台发布包
-
-### 3. CLI 发布矩阵 (`release-cli.yml`)
 **触发条件：**
-- `release`
-- `release-win`
-- 手动触发
+- 所有分支的提交（排除文档变更）
+- 向 `master` / `develop` 分支发起的 PR
 
 **用途：**
-- 直接产出 `main_cli` 的跨平台压缩包
-- Linux 使用 `musl` 目标，默认得到更易分发的静态二进制
+- `basic-checks`：快速检查 Rust 格式、后端编译、前端类型检查和前端构建
+- `full-tests`：仅在 `master` / `develop` 和 PR 上执行共享检查、完整构建与测试
 
-**当前产物目标：**
-- `x86_64-unknown-linux-musl`
-- `aarch64-unknown-linux-musl`
-- `x86_64-apple-darwin`
-- `aarch64-apple-darwin`
-- `x86_64-pc-windows-msvc`
-- `aarch64-pc-windows-msvc`
+**特点：**
+- 统一通过 `bash ./scripts/bootstrap.sh` 安装 root 与 `ui/` 依赖
+- 统一使用 `Node 20 + corepack + packageManager`
+- `full-tests` 直接复用 `bash ./scripts/check.sh`
 
-## 避免重复执行的设计
+### 2. 正式发布 (`release.yml`)
 
-为了解决测试重复运行的问题，我们采用了以下策略：
+**触发条件：**
+- 推送 `v*` tag，例如 `v0.2.4`
+- 手动 `workflow_dispatch`，并指定已有 tag
 
-1. **分层检查**：
-   - 所有分支：基本编译和类型检查
-   - 主要分支/PR：完整测试套件
-   - 源码变更：深度测试
+**用途：**
+- 构建并发布桌面端安装包到同一个 GitHub Draft Release
+- 附加 `main_cli` 的跨平台压缩包
+- 同时附加包含 fixed WebView2 Runtime 的 Windows 特别版
 
-2. **条件执行**：
-   - 使用 `if` 条件控制 job 执行
-   - 基于分支名称和事件类型进行过滤
-   - 使用 `paths` 过滤器只在相关文件变更时运行
+**当前产物覆盖：**
+- macOS Apple Silicon `app`
+- macOS Intel `app`
+- Linux 桌面包
+- Windows 默认安装包
+- Windows fixed WebView2 安装包
+- CLI:
+  - `x86_64-unknown-linux-musl`
+  - `aarch64-unknown-linux-musl`
+  - `x86_64-apple-darwin`
+  - `aarch64-apple-darwin`
+  - `x86_64-pc-windows-msvc`
+  - `aarch64-pc-windows-msvc`
 
-3. **路径过滤**：
-   - 排除文档变更触发 CI
-   - 只在源码变更时运行测试
+**保护措施：**
+- 发布前执行 `bash ./scripts/release-version.sh --expect-tag <tag>`
+- 校验 `Cargo.toml`、`package.json`、`ui/package.json`、`tauri.conf.json`、`tauri.win.conf.json` 的版本完全一致
+- macOS runner 默认发布 `app` bundle，避免无头环境依赖 Finder/AppleScript 生成 DMG 时失败
 
-## 测试策略
+## 推荐发版方式
 
-### Rust 后端测试
+一键自动发版：
+
 ```bash
-# 运行所有 Rust 测试（不会重复）
-cargo test --verbose
-
-# 运行特定类型的测试
-cargo test --lib              # 库测试
-cargo test --test '*'         # 集成测试  
-cargo test --doc              # 文档测试
-
-# 代码质量检查
-cargo fmt --check
-cargo clippy
+pnpm run release -- 0.2.4
 ```
 
-### 前端测试
+它会自动完成：
+- 更新版本号
+- 本地校验和构建
+- 提交 release commit
+- 推送 `master`
+- 创建并推送 `v0.2.4` tag
+
+想先演练但不真正 push/tag：
+
 ```bash
-cd ui
-pnpm run type-check    # TypeScript 检查
-pnpm run build         # 构建验证
+pnpm run release -- --dry-run 0.2.4
 ```
 
-## 分支策略和触发规则
+## 本地脚本入口
 
-| 分支类型 | 触发的 Workflow | 运行的测试 |
-|---------|----------------|-----------|
-| feature/* | ci.yml (basic-checks) | 编译检查 + 类型检查 |
-| master/develop | ci.yml (full-tests) | 完整测试套件 |
-| PR to master/develop | ci.yml (full-tests) | 完整测试套件 |
-| release | ci.yml + release.yml + release-cli.yml | 检查 + 桌面端发布 + CLI 发布 |
-| release-win | release-win.yml + release-cli.yml | Windows 桌面端发布 + CLI 发布 |
-
-## 解决重复测试的方法
-
-之前的问题是多个 workflow 文件在相同条件下都会执行测试，导致：
-- 多个 CI / 测试 workflow 在相同分支重复运行
-- 相同的测试命令被执行多次
-
-**解决方案：**
-1. 合并重复的 workflow
-2. 使用条件语句控制执行
-3. 明确各 workflow 的职责分工
-4. 使用路径和分支过滤器
-
-## 贡献指南
-
-1. **功能分支**：自动运行基本检查，快速反馈
-2. **PR 到主分支**：运行完整测试套件
-3. **主分支合并**：运行完整测试 + 安全审计
-4. **发布**：构建跨平台应用
-
-这样的设计确保了：
-- ✅ 不会重复运行相同的测试
-- ✅ 快速反馈开发者
-- ✅ 主分支质量保证
-- ✅ 资源使用优化
+```bash
+pnpm run bootstrap         # 安装 root/ui 依赖
+pnpm run check             # Rust + 前端统一检查
+pnpm run fix               # Rust 格式化与 clippy 自动修复
+pnpm run set:version -- 0.2.4
+pnpm run build:ui          # 构建前端
+pnpm run build:cli         # 构建 CLI
+pnpm run build:desktop     # 构建桌面端
+pnpm run build:release     # 发版前一键检查 + 测试 + 构建
+pnpm run release:version   # 检查版本元数据是否一致
+pnpm run release -- 0.2.4  # 一键发版
+```

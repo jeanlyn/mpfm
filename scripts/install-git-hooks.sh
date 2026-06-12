@@ -7,7 +7,11 @@ fi
 
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/common.sh"
+
+repo_root="$REPO_ROOT"
 cd "$repo_root"
 
 hooks_dir="$repo_root/.git/hooks"
@@ -37,7 +41,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   # Define patterns that trigger a check (Rust, UI, Configs, Scripts)
   if git diff --name-only "$range" | grep -qE '\.(rs|toml|json|ts|tsx|css|html|sh)$|^ui/|^src/|^scripts/'; then
     echo "[hooks] Code changes detected in $range, running checks..."
-    "$repo_root/scripts/check.sh"
+    bash "$repo_root/scripts/check.sh"
     exit $?
   fi
 done

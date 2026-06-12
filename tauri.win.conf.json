@@ -1,7 +1,7 @@
 {
   "build": {
-    "beforeDevCommand": "cd ui && pnpm run dev",
-    "beforeBuildCommand": "cd ui && pnpm run build",
+    "beforeDevCommand": "corepack pnpm --dir ui run dev",
+    "beforeBuildCommand": "corepack pnpm --dir ui run build",
     "frontendDist": "./ui/dist",
     "devUrl": "http://localhost:1420"
   },
@@ -23,7 +23,10 @@
       },
       "nsis": {
         "displayLanguageSelector": true,
-        "languages": ["SimpChinese", "English"],
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
         "template": null,
         "compression": "lzma"
       }

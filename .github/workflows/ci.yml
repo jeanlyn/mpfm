@@ -2,25 +2,30 @@ name: CI
 
 on:
   push:
-    branches: [ "**" ]
+    branches:
+      - "**"
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
   pull_request:
-    branches: [ master, develop ]
+    branches:
+      - master
+      - develop
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
 
 env:
+  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  HUSKY: 0
 
 jobs:
-  # 为所有分支运行基本检查
   basic-checks:
     name: Basic Checks
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,7 +35,7 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Install Basic lib
+      - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -40,46 +45,43 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: bash ./scripts/bootstrap.sh
+
       - name: Check code formatting
         run: cargo fmt --all -- --check
 
       - name: Check Rust compilation
         run: cargo check --verbose
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'pnpm'
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            ui/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile && cd ui && pnpm install --frozen-lockfile
-
       - name: TypeScript type checking
-        run: cd ui && pnpm run type-check
+        run: corepack pnpm --dir ui run type-check
 
       - name: Build frontend
-        run: cd ui && pnpm run build
+        run: corepack pnpm --dir ui run build
 
-  # 只为主要分支运行完整测试
   full-tests:
     name: Full Tests
     runs-on: ubuntu-latest
     if: contains(fromJson('["master", "develop"]'), github.ref_name) || github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Basic lib
+      - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -92,34 +94,26 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Check code formatting
-        run: cargo fmt --all -- --check
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: bash ./scripts/bootstrap.sh
+
+      - name: Run shared checks
+        run: bash ./scripts/check.sh
 
       - name: Build project
         run: cargo build --verbose
 
       - name: Run all tests
         run: cargo test --verbose
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'pnpm'
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            ui/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile && cd ui && pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        run: cd ui && pnpm run build

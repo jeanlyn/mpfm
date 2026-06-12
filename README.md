@@ -215,16 +215,43 @@ cargo run --bin main_cli -- stat --connection <connection-id> <path>
 ## 🔨 Build Release
 
 ```bash
-# Build Tauri application
-pnpm run tauri:build
+# Install root/ui dependencies
+pnpm run bootstrap
 
-# Build CLI tool
-cargo build --release --bin main_cli
+# Run the shared release checks locally
+pnpm run build:release
+
+# One-command release
+pnpm run release -- 0.2.4
+
+# Build the desktop bundle only
+pnpm run build:desktop
+
+# Build the CLI only
+pnpm run build:cli
 ```
 
 Build artifacts location:
 - Tauri application: `target/release/bundle/`
 - CLI tool: `target/release/main_cli`
+
+## 🚀 GitHub Release
+
+```bash
+# One command release
+pnpm run release -- 0.2.4
+```
+
+Optional dry run:
+
+```bash
+pnpm run release -- --dry-run 0.2.4
+```
+
+What happens after pushing `v*` tags:
+- `release.yml` builds macOS, Linux, and default Windows desktop bundles
+- `release.yml` also attaches the `main_cli` archives to the same draft release
+- `release.yml` also publishes the fixed WebView2 Windows packages in the same draft release
 
 ## 🐛 Troubleshooting
 

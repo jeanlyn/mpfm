@@ -1,8 +1,20 @@
 {
   "name": "multi-protocol-file-manager",
   "version": "0.2.3",
+  "packageManager": "pnpm@10.17.1",
   "description": "Multi-protocol file manager with GUI interface",
   "scripts": {
+    "bootstrap": "bash ./scripts/bootstrap.sh",
+    "check": "bash ./scripts/check.sh",
+    "fix": "bash ./scripts/fix.sh",
+    "install:hooks": "bash ./scripts/install-git-hooks.sh",
+    "set:version": "bash ./scripts/set-version.sh",
+    "release": "bash ./scripts/release.sh",
+    "build:ui": "bash ./scripts/build-ui.sh",
+    "build:cli": "bash ./scripts/build-cli.sh",
+    "build:desktop": "bash ./scripts/build-desktop.sh",
+    "build:release": "bash ./scripts/build-release.sh",
+    "release:version": "bash ./scripts/release-version.sh",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"

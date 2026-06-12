@@ -93,7 +93,7 @@ src/
 为了避免 push 到 GitHub 后才因为 Rust 格式化或前端编译失败导致 CI 红灯，建议在本地先跑一次统一检查：
 
 ```bash
-./scripts/check.sh
+pnpm run check
 ```
 
 如果遇到权限问题：
@@ -105,7 +105,7 @@ chmod +x ./scripts/*.sh
 如果只需要自动修复 Rust 格式化：
 
 ```bash
-./scripts/fix.sh
+pnpm run fix
 ```
 
 说明：CI 里还有 `clippy -D warnings` 的门禁；`check.sh` 会执行同样的 clippy 严格检查，`fix.sh` 会先尝试 `cargo fix --clippy` 自动修复（并非所有 clippy 报错都能自动修）。
@@ -113,7 +113,19 @@ chmod +x ./scripts/*.sh
 也可以安装可选的 `pre-push` 钩子，让每次 `git push` 前自动执行上述检查：
 
 ```bash
-./scripts/install-git-hooks.sh
+pnpm run install:hooks
+```
+
+如果要一键完成版本更新、构建、提交、推送和打 tag：
+
+```bash
+pnpm run release -- 0.2.4
+```
+
+如果只想做一次完整演练，不真正 push/tag：
+
+```bash
+pnpm run release -- --dry-run 0.2.4
 ```
 
 ### GitHub 分支保护（强烈推荐）
@@ -207,7 +219,10 @@ cargo test performance_tests
 git clone <repository>
 cd mpfm
 
-# 安装依赖
+# 安装 root/ui 依赖
+pnpm run bootstrap
+
+# 检查后端是否可编译
 cargo build
 
 # 运行测试
@@ -220,12 +235,14 @@ cargo run
 ### 发布构建
 
 ```bash
-# 优化构建
-cargo build --release
+# 一键执行版本校验、共享检查、测试和发布构建
+pnpm run build:release
 
-# 跨平台构建
-cargo build --target x86_64-unknown-linux-gnu
-cargo build --target aarch64-unknown-linux-gnu
+# 只构建桌面端
+pnpm run build:desktop
+
+# 只构建 CLI
+pnpm run build:cli
 ```
 
 ### Docker 部署
@@ -315,10 +332,10 @@ Pull Request 需要通过：
 ### 发布流程
 
 1. 更新版本号
-2. 更新 CHANGELOG
-3. 创建 Git 标签
-4. 构建发布包
-5. 发布到包管理器
+2. 运行 `pnpm run release:version`，确认 `Cargo.toml`、`package.json`、`ui/package.json`、`tauri.conf.json`、`tauri.win.conf.json` 完全一致
+3. 运行 `pnpm run build:release`
+4. 或者直接运行 `pnpm run release -- 0.2.4`
+5. 等待 GitHub Actions 中的 `release.yml` 完成
 
 ## 故障排除
 

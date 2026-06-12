@@ -208,16 +208,43 @@ cargo run --bin main_cli -- stat --connection <connection-id> <path>
 ## 🔨 构建发布版本
 
 ```bash
-# 构建 Tauri 应用
-pnpm run tauri:build
+# 安装 root/ui 依赖
+pnpm run bootstrap
 
-# 构建 CLI 工具
-cargo build --release --bin main_cli
+# 本地跑一遍发布前检查、测试和构建
+pnpm run build:release
+
+# 一键发版
+pnpm run release -- 0.2.4
+
+# 只构建桌面端
+pnpm run build:desktop
+
+# 只构建 CLI
+pnpm run build:cli
 ```
 
 构建产物位置：
 - Tauri 应用：`target/release/bundle/`
 - CLI 工具：`target/release/main_cli`
+
+## 🚀 GitHub 发版
+
+```bash
+# 一键发版
+pnpm run release -- 0.2.4
+```
+
+如果只想先演练但不真正 push / tag：
+
+```bash
+pnpm run release -- --dry-run 0.2.4
+```
+
+推送 `v*` tag 后会发生：
+- `release.yml` 自动构建 macOS、Linux 和默认 Windows 桌面安装包
+- `release.yml` 会把 `main_cli` 的压缩包附加到同一个 draft release
+- `release.yml` 也会把 fixed WebView2 的 Windows 特别版一起发布到同一个 draft release
 
 ## 🐛 故障排除
 

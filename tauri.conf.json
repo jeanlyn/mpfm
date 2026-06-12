@@ -1,7 +1,7 @@
 {
   "build": {
-    "beforeDevCommand": "cd ui && pnpm run dev",
-    "beforeBuildCommand": "cd ui && pnpm run build",
+    "beforeDevCommand": "corepack pnpm --dir ui run dev",
+    "beforeBuildCommand": "corepack pnpm --dir ui run build",
     "frontendDist": "./ui/dist",
     "devUrl": "http://localhost:1420"
   },
@@ -30,7 +30,7 @@
         "https://github.com/jeanlyn/mpfm/releases/latest/download/latest.json"
       ]
     }
-},
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
