@@ -220,11 +220,17 @@ jobs:
           set -euo pipefail
           cargo zigbuild --release --bin main_cli --target "${{ matrix.target }}" --no-default-features --features cli
 
-      - name: Build CLI with cargo
-        if: ${{ !matrix.use_zig }}
+      - name: Build CLI with cargo (Unix)
+        if: ${{ !matrix.use_zig && runner.os != 'Windows' }}
         shell: bash
         run: |
           set -euo pipefail
+          cargo build --release --bin main_cli --target "${{ matrix.target }}" --no-default-features --features cli
+
+      - name: Build CLI with cargo (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
           cargo build --release --bin main_cli --target "${{ matrix.target }}" --no-default-features --features cli
 
       - name: Package CLI archive (Unix)
