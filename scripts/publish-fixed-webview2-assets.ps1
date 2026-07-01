@@ -33,7 +33,7 @@ if ($msiCount -lt 1 -or $exeCount -lt 1) {
     throw "Expected at least one MSI and one EXE fixed-webview2 artifact, found $msiCount MSI and $exeCount EXE"
 }
 
-Write-Host "Publishing $($files.Count) fixed-webview2 asset(s) to $Tag:"
+Write-Host "Publishing $($files.Count) fixed-webview2 asset(s) to ${Tag}:"
 $files | ForEach-Object { Write-Host "  $($_.FullName)" }
 
 gh release view $Tag *> $null

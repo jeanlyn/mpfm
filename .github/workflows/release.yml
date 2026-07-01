@@ -316,6 +316,14 @@ jobs:
         with:
           ref: refs/tags/${{ needs.check-version.outputs.tag_name }}
 
+      - name: Patch tagged fixed WebView2 publish script
+        shell: pwsh
+        run: |
+          $path = "scripts/publish-fixed-webview2-assets.ps1"
+          $content = Get-Content -Path $path -Raw
+          $content = $content.Replace('$Tag:', '${Tag}:')
+          Set-Content -Path $path -Value $content -NoNewline
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
