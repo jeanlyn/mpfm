@@ -48,6 +48,24 @@ export class ApiService {
     }
   }
 
+  static async reloadConnections(): Promise<Connection[]> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock data');
+      return Promise.resolve(mockConnections);
+    }
+
+    try {
+      const response: ApiResponse<Connection[]> = await invoke('reload_connections');
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '刷新连接失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`刷新连接失败: ${error}`);
+    }
+  }
+
   static async addConnection(
     name: string,
     protocolType: string,

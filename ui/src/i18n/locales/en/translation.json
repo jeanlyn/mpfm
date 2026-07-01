@@ -55,7 +55,9 @@
         "editSuccess": "Connection edited successfully",
         "addFailed": "Failed to add connection",
         "copyFailed": "Failed to copy connection",
-        "editFailed": "Failed to edit connection"
+        "editFailed": "Failed to edit connection",
+        "refreshSuccess": "Connections refreshed",
+        "refreshFailed": "Failed to refresh connections"
       },
     "modal": {
       "addConnectionTitle": "Add New Connection",
@@ -91,7 +93,8 @@
         "editDirectory": "Edit Directory",
         "deleteDirectory": "Delete Directory",
         "confirmDeleteDirectory": "Are you sure you want to delete this directory?",
-        "addConnectionToDirectory": "Add Connection to Directory"
+        "addConnectionToDirectory": "Add Connection to Directory",
+        "refreshConnections": "Refresh connections"
       },
       "fields": {
         "bucketName": "Bucket Name",

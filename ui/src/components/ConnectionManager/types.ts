@@ -19,6 +19,7 @@ export interface ConnectionManagerProps {
   currentConnection: Connection | null;
   onConnectionSelect: (connection: Connection) => void;
   onConnectionsChange: () => void;
+  onRefreshConnections: () => void;
 }
 
 export interface DirectoryItem {

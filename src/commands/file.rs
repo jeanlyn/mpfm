@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::types::{ApiResponse, FileInfo, PaginatedFileList};
-use super::utils::get_connection_manager;
+use super::utils::get_connection_config;
 
 const UPLOAD_PROGRESS_EVENT: &str = "upload-progress";
 
@@ -168,9 +168,8 @@ fn default_download_target(remote_path: &str) -> String {
 
 #[command]
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -187,9 +186,7 @@ pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -200,9 +197,8 @@ pub async fn list_files_paginated(
     page: usize,
     page_size: usize,
 ) -> ApiResponse<PaginatedFileList> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -228,9 +224,7 @@ pub async fn list_files_paginated(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -241,9 +235,8 @@ pub async fn upload_file(
     local_path: String,
     remote_path: String,
 ) -> ApiResponse<bool> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -366,9 +359,7 @@ pub async fn upload_file(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -379,9 +370,8 @@ pub async fn upload_directory(
     local_dir_path: String,
     remote_base_path: String,
 ) -> ApiResponse<usize> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -505,9 +495,7 @@ pub async fn upload_directory(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -517,9 +505,8 @@ pub async fn download_file(
     remote_path: String,
     local_path: String,
 ) -> ApiResponse<bool> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -535,9 +522,7 @@ pub async fn download_file(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -547,25 +532,22 @@ pub async fn build_download_command(
     remote_path: String,
     target_shell: String,
 ) -> ApiResponse<String> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match CliShell::from_target(&target_shell) {
-                Ok(shell) => match build_download_cli_command(
-                    "main_cli",
-                    &config.protocol_type,
-                    &config.config,
-                    &remote_path,
-                    &default_download_target(&remote_path),
-                    shell,
-                ) {
-                    Ok(command) => ApiResponse::success(command),
-                    Err(e) => ApiResponse::error(format!("生成下载命令失败: {}", e)),
-                },
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match CliShell::from_target(&target_shell) {
+            Ok(shell) => match build_download_cli_command(
+                "main_cli",
+                &protocol_type,
+                &config,
+                &remote_path,
+                &default_download_target(&remote_path),
+                shell,
+            ) {
+                Ok(command) => ApiResponse::success(command),
                 Err(e) => ApiResponse::error(format!("生成下载命令失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
+            Err(e) => ApiResponse::error(format!("生成下载命令失败: {}", e)),
         },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -579,9 +561,8 @@ pub fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> ApiRespons
 
 #[command]
 pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<bool> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -594,17 +575,14 @@ pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<boo
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
 #[command]
 pub async fn create_directory(connection_id: String, path: String) -> ApiResponse<bool> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -622,17 +600,14 @@ pub async fn create_directory(connection_id: String, path: String) -> ApiRespons
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
 #[command]
 pub async fn get_directory_count(connection_id: String, path: String) -> ApiResponse<usize> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -645,9 +620,7 @@ pub async fn get_directory_count(connection_id: String, path: String) -> ApiResp
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -714,9 +687,8 @@ pub async fn search_files(
     page: usize,
     page_size: usize,
 ) -> ApiResponse<PaginatedFileList> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -745,9 +717,7 @@ pub async fn search_files(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -757,80 +727,71 @@ pub async fn get_file_content(
     path: String,
     r#type: String, // 使用 r#type 因为 type 是 Rust 关键字
 ) -> ApiResponse<serde_json::Value> {
-    match get_connection_manager() {
-        Ok(manager) => {
-            match manager.get_connection(&connection_id) {
-                Some(config) => {
-                    match create_protocol(&config.protocol_type, &config.config) {
-                        Ok(protocol) => {
-                            match protocol.create_operator() {
-                                Ok(operator) => {
-                                    let file_manager = FileManager::new(operator);
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => {
+            match create_protocol(&protocol_type, &config) {
+                Ok(protocol) => {
+                    match protocol.create_operator() {
+                        Ok(operator) => {
+                            let file_manager = FileManager::new(operator);
 
-                                    // 检查文件大小限制（5MB）
-                                    match file_manager.get_file_info(&path).await {
-                                        Ok(Some(info)) => {
-                                            if let Some(size) = info.size {
-                                                if size > 5 * 1024 * 1024 {
-                                                    return ApiResponse::error(
-                                                        "文件太大，无法预览（限制5MB）".to_string(),
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        Ok(None) => {
-                                            return ApiResponse::error("文件不存在".to_string());
-                                        }
-                                        Err(e) => {
-                                            return ApiResponse::error(format!(
-                                                "获取文件信息失败: {}",
-                                                e
-                                            ));
-                                        }
-                                    }
-
-                                    match file_manager.read_file(&path).await {
-                                        Ok(content) => {
-                                            let bytes = content.to_bytes().to_vec();
-
-                                            if r#type == "binary" {
-                                                // 对于二进制文件，返回字节数组
-                                                ApiResponse::success(serde_json::Value::Array(
-                                                    bytes
-                                                        .into_iter()
-                                                        .map(|b| {
-                                                            serde_json::Value::Number(b.into())
-                                                        })
-                                                        .collect(),
-                                                ))
-                                            } else {
-                                                // 对于文本文件，尝试转换为 UTF-8 字符串
-                                                match String::from_utf8(bytes) {
-                                                    Ok(text) => ApiResponse::success(
-                                                        serde_json::Value::String(text),
-                                                    ),
-                                                    Err(_) => {
-                                                        // 如果不是有效的UTF-8，尝试其他编码或返回错误
-                                                        ApiResponse::error("文件不是有效的UTF-8格式，请尝试二进制预览".to_string())
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Err(e) => {
-                                            ApiResponse::error(format!("读取文件失败: {}", e))
+                            // 检查文件大小限制（5MB）
+                            match file_manager.get_file_info(&path).await {
+                                Ok(Some(info)) => {
+                                    if let Some(size) = info.size {
+                                        if size > 5 * 1024 * 1024 {
+                                            return ApiResponse::error(
+                                                "文件太大，无法预览（限制5MB）".to_string(),
+                                            );
                                         }
                                     }
                                 }
-                                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+                                Ok(None) => {
+                                    return ApiResponse::error("文件不存在".to_string());
+                                }
+                                Err(e) => {
+                                    return ApiResponse::error(format!(
+                                        "获取文件信息失败: {}",
+                                        e
+                                    ));
+                                }
+                            }
+
+                            match file_manager.read_file(&path).await {
+                                Ok(content) => {
+                                    let bytes = content.to_bytes().to_vec();
+
+                                    if r#type == "binary" {
+                                        // 对于二进制文件，返回字节数组
+                                        ApiResponse::success(serde_json::Value::Array(
+                                            bytes
+                                                .into_iter()
+                                                .map(|b| serde_json::Value::Number(b.into()))
+                                                .collect(),
+                                        ))
+                                    } else {
+                                        // 对于文本文件，尝试转换为 UTF-8 字符串
+                                        match String::from_utf8(bytes) {
+                                            Ok(text) => ApiResponse::success(
+                                                serde_json::Value::String(text),
+                                            ),
+                                            Err(_) => {
+                                                // 如果不是有效的UTF-8，尝试其他编码或返回错误
+                                                ApiResponse::error("文件不是有效的UTF-8格式，请尝试二进制预览".to_string())
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => ApiResponse::error(format!("读取文件失败: {}", e)),
                             }
                         }
-                        Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                        Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
                     }
                 }
-                None => ApiResponse::error("Connection not found".to_string()),
+                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             }
         }
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }
 
@@ -840,9 +801,8 @@ pub async fn batch_download_files(
     file_paths: Vec<String>,
     save_path: String,
 ) -> ApiResponse<bool> {
-    match get_connection_manager() {
-        Ok(manager) => match manager.get_connection(&connection_id) {
-            Some(config) => match create_protocol(&config.protocol_type, &config.config) {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
                 Ok(protocol) => match protocol.create_operator() {
                     Ok(operator) => {
                         let file_manager = FileManager::new(operator);
@@ -858,8 +818,6 @@ pub async fn batch_download_files(
                 },
                 Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
             },
-            None => ApiResponse::error("Connection not found".to_string()),
-        },
-        Err(e) => ApiResponse::error(e.to_string()),
+        Err(e) => ApiResponse::error(e),
     }
 }

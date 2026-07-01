@@ -33,6 +33,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   currentConnection,
   onConnectionSelect,
   onConnectionsChange,
+  onRefreshConnections,
 }) => {
   const { directory: i18nDirectory } = useAppI18n();
   const [collapsed, setCollapsed] = useState(false);
@@ -126,10 +127,10 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     }),
   };
 
-  // 初始化时加载目录
+  // 连接列表变化时同步目录配置
   useEffect(() => {
     loadDirectories();
-  }, []);
+  }, [connections, loadDirectories]);
 
   // 渲染展开状态的目录和连接列表
   const renderExpandedContent = () => (
@@ -146,6 +147,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               onToggle={() => handleDirectoryToggle(directory.id)}
               onEdit={() => handleEditDirectory(directory)}
               onDelete={() => handleDeleteDirectory(directory.id)}
+              onRefresh={onRefreshConnections}
               onAddConnection={() => {
                 // 打开新建连接模态框，并预选当前目录
                 openModal(MODAL_TYPES.ADD);
@@ -232,6 +234,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           currentConnection={currentConnection}
           onConnectionSelect={onConnectionSelect}
           onConnectionsChange={onConnectionsChange}
+          onRefreshConnections={onRefreshConnections}
           onToggleCollapse={() => setCollapsed(!collapsed)}
           onAddConnection={() => openModal(MODAL_TYPES.ADD)}
         >

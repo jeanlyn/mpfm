@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout, message, Alert } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import TabbedFileManager from './components/TabbedFileManager';
@@ -27,32 +27,39 @@ const AppContent: React.FC = () => {
   const { connection, app } = useAppI18n();
 
   useWindowTitle();
-  const loadConnections = async () => {
+
+  const refreshConnections = useCallback(async (showSuccessMessage = false) => {
     try {
-      const connectionList = await ApiService.getConnections();
+      const connectionList = await ApiService.reloadConnections();
       setConnections(connectionList);
+
+      setCurrentConnection((prev) => {
+        if (!prev) return prev;
+        const updated = connectionList.find((conn) => conn.id === prev.id);
+        return updated ?? null;
+      });
+
+      if (showSuccessMessage) {
+        message.success(connection.messages.refreshSuccess);
+      }
+
+      return connectionList;
     } catch (error) {
-      message.error(`${connection.messages.loadFailed}: ${error}`);
+      message.error(`${connection.messages.refreshFailed}: ${error}`);
+      throw error;
     }
-  };
+  }, [connection.messages.refreshFailed, connection.messages.refreshSuccess]);
 
   useEffect(() => {
-    loadConnections();
-  }, []);
+    refreshConnections();
+  }, [refreshConnections]);
 
   const handleConnectionSelect = (connection: Connection) => {
     setCurrentConnection(connection);
   };
 
   const handleConnectionsChange = () => {
-    loadConnections();
-    // 如果当前选中的连接被删除了，清空选择
-    if (currentConnection) {
-      const exists = connections.some(conn => conn.id === currentConnection.id);
-      if (!exists) {
-        setCurrentConnection(null);
-      }
-    }
+    refreshConnections();
   };
 
   return (
@@ -73,6 +80,7 @@ const AppContent: React.FC = () => {
           currentConnection={currentConnection}
           onConnectionSelect={handleConnectionSelect}
           onConnectionsChange={handleConnectionsChange}
+          onRefreshConnections={() => refreshConnections(true)}
         />
         <TabbedFileManager selectedConnection={currentConnection} />
       </Layout>

@@ -52,7 +52,9 @@
         "editSuccess": "连接编辑成功",
         "addFailed": "添加连接失败",
         "copyFailed": "复制连接失败",
-        "editFailed": "编辑连接失败"
+        "editFailed": "编辑连接失败",
+        "refreshSuccess": "连接列表已刷新",
+        "refreshFailed": "刷新连接失败"
       },
       "modal": {
         "addConnectionTitle": "添加新连接",
@@ -88,7 +90,8 @@
         "editDirectory": "编辑目录",
         "deleteDirectory": "删除目录",
         "confirmDeleteDirectory": "确定要删除这个目录吗？",
-        "addConnectionToDirectory": "新建连接到此目录"
+        "addConnectionToDirectory": "新建连接到此目录",
+        "refreshConnections": "刷新连接列表"
       },
       "fields": {
         "bucketName": "存储桶名称",

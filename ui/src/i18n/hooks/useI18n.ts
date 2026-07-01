@@ -87,6 +87,8 @@ export const useAppI18n = () => {
         addFailed: t('connection.messages.addFailed'),
         copyFailed: t('connection.messages.copyFailed'),
         editFailed: t('connection.messages.editFailed'),
+        refreshSuccess: t('connection.messages.refreshSuccess'),
+        refreshFailed: t('connection.messages.refreshFailed'),
         uploadingDirectory: t('connection.modal.uploadingDirectory'),
       },
       modal: {
@@ -124,6 +126,7 @@ export const useAppI18n = () => {
         deleteDirectory: t('connection.tooltips.deleteDirectory'),
         confirmDeleteDirectory: t('connection.tooltips.confirmDeleteDirectory'),
         addConnectionToDirectory: t('connection.tooltips.addConnectionToDirectory'),
+        refreshConnections: t('connection.tooltips.refreshConnections'),
       },
       fields: {
         bucketName: t('connection.fields.bucketName'),

@@ -20,6 +20,7 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             connection::get_connections,
+            connection::reload_connections,
             connection::add_connection,
             connection::remove_connection,
             connection::copy_connection,

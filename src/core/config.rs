@@ -36,17 +36,9 @@ pub struct ConnectionManager {
 }
 
 impl ConnectionManager {
-    /// 创建新的连接管理器
-    pub fn new(config_path: PathBuf) -> Result<Self> {
-        // 如果目录不存在，创建目录
-        if let Some(parent) = config_path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
-        }
-
+    fn load_connections_from_file(config_path: &PathBuf) -> Result<HashMap<String, ConnectionConfig>> {
         let connections = if config_path.exists() {
-            let content = fs::read_to_string(&config_path)?;
+            let content = fs::read_to_string(config_path)?;
             if content.trim().is_empty() {
                 HashMap::new()
             } else {
@@ -68,12 +60,32 @@ impl ConnectionManager {
             HashMap::new()
         };
 
+        Ok(connections)
+    }
+
+    /// 创建新的连接管理器
+    pub fn new(config_path: PathBuf) -> Result<Self> {
+        // 如果目录不存在，创建目录
+        if let Some(parent) = config_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
+        let connections = Self::load_connections_from_file(&config_path)?;
         info!("已加载 {} 个连接配置", connections.len());
 
         Ok(Self {
             config_path,
             connections,
         })
+    }
+
+    /// 从磁盘重新加载连接配置
+    pub fn reload_from_disk(&mut self) -> Result<()> {
+        self.connections = Self::load_connections_from_file(&self.config_path)?;
+        info!("已重新加载 {} 个连接配置", self.connections.len());
+        Ok(())
     }
 
     /// 保存连接配置

@@ -3,7 +3,8 @@ import { Button, Tooltip, Popconfirm } from 'antd';
 import { 
   PlusOutlined,
   EditOutlined, 
-  DeleteOutlined 
+  DeleteOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useSortable } from '@dnd-kit/sortable';
 import { DroppableDirectoryProps } from '../types';
@@ -14,13 +15,15 @@ import { useAppI18n } from '../../../i18n/hooks/useI18n';
  */
 export const DroppableDirectory: React.FC<DroppableDirectoryProps & { 
   onAddConnection: () => void;
+  onRefresh: () => void;
 }> = ({ 
   directory, 
   children, 
   onToggle, 
   onEdit, 
   onDelete,
-  onAddConnection 
+  onAddConnection,
+  onRefresh,
 }) => {
   const { connection } = useAppI18n();
   const {
@@ -61,6 +64,24 @@ export const DroppableDirectory: React.FC<DroppableDirectoryProps & {
           {directory.name} ({directory.connectionIds.length})
         </span>
         <div style={{ display: 'flex', gap: '2px' }}>
+          <Tooltip title={connection.tooltips.refreshConnections}>
+            <Button
+              icon={<ReloadOutlined />}
+              size="small"
+              type="text"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh();
+              }}
+              style={{ 
+                padding: '0 2px',
+                minWidth: 'unset',
+                height: '20px',
+                fontSize: '12px',
+                color: '#1890ff'
+              }}
+            />
+          </Tooltip>
           <Tooltip title={connection.tooltips.addConnectionToDirectory}>
             <Button
               icon={<PlusOutlined />}
