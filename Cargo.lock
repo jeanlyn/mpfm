@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "multi-protocol-file-manager"
-version = "0.2.3"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "chrono",
