@@ -65,7 +65,7 @@ jobs:
             rust_target: ""
             bundle_args: ""
           - name: Windows
-            os: windows-latest
+            os: windows-2022
             rust_target: ""
             bundle_args: ""
 
@@ -103,7 +103,7 @@ jobs:
         run: rustup target add ${{ matrix.rust_target }}
 
       - name: Setup MSVC developer command prompt
-        if: matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: amd64
@@ -160,13 +160,13 @@ jobs:
             archive: tar.gz
             binary_name: main_cli
             use_zig: false
-          - os: windows-latest
+          - os: windows-2022
             target: x86_64-pc-windows-msvc
             archive: zip
             binary_name: main_cli.exe
             use_zig: false
             msvc_arch: amd64
-          - os: windows-latest
+          - os: windows-2022
             target: aarch64-pc-windows-msvc
             archive: zip
             binary_name: main_cli.exe
@@ -308,7 +308,7 @@ jobs:
             target: aarch64-pc-windows-msvc
             msvc_arch: amd64_arm64
 
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout tagged source
