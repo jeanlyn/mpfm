@@ -16,7 +16,7 @@
 
 **特点：**
 - 统一通过 `bash ./scripts/bootstrap.sh` 安装 root 与 `ui/` 依赖
-- 统一使用 `Node 20 + corepack + packageManager`
+- 统一使用 `Node 20 + pnpm/action-setup + packageManager`
 - `full-tests` 直接复用 `bash ./scripts/check.sh`
 
 ### 2. 正式发布 (`release.yml`)
