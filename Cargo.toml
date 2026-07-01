@@ -1,6 +1,6 @@
 [package]
 name = "multi-protocol-file-manager"
-version = "0.2.3"
+version = "0.2.5"
 edition = "2021"
 description = "A multi-protocol file manager built on OpenDAL"
 authors = ["MultiProtocolFileManager <info@example.com>"]
