@@ -1,26 +1,47 @@
-import { useEffect } from 'react';
-import { calculateTableHeight } from '../utils';
-import { RESERVED_HEIGHT, MIN_TABLE_HEIGHT, MAX_TABLE_HEIGHT } from '../constants';
+import { useEffect, type RefObject, type DependencyList } from 'react';
+import { MIN_TABLE_HEIGHT } from '../constants';
+
+/** Ant Design small Table 表头高度（首次渲染 thead 尚未挂载时的回退值） */
+const TABLE_HEADER_HEIGHT_FALLBACK = 39;
 
 /**
- * 表格高度动态计算 Hook
+ * 根据表格容器实际高度动态计算 scroll.y，使表格填满 flex 剩余区域，避免底部空白。
  */
-export const useTableHeight = (onHeightChange: (height: number) => void) => {
+export const useTableHeight = (
+  containerRef: RefObject<HTMLElement | null>,
+  onHeightChange: (height: number) => void,
+  remeasureDeps: DependencyList = []
+) => {
   useEffect(() => {
-    const handleHeightCalculation = () => {
-      const height = calculateTableHeight(RESERVED_HEIGHT, MIN_TABLE_HEIGHT, MAX_TABLE_HEIGHT);
-      onHeightChange(height);
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateHeight = () => {
+      const containerHeight = container.clientHeight;
+      if (containerHeight <= 0) return;
+
+      const header = container.querySelector('.ant-table-thead');
+      const headerHeight =
+        header?.getBoundingClientRect().height ?? TABLE_HEADER_HEIGHT_FALLBACK;
+      const scrollHeight = Math.floor(containerHeight - headerHeight);
+
+      if (scrollHeight >= MIN_TABLE_HEIGHT) {
+        onHeightChange(scrollHeight);
+      }
     };
 
-    // 初始计算
-    handleHeightCalculation();
-    
-    // 监听窗口大小变化
-    window.addEventListener('resize', handleHeightCalculation);
-    
-    // 清理事件监听器
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(updateHeight);
+    });
+    observer.observe(container);
+
+    updateHeight();
+    const timer = window.setTimeout(updateHeight, 0);
+
     return () => {
-      window.removeEventListener('resize', handleHeightCalculation);
+      observer.disconnect();
+      window.clearTimeout(timer);
     };
-  }, [onHeightChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerRef, onHeightChange, ...remeasureDeps]);
 };

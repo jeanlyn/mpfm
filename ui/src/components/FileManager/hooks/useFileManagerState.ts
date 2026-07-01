@@ -84,7 +84,6 @@ export const useFileManagerState = () => {
       batchDownloadProgress: null,
       uploadVisible: false,
       uploadProgress: null,
-      tableHeight: DEFAULT_TABLE_HEIGHT,
     });
   }, []);
 

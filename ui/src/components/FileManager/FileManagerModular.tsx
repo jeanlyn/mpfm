@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { Layout, Table, Modal, Input, Typography, Spin } from 'antd';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
@@ -41,12 +41,18 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const { state, updateState, updateMultipleState, resetState } = useFileManagerState();
   const fileSelection = useFileSelection();
 
-  // 表格高度计算
+  // 表格高度：按容器实际高度计算，填满 flex 剩余区域
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const handleHeightChange = useCallback((height: number) => {
     updateState('tableHeight', height);
   }, [updateState]);
-  
-  useTableHeight(handleHeightChange);
+
+  useTableHeight(tableContainerRef, handleHeightChange, [
+    state.loading,
+    state.files.length,
+    state.searchResults.length,
+    fileSelection.selectedFiles.size,
+  ]);
 
   // 文件操作
   const fileOperations = useFileOperations(
@@ -172,7 +178,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'auto'
+      overflow: 'hidden'
     }}>
       {/* 工具栏 */}
       <Toolbar
@@ -208,14 +214,10 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
       />
 
       {/* 文件表格 */}
-      <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        minHeight: 0,
-        overflow: 'hidden',
-        marginBottom: '5px'
-      }}>
+      <div
+        ref={tableContainerRef}
+        className="file-manager-table-container"
+      >
         <Spin spinning={state.loading}>
           <Table
             columns={columns}
