@@ -1,17 +1,41 @@
 use std::fmt;
 
+/// 错误种类，用于区分取消、IO、协议等不同来源
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    Io,
+    Config,
+    Protocol,
+    NotFound,
+    NotSupported,
+    Cancelled,
+    Other,
+}
+
 /// 错误结构体
 #[derive(Debug)]
 pub struct Error {
     message: String,
+    kind: ErrorKind,
     source: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
 impl Error {
+    /// 错误种类
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
+    }
+
+    /// 是否为取消错误
+    pub fn is_cancelled(&self) -> bool {
+        self.kind == ErrorKind::Cancelled
+    }
+
     /// 创建新的 IO 错误
     pub fn new_io(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::Io,
             source: None,
         }
     }
@@ -20,6 +44,7 @@ impl Error {
     pub fn new_config(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::Config,
             source: None,
         }
     }
@@ -28,6 +53,7 @@ impl Error {
     pub fn new_protocol(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::Protocol,
             source: None,
         }
     }
@@ -36,6 +62,7 @@ impl Error {
     pub fn new_not_found(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::NotFound,
             source: None,
         }
     }
@@ -44,6 +71,16 @@ impl Error {
     pub fn new_not_supported(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::NotSupported,
+            source: None,
+        }
+    }
+
+    /// 创建新的取消错误（用户主动取消上传/下载等操作）
+    pub fn new_cancelled(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            kind: ErrorKind::Cancelled,
             source: None,
         }
     }
@@ -52,6 +89,7 @@ impl Error {
     pub fn new_other(message: &str) -> Self {
         Self {
             message: message.to_string(),
+            kind: ErrorKind::Other,
             source: None,
         }
     }

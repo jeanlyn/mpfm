@@ -5,6 +5,7 @@ import { Connection, FileInfo } from '../../../types';
 import { ApiService } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { PaginatedFileList, LoadingMode } from '../types';
+import { UploadProgress } from '../../../utils/uploadProgress';
 import { PAGINATION_MODE_THRESHOLD } from '../constants';
 
 /**
@@ -106,14 +107,60 @@ export const useFileOperations = (
           ? currentPath + fileName 
           : currentPath + '/' + fileName;
 
-        await ApiService.uploadFile(connection.id, selected, remotePath);
-        message.success(fileManager.messages.uploadSuccess);
-        loadFiles(currentPath, currentPage);
+        onStateUpdate({
+          uploadVisible: true,
+          uploadProgress: {
+            transferred: 0,
+            total: 0,
+            fileName,
+            completed: false,
+          },
+        });
+
+        // 用对象包裹记录最后一次进度，绕过 TS 控制流分析（异步回调中的赋值对 catch 不可见）。
+        const lastProgressRef: { current: UploadProgress | null } = { current: null };
+        try {
+          await ApiService.uploadFile(
+            connection.id,
+            selected,
+            remotePath,
+            (progress: UploadProgress) => {
+              lastProgressRef.current = progress;
+              onStateUpdate({ uploadProgress: progress });
+            }
+          );
+          message.success(fileManager.messages.uploadSuccess);
+          loadFiles(currentPath, currentPage);
+        } catch (error) {
+          // 取消时后端已通过事件下发 cancelled 态，这里不覆盖、也不当作失败提示
+          if (lastProgressRef.current?.cancelled) {
+            return;
+          }
+          const fallbackError =
+            error instanceof Error ? error.message : String(error);
+          onStateUpdate({
+            uploadProgress: {
+              transferred: 0,
+              total: 0,
+              fileName,
+              completed: true,
+              error: fallbackError,
+            },
+          });
+          throw error;
+        }
       }
     } catch (error) {
       message.error(`${fileManager.messages.uploadFailed}: ${error}`);
     }
-  }, [connection, currentPath, currentPage, loadFiles, fileManager.dialogs.selectFileToUpload, fileManager.messages.uploadSuccess, fileManager.messages.uploadFailed]);
+  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.dialogs.selectFileToUpload, fileManager.messages.uploadSuccess, fileManager.messages.uploadFailed]);
+
+  const handleUploadClose = useCallback(() => {
+    onStateUpdate({
+      uploadVisible: false,
+      uploadProgress: null,
+    });
+  }, [onStateUpdate]);
 
   // 上传文件夹
   const handleUploadDirectory = useCallback(async () => {
@@ -127,29 +174,63 @@ export const useFileOperations = (
       });
 
       if (selected && typeof selected === 'string') {
-        const hideLoading = message.loading(fileManager.messages.uploadingDirectory || '正在上传文件夹...', 0);
-        
+        onStateUpdate({
+          uploadVisible: true,
+          uploadProgress: {
+            transferred: 0,
+            total: 0,
+            fileName: '',
+            completed: false,
+          },
+        });
+
+        // 记录最后一次进度事件，便于在失败时保留汇总信息（uploaded/failed/total）。
+        // 用对象包裹以绕过 TS 控制流分析（异步回调中的赋值对 catch 不可见）。
+        const lastProgressRef: { current: UploadProgress | null } = { current: null };
         try {
           const count = await ApiService.uploadDirectory(
-            connection.id, 
-            selected, 
-            currentPath
+            connection.id,
+            selected,
+            currentPath,
+            (progress: UploadProgress) => {
+              lastProgressRef.current = progress;
+              onStateUpdate({ uploadProgress: progress });
+            }
           );
-          hideLoading();
           message.success(
             (fileManager.messages.uploadDirectorySuccess || '文件夹上传成功，共上传 {count} 个文件')
               .replace('{count}', count.toString())
           );
           loadFiles(currentPath, currentPage);
         } catch (error) {
-          hideLoading();
+          // 取消时后端已通过事件下发 cancelled 态，这里不覆盖、也不当作失败提示
+          if (lastProgressRef.current?.cancelled) {
+            return;
+          }
+          // 部分失败时，Rust 在最终完成事件里已携带 uploadedCount/failedCount/error，
+          // 此处保留这些信息（仅补上 completed 以便用户关闭对话框），避免覆盖丢失。
+          const fallbackError =
+            error instanceof Error ? error.message : String(error);
+          const last = lastProgressRef.current;
+          onStateUpdate({
+            uploadProgress: {
+              transferred: 0,
+              total: 0,
+              fileName: '',
+              completed: true,
+              fileCount: last?.fileCount,
+              uploadedCount: last?.uploadedCount,
+              failedCount: last?.failedCount,
+              error: last?.error ?? fallbackError,
+            },
+          });
           throw error;
         }
       }
     } catch (error) {
       message.error(`${fileManager.messages.uploadDirectoryFailed || '上传文件夹失败'}: ${error}`);
     }
-  }, [connection, currentPath, currentPage, loadFiles, fileManager.dialogs, fileManager.messages]);
+  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.dialogs, fileManager.messages]);
 
   // 下载文件
   const handleDownload = useCallback(async (file: FileInfo) => {
@@ -234,6 +315,7 @@ export const useFileOperations = (
     handleFileDoubleClick,
     handleUpload,
     handleUploadDirectory,
+    handleUploadClose,
     handleDownload,
     handleCopyDownloadCommand,
     handleDelete,

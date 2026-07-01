@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Connection, FileInfo, PaginatedFileList, ApiResponse } from '../types';
+import { listenUploadProgress, UploadProgress } from '../utils/uploadProgress';
 
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
@@ -234,12 +235,17 @@ export class ApiService {
   static async uploadFile(
     connectionId: string,
     localPath: string,
-    remotePath: string
+    remotePath: string,
+    onProgress?: (progress: UploadProgress) => void
   ): Promise<void> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, simulating file upload');
       return Promise.resolve();
     }
+
+    const unlisten = onProgress
+      ? await listenUploadProgress(onProgress)
+      : null;
 
     try {
       const response: ApiResponse<boolean> = await invoke('upload_file', {
@@ -253,18 +259,27 @@ export class ApiService {
     } catch (error) {
       console.error('Tauri invoke error:', error);
       throw new Error(`上传文件失败: ${error}`);
+    } finally {
+      if (unlisten) {
+        await unlisten();
+      }
     }
   }
 
   static async uploadDirectory(
     connectionId: string,
     localDirPath: string,
-    remoteBasePath: string
+    remoteBasePath: string,
+    onProgress?: (progress: UploadProgress) => void
   ): Promise<number> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, simulating directory upload');
       return Promise.resolve(0);
     }
+
+    const unlisten = onProgress
+      ? await listenUploadProgress(onProgress)
+      : null;
 
     try {
       const response: ApiResponse<number> = await invoke('upload_directory', {
@@ -279,6 +294,27 @@ export class ApiService {
     } catch (error) {
       console.error('Tauri invoke error:', error);
       throw new Error(`上传目录失败: ${error}`);
+    } finally {
+      if (unlisten) {
+        await unlisten();
+      }
+    }
+  }
+
+  /**
+   * 取消指定上传。置位取消标志后，后端上传循环在下一个分块检查点中止上传。
+   */
+  static async cancelUpload(uploadId: string): Promise<void> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating cancel upload');
+      return Promise.resolve();
+    }
+
+    try {
+      await invoke('cancel_upload', { uploadId });
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`取消上传失败: ${error}`);
     }
   }
 

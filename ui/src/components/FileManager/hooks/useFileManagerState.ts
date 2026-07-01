@@ -33,6 +33,10 @@ export const useFileManagerState = () => {
     // 批量下载相关状态
     batchDownloadVisible: false,
     batchDownloadProgress: null,
+
+    // 上传进度相关状态
+    uploadVisible: false,
+    uploadProgress: null,
     
     // 动态计算表格高度
     tableHeight: DEFAULT_TABLE_HEIGHT,
@@ -78,6 +82,8 @@ export const useFileManagerState = () => {
       previewFile: null,
       batchDownloadVisible: false,
       batchDownloadProgress: null,
+      uploadVisible: false,
+      uploadProgress: null,
       tableHeight: DEFAULT_TABLE_HEIGHT,
     });
   }, []);

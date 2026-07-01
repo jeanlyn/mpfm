@@ -24,6 +24,7 @@ fn main() {
             file::list_files_paginated,
             file::upload_file,
             file::upload_directory,
+            file::cancel_upload,
             file::download_file,
             file::build_download_command,
             file::copy_text_to_clipboard,

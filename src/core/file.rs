@@ -1,13 +1,44 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use log::{debug, info};
+use log::{debug, info, warn};
 use opendal::{Entry, Metadata, Operator};
 use serde::{Deserialize, Serialize};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 use crate::core::error::{Error, Result};
+
+/// 上传分块大小（1MB），用于分块读取并上报进度
+const UPLOAD_CHUNK_SIZE: usize = 1024 * 1024;
+
+/// 检查取消标志是否已被置位；flag 为 None 时视为不可取消
+fn is_cancelled(flag: &Option<Arc<AtomicBool>>) -> bool {
+    match flag {
+        Some(f) => f.load(Ordering::Relaxed),
+        None => false,
+    }
+}
+
+/// 目录上传结果：汇总成功/失败文件数，便于上层区分"全部成功"与"部分成功"
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct DirectoryUploadResult {
+    /// 成功上传的文件数
+    pub uploaded: usize,
+    /// 上传失败的文件数
+    pub failed: usize,
+    /// 目录中的文件总数
+    pub total: usize,
+}
+
+impl DirectoryUploadResult {
+    /// 是否全部上传成功
+    pub fn is_full_success(&self) -> bool {
+        self.failed == 0
+    }
+}
 
 /// 文件信息结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +121,24 @@ impl FileManager {
 
     /// 上传文件
     pub async fn upload(&self, local_path: &Path, remote_path: &str) -> Result<()> {
+        self.upload_with_progress(local_path, remote_path, |_, _, _| {}, None)
+            .await
+    }
+
+    /// 分块上传文件，并通过回调上报进度（transferred, total, file_name）。
+    ///
+    /// `cancel_flag` 不为 None 时，每写入一个分块前会检查该标志，
+    /// 若已被置位则中止上传（abort writer）并返回取消错误。
+    pub async fn upload_with_progress<F>(
+        &self,
+        local_path: &Path,
+        remote_path: &str,
+        mut progress_callback: F,
+        cancel_flag: Option<Arc<AtomicBool>>,
+    ) -> Result<()>
+    where
+        F: FnMut(u64, u64, &str) + Send,
+    {
         debug!("上传文件: {} -> {}", local_path.display(), remote_path);
 
         if !local_path.exists() {
@@ -100,15 +149,54 @@ impl FileManager {
         }
 
         let remote_path = normalize_path(remote_path);
+        let total_size = std::fs::metadata(local_path)?.len();
+        let file_name = local_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "uploaded_file".to_string());
 
-        let mut file = File::open(local_path)?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)?;
+        progress_callback(0, total_size, &file_name);
 
-        self.operator.write(&remote_path, buffer).await?;
+        let mut writer = self.operator.writer(&remote_path).await?;
 
-        info!("文件上传成功: {} -> {}", local_path.display(), remote_path);
-        Ok(())
+        // 上传主体放入闭包，便于在任意步骤失败时统一清理 writer，
+        // 避免远程端（如 S3 multipart）残留未关闭/未提交的写入句柄。
+        let upload_result: Result<()> = async {
+            let mut file = File::open(local_path)?;
+            let mut buffer = vec![0u8; UPLOAD_CHUNK_SIZE];
+            let mut transferred = 0u64;
+
+            loop {
+                // 取消检查点：在每个分块写入前检查，及时响应用户取消
+                if is_cancelled(&cancel_flag) {
+                    return Err(Error::new_cancelled("上传已被用户取消"));
+                }
+                let n = file.read(&mut buffer)?;
+                if n == 0 {
+                    break;
+                }
+                writer.write(buffer[..n].to_vec()).await?;
+                transferred += n as u64;
+                progress_callback(transferred, total_size, &file_name);
+            }
+            Ok(())
+        }
+        .await;
+
+        match upload_result {
+            Ok(()) => {
+                // 全部写入完成后提交；close 失败视为整体失败
+                writer.close().await?;
+                info!("文件上传成功: {} -> {}", local_path.display(), remote_path);
+                Ok(())
+            }
+            Err(e) => {
+                // 主动中止以清理远程端可能残留的 multipart 分片，
+                // abort 本身的错误不覆盖原始上传错误。
+                let _ = writer.abort().await;
+                Err(e)
+            }
+        }
     }
 
     /// 上传整个目录（递归上传文件夹内的所有文件，保持目录结构）
@@ -116,7 +204,26 @@ impl FileManager {
         &self,
         local_dir_path: &Path,
         remote_base_path: &str,
-    ) -> Result<usize> {
+    ) -> Result<DirectoryUploadResult> {
+        self.upload_directory_with_progress(local_dir_path, remote_base_path, |_, _, _, _, _, _| {}, None)
+            .await
+    }
+
+    /// 上传整个目录，并通过回调上报进度
+    /// 回调参数：(file_index, file_count, transferred, file_total, file_name, error)
+    /// - 进行中：error 为 None
+    /// - 单文件失败：error 为 Some(错误信息)，目录上传继续处理后续文件
+    /// - 用户取消：立即停止上传剩余文件，返回取消错误
+    pub async fn upload_directory_with_progress<F>(
+        &self,
+        local_dir_path: &Path,
+        remote_base_path: &str,
+        mut progress_callback: F,
+        cancel_flag: Option<Arc<AtomicBool>>,
+    ) -> Result<DirectoryUploadResult>
+    where
+        F: FnMut(usize, usize, u64, u64, &str, Option<&str>) + Send,
+    {
         debug!(
             "上传目录: {} -> {}",
             local_dir_path.display(),
@@ -137,104 +244,112 @@ impl FileManager {
             )));
         }
 
+        let upload_items = collect_directory_upload_items(local_dir_path, remote_base_path)?;
+        let file_count = upload_items.len();
         let mut uploaded_count = 0;
-        let mut dirs_to_visit = vec![local_dir_path.to_path_buf()];
-        let local_base = local_dir_path.parent().unwrap_or(local_dir_path);
+        let mut failed_count = 0;
 
-        while let Some(current_dir) = dirs_to_visit.pop() {
-            debug!("处理目录: {}", current_dir.display());
-
-            // 读取目录内容
-            let entries = match std::fs::read_dir(&current_dir) {
-                Ok(entries) => entries,
-                Err(e) => {
-                    debug!("无法读取目录 {}: {}", current_dir.display(), e);
-                    continue;
+        // 预先创建远程目录
+        let mut remote_dirs = std::collections::HashSet::new();
+        for (_, remote_path) in &upload_items {
+            if let Some(parent) = remote_path.rsplit_once('/') {
+                if !parent.0.is_empty() {
+                    remote_dirs.insert(format!("{}/", parent.0));
                 }
-            };
+            }
+        }
+        for remote_dir in remote_dirs {
+            if let Err(e) = self.create_dir(&remote_dir).await {
+                debug!("创建远程目录失败 {}: {}", remote_dir, e);
+            }
+        }
 
-            for entry in entries {
-                let entry = match entry {
-                    Ok(entry) => entry,
-                    Err(e) => {
-                        debug!("读取目录项失败: {}", e);
-                        continue;
-                    }
-                };
+        for (file_index, (path, remote_path)) in upload_items.into_iter().enumerate() {
+            // 每个文件上传前检查取消标志：取消后不再上传剩余文件
+            if is_cancelled(&cancel_flag) {
+                info!(
+                    "目录上传已被用户取消: {} (已成功 {}/{})",
+                    local_dir_path.display(),
+                    uploaded_count,
+                    file_count
+                );
+                return Err(Error::new_cancelled("上传已被用户取消"));
+            }
 
-                let path = entry.path();
-                let metadata = match entry.metadata() {
-                    Ok(metadata) => metadata,
-                    Err(e) => {
-                        debug!("获取元数据失败 {}: {}", path.display(), e);
-                        continue;
-                    }
-                };
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| remote_path.clone());
 
-                // 计算相对路径
-                let relative_path = match path.strip_prefix(local_base) {
-                    Ok(rel_path) => rel_path,
-                    Err(_) => {
-                        debug!("无法获取相对路径: {}", path.display());
-                        continue;
-                    }
-                };
-
-                // 构建远程路径
-                let remote_path = if remote_base_path.is_empty() || remote_base_path == "/" {
-                    relative_path.to_string_lossy().replace('\\', "/")
-                } else {
-                    format!(
-                        "{}/{}",
-                        remote_base_path.trim_end_matches('/'),
-                        relative_path.to_string_lossy().replace('\\', "/")
-                    )
-                };
-
-                if metadata.is_dir() {
-                    // 如果是目录，创建远程目录并添加到待访问列表
-                    let remote_dir_path = if remote_path.ends_with('/') {
-                        remote_path.clone()
-                    } else {
-                        format!("{}/", remote_path)
-                    };
-
-                    debug!("创建远程目录: {}", remote_dir_path);
-                    if let Err(e) = self.create_dir(&remote_dir_path).await {
-                        debug!("创建远程目录失败 {}: {}", remote_dir_path, e);
-                        // 目录可能已存在，继续处理
-                    }
-
-                    dirs_to_visit.push(path);
-                } else if metadata.is_file() {
-                    // 如果是文件，上传
-                    debug!("上传文件: {} -> {}", path.display(), remote_path);
-
-                    match self.upload(&path, &remote_path).await {
-                        Ok(_) => {
-                            uploaded_count += 1;
-                            info!(
-                                "文件上传成功 ({}/...): {} -> {}",
-                                uploaded_count,
-                                path.display(),
-                                remote_path
-                            );
-                        }
-                        Err(e) => {
-                            debug!("上传文件失败 {}: {}", path.display(), e);
-                            // 继续上传其他文件
-                        }
-                    }
+            match self
+                .upload_with_progress(&path, &remote_path, |transferred, total, _| {
+                    progress_callback(
+                        file_index + 1,
+                        file_count,
+                        transferred,
+                        total,
+                        &file_name,
+                        None,
+                    );
+                }, cancel_flag.clone())
+                .await
+            {
+                Ok(_) => {
+                    uploaded_count += 1;
+                    info!(
+                        "文件上传成功 ({}/{}): {} -> {}",
+                        uploaded_count,
+                        file_count,
+                        path.display(),
+                        remote_path
+                    );
+                }
+                Err(e) if e.is_cancelled() => {
+                    // 单文件上传过程中被取消：停止整个目录上传
+                    info!(
+                        "目录上传已被用户取消: {} (已成功 {}/{})",
+                        local_dir_path.display(),
+                        uploaded_count,
+                        file_count
+                    );
+                    return Err(e);
+                }
+                Err(e) => {
+                    // 单文件失败不再静默：通过回调上报错误，让上层提示用户，
+                    // 同时继续上传其余文件以保证目录上传的容错性。
+                    failed_count += 1;
+                    let err_msg = e.to_string();
+                    warn!(
+                        "上传文件失败 ({}/{}): {} -> {}",
+                        file_index + 1,
+                        file_count,
+                        path.display(),
+                        err_msg
+                    );
+                    progress_callback(
+                        file_index + 1,
+                        file_count,
+                        0,
+                        0,
+                        &file_name,
+                        Some(&err_msg),
+                    );
                 }
             }
         }
 
+        let result = DirectoryUploadResult {
+            uploaded: uploaded_count,
+            failed: failed_count,
+            total: file_count,
+        };
         info!(
-            "目录上传完成: {} (共上传 {} 个文件)",
+            "目录上传完成: {} (成功 {}/{})",
             local_dir_path.display(),
-            uploaded_count
+            result.uploaded,
+            result.total
         );
-        Ok(uploaded_count)
+        Ok(result)
     }
 
     /// 下载文件
@@ -671,6 +786,71 @@ impl FileManager {
         info!("递归找到 {} 个文件", result.len());
         Ok(result)
     }
+}
+
+/// 收集目录中所有待上传文件的本地路径与远程路径
+fn collect_directory_upload_items(
+    local_dir_path: &Path,
+    remote_base_path: &str,
+) -> Result<Vec<(std::path::PathBuf, String)>> {
+    let mut items = Vec::new();
+    let mut dirs_to_visit = vec![local_dir_path.to_path_buf()];
+    let local_base = local_dir_path.parent().unwrap_or(local_dir_path);
+
+    while let Some(current_dir) = dirs_to_visit.pop() {
+        let entries = match std::fs::read_dir(&current_dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                debug!("无法读取目录 {}: {}", current_dir.display(), e);
+                continue;
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => {
+                    debug!("读取目录项失败: {}", e);
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+            let metadata = match entry.metadata() {
+                Ok(metadata) => metadata,
+                Err(e) => {
+                    debug!("获取元数据失败 {}: {}", path.display(), e);
+                    continue;
+                }
+            };
+
+            let relative_path = match path.strip_prefix(local_base) {
+                Ok(rel_path) => rel_path,
+                Err(_) => {
+                    debug!("无法获取相对路径: {}", path.display());
+                    continue;
+                }
+            };
+
+            let remote_path = if remote_base_path.is_empty() || remote_base_path == "/" {
+                relative_path.to_string_lossy().replace('\\', "/")
+            } else {
+                format!(
+                    "{}/{}",
+                    remote_base_path.trim_end_matches('/'),
+                    relative_path.to_string_lossy().replace('\\', "/")
+                )
+            };
+
+            if metadata.is_dir() {
+                dirs_to_visit.push(path);
+            } else if metadata.is_file() {
+                items.push((path, remote_path));
+            }
+        }
+    }
+
+    Ok(items)
 }
 
 /// 规范化路径，处理开头的斜杠

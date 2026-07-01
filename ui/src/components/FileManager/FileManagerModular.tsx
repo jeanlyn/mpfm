@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useMemo } from 'react';
 import { Layout, Table, Modal, Input, Typography, Spin } from 'antd';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
+import UploadProgressModal from './UploadProgressModal';
 
 // 模块化组件导入
 import {
@@ -268,6 +269,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         visible={state.batchDownloadVisible}
         progress={state.batchDownloadProgress}
         onClose={previewAndBatch.handleBatchDownloadClose}
+      />
+
+      {/* 上传进度对话框 */}
+      <UploadProgressModal
+        visible={state.uploadVisible}
+        progress={state.uploadProgress}
+        onClose={fileOperations.handleUploadClose}
       />
     </Content>
   );

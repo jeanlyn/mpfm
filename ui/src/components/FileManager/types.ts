@@ -1,4 +1,5 @@
 import { Connection, FileInfo } from '../../types';
+import { UploadProgress } from '../../utils/uploadProgress';
 
 export interface FileManagerProps {
   connection: Connection | null;
@@ -45,6 +46,10 @@ export interface FileManagerState {
   // 批量下载相关状态
   batchDownloadVisible: boolean;
   batchDownloadProgress: BatchDownloadProgress | null;
+
+  // 上传进度相关状态
+  uploadVisible: boolean;
+  uploadProgress: UploadProgress | null;
   
   // 动态计算表格高度
   tableHeight: number;
