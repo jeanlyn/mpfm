@@ -102,6 +102,12 @@ jobs:
         if: matrix.rust_target != ''
         run: rustup target add ${{ matrix.rust_target }}
 
+      - name: Setup MSVC developer command prompt
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -159,11 +165,13 @@ jobs:
             archive: zip
             binary_name: main_cli.exe
             use_zig: false
+            msvc_arch: amd64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             archive: zip
             binary_name: main_cli.exe
             use_zig: false
+            msvc_arch: amd64_arm64
 
     steps:
       - name: Checkout tagged source
@@ -183,6 +191,12 @@ jobs:
           key: ${{ matrix.os }}-${{ matrix.target }}
           workspaces: |
             . -> target
+
+      - name: Setup MSVC developer command prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
 
       - name: Install Zig
         if: ${{ matrix.use_zig }}
@@ -283,8 +297,10 @@ jobs:
         include:
           - arch: x64
             target: x86_64-pc-windows-msvc
+            msvc_arch: amd64
           - arch: arm64
             target: aarch64-pc-windows-msvc
+            msvc_arch: amd64_arm64
 
     runs-on: windows-latest
 
@@ -319,6 +335,11 @@ jobs:
           key: windows-${{ matrix.target }}
           workspaces: |
             . -> target
+
+      - name: Setup MSVC developer command prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
 
       - name: Install project dependencies
         run: bash ./scripts/bootstrap.sh
