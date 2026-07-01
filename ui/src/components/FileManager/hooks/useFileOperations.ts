@@ -267,6 +267,19 @@ export const useFileOperations = (
     }
   }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
 
+  // 复制 curl 下载命令
+  const handleCopyDownloadCurlCommand = useCallback(async (file: FileInfo) => {
+    if (!connection || file.is_dir) return;
+
+    try {
+      const command = await ApiService.buildDownloadCurlCommand(connection.id, file.path);
+      await ApiService.copyTextToClipboard(command);
+      message.success(fileManager.messages.copySuccess);
+    } catch (error) {
+      message.error(`${fileManager.messages.copyFailed}: ${error}`);
+    }
+  }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
+
   // 删除文件
   const handleDelete = useCallback(async (file: FileInfo) => {
     if (!connection) return;
@@ -318,6 +331,7 @@ export const useFileOperations = (
     handleUploadClose,
     handleDownload,
     handleCopyDownloadCommand,
+    handleCopyDownloadCurlCommand,
     handleDelete,
     handleCreateDirectory,
     navigateUp,

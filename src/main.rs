@@ -34,6 +34,7 @@ fn main() {
             file::cancel_upload,
             file::download_file,
             file::build_download_command,
+            file::build_download_curl_command,
             file::copy_text_to_clipboard,
             file::batch_download_files,
             file::delete_file,

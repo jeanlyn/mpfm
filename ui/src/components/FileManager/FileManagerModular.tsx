@@ -102,6 +102,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     onFileDoubleClick: fileOperations.handleFileDoubleClick,
     onDownload: fileOperations.handleDownload,
     onCopyDownloadCommand: fileOperations.handleCopyDownloadCommand,
+    onCopyDownloadCurlCommand: fileOperations.handleCopyDownloadCurlCommand,
     onDelete: fileOperations.handleDelete,
     onPreview: previewAndBatch.handlePreview,
   });

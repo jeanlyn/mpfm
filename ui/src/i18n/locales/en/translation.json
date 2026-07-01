@@ -152,6 +152,7 @@
       "copyCliCommand": "Copy Download Command",
       "copyBashCommand": "Copy Bash Command",
       "copyPowerShellCommand": "Copy PowerShell Command",
+      "copyCurlCommand": "Copy cURL Command",
       "newFolder": "New Folder",
       "rename": "Rename",
       "copy": "Copy",

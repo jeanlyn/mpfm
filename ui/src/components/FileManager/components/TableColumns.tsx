@@ -25,6 +25,7 @@ interface TableColumnsProps {
   onFileDoubleClick: (file: FileInfo) => void;
   onDownload: (file: FileInfo) => void;
   onCopyDownloadCommand: (file: FileInfo, targetShell: 'bash' | 'powershell') => void;
+  onCopyDownloadCurlCommand: (file: FileInfo) => void;
   onDelete: (file: FileInfo) => void;
   onPreview: (file: FileInfo) => void;
 }
@@ -41,6 +42,7 @@ export const useTableColumns = ({
   onFileDoubleClick,
   onDownload,
   onCopyDownloadCommand,
+  onCopyDownloadCurlCommand,
   onDelete,
   onPreview,
 }: TableColumnsProps) => {
@@ -175,6 +177,12 @@ export const useTableColumns = ({
                           label: fileManager.actions.copyPowerShellCommand,
                           onClick: () => onCopyDownloadCommand(record, 'powershell'),
                         },
+                        {
+                          key: 'curl',
+                          icon: <CopyOutlined />,
+                          label: fileManager.actions.copyCurlCommand,
+                          onClick: () => onCopyDownloadCurlCommand(record),
+                        },
                       ],
                     },
                   ],
@@ -230,6 +238,7 @@ export const useTableColumns = ({
     onFileDoubleClick,
     onDownload,
     onCopyDownloadCommand,
+    onCopyDownloadCurlCommand,
     onDelete,
     onPreview,
   ]);

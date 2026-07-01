@@ -166,6 +166,178 @@ fn default_download_target(remote_path: &str) -> String {
     format!("./{}", file_name)
 }
 
+fn url_encode_segment(segment: &str) -> String {
+    let mut encoded = String::new();
+    for byte in segment.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push_str(&format!("%{:02X}", byte));
+            }
+        }
+    }
+    encoded
+}
+
+fn url_encode_path(path: &str) -> String {
+    if path == "/" {
+        return "/".to_string();
+    }
+
+    let leading_slash = path.starts_with('/');
+    let encoded = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .map(url_encode_segment)
+        .collect::<Vec<_>>()
+        .join("/");
+
+    if leading_slash {
+        format!("/{}", encoded)
+    } else {
+        encoded
+    }
+}
+
+fn join_ftp_path(root: Option<&str>, remote_path: &str) -> String {
+    let remote = remote_path.trim().trim_start_matches('/');
+
+    match root.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("/") => {
+            if remote.is_empty() {
+                "/".to_string()
+            } else {
+                format!("/{}", remote)
+            }
+        }
+        Some(root) => {
+            let root = root.trim_end_matches('/');
+            if remote.is_empty() {
+                root.to_string()
+            } else {
+                format!("{}/{}", root, remote)
+            }
+        }
+    }
+}
+
+fn build_s3_download_url(config: &HashMap<String, String>, remote_path: &str) -> Result<String> {
+    let bucket = config
+        .get("bucket")
+        .ok_or_else(|| Error::new_config("S3配置缺少 'bucket' 参数"))?;
+    let region = config
+        .get("region")
+        .ok_or_else(|| Error::new_config("S3配置缺少 'region' 参数"))?;
+    let key = url_encode_path(remote_path.trim_start_matches('/'));
+    let path_style = config
+        .get("path_style")
+        .map(|value| value.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    if let Some(endpoint) = config
+        .get("endpoint")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        let endpoint = endpoint.trim_end_matches('/');
+        Ok(format!("{}/{}/{}", endpoint, bucket, key))
+    } else if path_style {
+        Ok(format!(
+            "https://s3.{}.amazonaws.com/{}/{}",
+            region, bucket, key
+        ))
+    } else {
+        Ok(format!(
+            "https://{}.s3.{}.amazonaws.com/{}",
+            bucket, region, key
+        ))
+    }
+}
+
+fn format_download_curl_command(
+    protocol_type: &str,
+    config: &HashMap<String, String>,
+    remote_path: &str,
+    local_path: &str,
+) -> Result<String> {
+    match protocol_type {
+        "s3" => {
+            let access_key = config
+                .get("access_key")
+                .ok_or_else(|| Error::new_config("S3配置缺少 'access_key' 参数"))?;
+            let secret_key = config
+                .get("secret_key")
+                .ok_or_else(|| Error::new_config("S3配置缺少 'secret_key' 参数"))?;
+            let region = config
+                .get("region")
+                .ok_or_else(|| Error::new_config("S3配置缺少 'region' 参数"))?;
+            let url = build_s3_download_url(config, remote_path)?;
+
+            Ok(format!(
+                "curl -L {} --aws-sigv4 'aws:amz:{}:s3' --user {} -o {}",
+                shell_escape(&url, CliShell::Bash),
+                region,
+                shell_escape(
+                    &format!("{}:{}", access_key, secret_key),
+                    CliShell::Bash
+                ),
+                shell_escape(local_path, CliShell::Bash),
+            ))
+        }
+        "ftp" => {
+            let host = config
+                .get("host")
+                .ok_or_else(|| Error::new_config("FTP配置缺少 'host' 参数"))?;
+            let port = config
+                .get("port")
+                .cloned()
+                .unwrap_or_else(|| "21".to_string());
+            let username = config
+                .get("username")
+                .ok_or_else(|| Error::new_config("FTP配置缺少 'username' 参数"))?;
+            let password = config
+                .get("password")
+                .ok_or_else(|| Error::new_config("FTP配置缺少 'password' 参数"))?;
+            let secure = config
+                .get("secure")
+                .map(|value| value.to_lowercase() == "true")
+                .unwrap_or(false);
+            let root = config
+                .get("root_dir")
+                .or_else(|| config.get("root"))
+                .map(String::as_str);
+            let full_path = join_ftp_path(root, remote_path);
+            let scheme = if secure { "ftps" } else { "ftp" };
+            let url = format!(
+                "{}://{}:{}{}",
+                scheme,
+                host,
+                port,
+                url_encode_path(&full_path)
+            );
+
+            Ok(format!(
+                "curl -L -u {} {} -o {}",
+                shell_escape(
+                    &format!("{}:{}", username, password),
+                    CliShell::Bash
+                ),
+                shell_escape(&url, CliShell::Bash),
+                shell_escape(local_path, CliShell::Bash),
+            ))
+        }
+        "fs" => Err(Error::new_not_supported(
+            "本地文件系统连接不支持生成 curl 命令",
+        )),
+        other => Err(Error::new_not_supported(&format!(
+            "协议 {} 暂不支持生成 curl 命令",
+            other
+        ))),
+    }
+}
+
 #[command]
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
     match get_connection_config(&connection_id) {
@@ -552,6 +724,25 @@ pub async fn build_download_command(
 }
 
 #[command]
+pub async fn build_download_curl_command(
+    connection_id: String,
+    remote_path: String,
+) -> ApiResponse<String> {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match format_download_curl_command(
+            &protocol_type,
+            &config,
+            &remote_path,
+            &default_download_target(&remote_path),
+        ) {
+            Ok(command) => ApiResponse::success(command),
+            Err(e) => ApiResponse::error(format!("生成 curl 命令失败: {}", e)),
+        },
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+#[command]
 pub fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> ApiResponse<bool> {
     match app.clipboard().write_text(text) {
         Ok(_) => ApiResponse::success(true),
@@ -676,6 +867,61 @@ mod tests {
             command,
             "main_cli download --type 's3' --config '{\"access_key\":\"AKIA123\",\"bucket\":\"team''s-bucket\",\"region\":\"us-east-1\",\"secret_key\":\"secret\"}' '/release packages/app''s build.tar.gz' './app''s build.tar.gz'"
         );
+    }
+
+    #[test]
+    fn builds_ftp_curl_download_command() {
+        let mut config = HashMap::new();
+        config.insert("host".to_string(), "ftp.example.com".to_string());
+        config.insert("port".to_string(), "21".to_string());
+        config.insert("username".to_string(), "demo".to_string());
+        config.insert("password".to_string(), "secret".to_string());
+        config.insert("root_dir".to_string(), "/upload".to_string());
+
+        let command = super::format_download_curl_command(
+            "ftp",
+            &config,
+            "/packages/app.tar.gz",
+            "./app.tar.gz",
+        )
+        .unwrap();
+
+        assert_eq!(
+            command,
+            r#"curl -L -u 'demo:secret' 'ftp://ftp.example.com:21/upload/packages/app.tar.gz' -o './app.tar.gz'"#
+        );
+    }
+
+    #[test]
+    fn builds_s3_curl_download_command() {
+        let mut config = HashMap::new();
+        config.insert("bucket".to_string(), "my-bucket".to_string());
+        config.insert("region".to_string(), "us-east-1".to_string());
+        config.insert("access_key".to_string(), "AKIA123".to_string());
+        config.insert("secret_key".to_string(), "secret".to_string());
+
+        let command = super::format_download_curl_command(
+            "s3",
+            &config,
+            "/release packages/app.tar.gz",
+            "./app.tar.gz",
+        )
+        .unwrap();
+
+        assert_eq!(
+            command,
+            r#"curl -L 'https://my-bucket.s3.us-east-1.amazonaws.com/release%20packages/app.tar.gz' --aws-sigv4 'aws:amz:us-east-1:s3' --user 'AKIA123:secret' -o './app.tar.gz'"#
+        );
+    }
+
+    #[test]
+    fn rejects_fs_curl_download_command() {
+        let config = HashMap::new();
+        let error = super::format_download_curl_command("fs", &config, "/tmp/file.txt", "./file.txt")
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("本地文件系统连接不支持生成 curl 命令"));
     }
 }
 

@@ -149,6 +149,7 @@
       "copyCliCommand": "复制下载命令",
       "copyBashCommand": "复制 Bash 命令",
       "copyPowerShellCommand": "复制 PowerShell 命令",
+      "copyCurlCommand": "复制 cURL 命令",
       "newFolder": "新建文件夹",
       "rename": "重命名",
       "copy": "复制",

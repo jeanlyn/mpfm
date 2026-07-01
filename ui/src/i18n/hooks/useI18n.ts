@@ -185,6 +185,7 @@ export const useAppI18n = () => {
         copyCliCommand: t('fileManager.actions.copyCliCommand'),
         copyBashCommand: t('fileManager.actions.copyBashCommand'),
         copyPowerShellCommand: t('fileManager.actions.copyPowerShellCommand'),
+        copyCurlCommand: t('fileManager.actions.copyCurlCommand'),
         newFolder: t('fileManager.actions.newFolder'),
         rename: t('fileManager.actions.rename'),
         copy: t('fileManager.actions.copy'),

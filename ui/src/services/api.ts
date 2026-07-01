@@ -392,6 +392,33 @@ export class ApiService {
     }
   }
 
+  static async buildDownloadCurlCommand(
+    connectionId: string,
+    remotePath: string
+  ): Promise<string> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock curl download command');
+      const fileName = remotePath.split('/').pop() || 'downloaded-file';
+      return Promise.resolve(
+        `curl -L 'https://example.com/${fileName}' -o './${fileName}'`
+      );
+    }
+
+    try {
+      const response: ApiResponse<string> = await invoke('build_download_curl_command', {
+        connectionId,
+        remotePath,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || 'Failed to build curl download command');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`Failed to build curl download command: ${error}`);
+    }
+  }
+
   static async copyTextToClipboard(text: string): Promise<void> {
     if (!isTauriEnvironment()) {
       if (!navigator.clipboard?.writeText) {
