@@ -8,11 +8,13 @@ const { Option } = Select;
 interface LanguageSwitcherProps {
   className?: string;
   size?: 'small' | 'middle' | 'large';
+  style?: React.CSSProperties;
 }
 
 const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ 
   className,
-  size = 'middle' 
+  size = 'middle',
+  style,
 }) => {
   const { currentLanguage, availableLanguages, changeLanguage, isLoading } = useI18nContext();
 
@@ -26,7 +28,7 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
       onChange={handleLanguageChange}
       size={size}
       className={className}
-      style={{ minWidth: 120 }}
+      style={{ minWidth: 120, ...style }}
       suffixIcon={<GlobalOutlined />}
       loading={isLoading}
     >

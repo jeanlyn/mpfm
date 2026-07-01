@@ -1,27 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button, Space, Typography, message } from 'antd';
-import { CopyOutlined, ExportOutlined, FileTextOutlined } from '@ant-design/icons';
+import { CopyOutlined, ExportOutlined } from '@ant-design/icons';
 import { save } from '@tauri-apps/plugin-dialog';
 import { useAppI18n } from '../hooks/useI18n';
 import { ApiService } from '../../services/api';
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
-const DiagnosticsSection: React.FC = () => {
+interface DiagnosticsSectionProps {
+  compact?: boolean;
+}
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'rgba(0, 0, 0, 0.65)',
+  marginBottom: 8,
+  letterSpacing: '0.02em',
+};
+
+const DiagnosticsSection: React.FC<DiagnosticsSectionProps> = ({ compact = false }) => {
   const { settings } = useAppI18n();
-  const [logPath, setLogPath] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    ApiService.getDiagnosticsReport()
-      .then((data) => setLogPath(data.logPath))
-      .catch(() => {
-        // 非 Tauri 环境或后端不可用时静默忽略
-      });
-  }, []);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [copyLoading, setCopyLoading] = useState(false);
 
   const handleExport = useCallback(async () => {
-    setLoading(true);
+    setExportLoading(true);
     try {
       const defaultName = `mpfm-diagnostics-${new Date().toISOString().slice(0, 10)}.txt`;
       const savePath = await save({
@@ -39,12 +43,12 @@ const DiagnosticsSection: React.FC = () => {
     } catch (error) {
       message.error(`${settings.exportDiagnosticsFailed}: ${error}`);
     } finally {
-      setLoading(false);
+      setExportLoading(false);
     }
   }, [settings]);
 
   const handleCopy = useCallback(async () => {
-    setLoading(true);
+    setCopyLoading(true);
     try {
       const { report } = await ApiService.getDiagnosticsReport();
       await ApiService.copyTextToClipboard(report);
@@ -52,37 +56,41 @@ const DiagnosticsSection: React.FC = () => {
     } catch (error) {
       message.error(`${settings.copyDiagnosticsFailed}: ${error}`);
     } finally {
-      setLoading(false);
+      setCopyLoading(false);
     }
   }, [settings]);
 
+  const description = compact ? settings.diagnosticsHint : settings.diagnosticsDescription;
+
   return (
-    <Space direction="vertical" style={{ width: '100%' }} size="small">
-      <Text style={{ fontSize: '12px', color: '#666' }}>
-        {settings.diagnosticsDescription}
-      </Text>
-      {logPath && (
-        <Text
-          type="secondary"
-          style={{ fontSize: '11px', wordBreak: 'break-all' }}
-          copyable={{ text: logPath }}
-        >
-          <FileTextOutlined /> {logPath}
-        </Text>
-      )}
-      <Space wrap>
+    <Space direction="vertical" style={{ width: '100%' }} size={compact ? 10 : 12}>
+      {compact && <Text style={sectionLabelStyle}>{settings.diagnostics}</Text>}
+
+      <Paragraph
+        type="secondary"
+        style={{
+          fontSize: 12,
+          lineHeight: 1.6,
+          marginBottom: 0,
+        }}
+      >
+        {description}
+      </Paragraph>
+
+      <Space direction="vertical" style={{ width: '100%' }} size={8}>
         <Button
-          size="small"
+          type="primary"
+          block
           icon={<ExportOutlined />}
-          loading={loading}
+          loading={exportLoading}
           onClick={() => void handleExport()}
         >
           {settings.exportDiagnostics}
         </Button>
         <Button
-          size="small"
+          block
           icon={<CopyOutlined />}
-          loading={loading}
+          loading={copyLoading}
           onClick={() => void handleCopy()}
         >
           {settings.copyDiagnostics}
