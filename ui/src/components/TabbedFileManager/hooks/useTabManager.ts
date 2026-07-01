@@ -42,6 +42,16 @@ export const useTabManager = () => {
       const existingTabIndex = prevState.tabs.findIndex(tab => tab.id === connection.id);
       
       if (existingTabIndex !== -1) {
+        const existing = prevState.tabs[existingTabIndex];
+        const bucketUnchanged =
+          existing.connection.config?.bucket === connection.config?.bucket;
+        const alreadyActive =
+          prevState.activeTabId === connection.id && existing.active;
+
+        if (alreadyActive && bucketUnchanged) {
+          return prevState;
+        }
+
         const updatedTabs = prevState.tabs.map((tab, index) => ({
           ...tab,
           active: index === existingTabIndex,
@@ -98,11 +108,15 @@ export const useTabManager = () => {
   // 切换到指定Tab
   const switchToTab = useCallback((tabId: string) => {
     setState(prevState => {
+      if (prevState.activeTabId === tabId) {
+        return prevState;
+      }
+
       const updatedTabs = prevState.tabs.map(tab => ({
         ...tab,
         active: tab.id === tabId,
       }));
-      
+
       return {
         tabs: updatedTabs,
         activeTabId: tabId,

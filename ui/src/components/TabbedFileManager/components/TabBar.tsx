@@ -35,9 +35,9 @@ const TabBar: React.FC<TabBarProps> = ({
       const activeTabElement = tabsRef.current.querySelector(`[data-node-key="${activeTabId}"]`);
       if (activeTabElement) {
         activeTabElement.scrollIntoView({
-          behavior: 'smooth',
+          behavior: 'auto',
           block: 'nearest',
-          inline: 'center'
+          inline: 'nearest',
         });
       }
     }

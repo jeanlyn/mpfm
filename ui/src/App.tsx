@@ -5,6 +5,7 @@ import TabbedFileManager from './components/TabbedFileManager';
 import FloatingSettingsButton from './i18n/components/FloatingSettingsButton';
 import { Connection } from './types';
 import { ApiService } from './services/api';
+import { isSameConnection } from './utils/connection';
 import { useAppI18n } from './i18n/hooks/useI18n';
 import { I18nProvider } from './i18n/contexts/I18nContext';
 import { useWindowTitle } from './i18n/hooks/useWindowTitle';
@@ -54,9 +55,11 @@ const AppContent: React.FC = () => {
     refreshConnections();
   }, [refreshConnections]);
 
-  const handleConnectionSelect = (connection: Connection) => {
-    setCurrentConnection(connection);
-  };
+  const handleConnectionSelect = useCallback((connection: Connection) => {
+    setCurrentConnection((prev) =>
+      isSameConnection(prev, connection) ? prev : connection
+    );
+  }, []);
 
   const handleConnectionsChange = () => {
     refreshConnections();
@@ -82,7 +85,10 @@ const AppContent: React.FC = () => {
           onConnectionsChange={handleConnectionsChange}
           onRefreshConnections={() => refreshConnections(true)}
         />
-        <TabbedFileManager selectedConnection={currentConnection} />
+        <TabbedFileManager
+          selectedConnection={currentConnection}
+          onConnectionSelect={handleConnectionSelect}
+        />
       </Layout>
       
       {/* 悬浮设置按钮 */}

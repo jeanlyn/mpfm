@@ -1,6 +1,7 @@
 import React from 'react';
 import { Layout, Typography } from 'antd';
 import { Connection } from '../../types';
+import { isSameConnection } from '../../utils/connection';
 import { useTabManager } from './hooks/useTabManager';
 import TabBar from './components/TabBar';
 import FileManagerTab from './components/FileManagerTab';
@@ -12,6 +13,7 @@ const { Title } = Typography;
 
 interface TabbedFileManagerProps {
   selectedConnection: Connection | null;
+  onConnectionSelect: (connection: Connection) => void;
 }
 
 /**
@@ -20,6 +22,7 @@ interface TabbedFileManagerProps {
  */
 const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
   selectedConnection,
+  onConnectionSelect,
 }) => {
   const {
     tabs,
@@ -33,7 +36,48 @@ const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
 
   const { fileManager } = useAppI18n();
 
-  // 当选择新连接时，打开对应的Tab
+  const handleTabClick = React.useCallback(
+    (tabId: string) => {
+      if (tabId === activeTabId) return;
+
+      const tab = tabs.find((t) => t.id === tabId);
+      switchToTab(tabId);
+
+      if (tab && !isSameConnection(selectedConnection, tab.connection)) {
+        onConnectionSelect(tab.connection);
+      }
+    },
+    [activeTabId, tabs, selectedConnection, switchToTab, onConnectionSelect]
+  );
+
+  const handleTabClose = React.useCallback(
+    (tabId: string) => {
+      if (tabId === activeTabId) {
+        const remaining = tabs.filter((t) => t.id !== tabId);
+        const nextActive = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+        closeTab(tabId);
+        if (nextActive) {
+          onConnectionSelect(nextActive.connection);
+        }
+      } else {
+        closeTab(tabId);
+      }
+    },
+    [activeTabId, tabs, closeTab, onConnectionSelect]
+  );
+
+  const handleCloseOthers = React.useCallback(
+    (tabId: string) => {
+      closeOtherTabs(tabId);
+      const tab = tabs.find((t) => t.id === tabId);
+      if (tab) {
+        onConnectionSelect(tab.connection);
+      }
+    },
+    [tabs, closeOtherTabs, onConnectionSelect]
+  );
+
+  // 当左侧选择新连接时，打开对应的 Tab（openTab 内部会跳过重复激活）
   React.useEffect(() => {
     if (selectedConnection) {
       openTab(selectedConnection);
@@ -56,10 +100,10 @@ const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
       <TabBar
         tabs={tabs}
         activeTabId={activeTabId}
-        onTabClick={switchToTab}
-        onTabClose={closeTab}
+        onTabClick={handleTabClick}
+        onTabClose={handleTabClose}
         onCloseAll={closeAllTabs}
-        onCloseOthers={closeOtherTabs}
+        onCloseOthers={handleCloseOthers}
       />
       
       {/* Tab内容区域 */}

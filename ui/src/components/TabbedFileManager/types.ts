@@ -14,6 +14,7 @@ export interface TabManagerState {
 
 export interface TabbedFileManagerProps {
   selectedConnection: Connection | null;
+  onConnectionSelect: (connection: Connection) => void;
 }
 
 export interface TabBarProps {

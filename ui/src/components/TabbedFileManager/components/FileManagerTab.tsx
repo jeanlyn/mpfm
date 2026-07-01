@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Connection } from '../../../types';
 import FileManagerModular from '../../FileManager/FileManagerModular';
 
@@ -7,15 +7,19 @@ interface FileManagerTabProps {
   visible: boolean;
 }
 
-/**
- * 文件管理器Tab内容组件
- * 用于包装FileManager组件，控制其显示状态
- * 为了避免切换时重新加载，所有Tab都会渲染但通过CSS控制显示
- */
-const FileManagerTab: React.FC<FileManagerTabProps> = ({ 
-  connection, 
-  visible 
-}) => {
+const FileManagerTab: React.FC<FileManagerTabProps> = ({ connection, visible }) => {
+  const [mounted, setMounted] = useState(visible);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+    }
+  }, [visible]);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <div
       className="file-manager-tab"
@@ -28,9 +32,7 @@ const FileManagerTab: React.FC<FileManagerTabProps> = ({
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        visibility: visible ? 'visible' : 'hidden',
-        opacity: visible ? 1 : 0,
-        zIndex: visible ? 1 : 0,
+        display: visible ? 'block' : 'none',
       }}
     >
       <FileManagerModular connection={connection} />
@@ -38,4 +40,10 @@ const FileManagerTab: React.FC<FileManagerTabProps> = ({
   );
 };
 
-export default FileManagerTab;
+export default React.memo(
+  FileManagerTab,
+  (prev, next) =>
+    prev.visible === next.visible &&
+    prev.connection.id === next.connection.id &&
+    prev.connection.config?.bucket === next.connection.config?.bucket
+);
