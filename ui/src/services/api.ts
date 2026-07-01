@@ -771,4 +771,42 @@ if __name__ == "__main__":
       throw new Error(`递归列出文件失败: ${error}`);
     }
   }
+
+  static async getDiagnosticsReport(): Promise<{ report: string; logPath: string | null }> {
+    if (!isTauriEnvironment()) {
+      return {
+        report: 'MPFM Diagnostics Report\n(Demo mode - no backend logs available)\n',
+        logPath: null,
+      };
+    }
+
+    try {
+      const response: ApiResponse<{ report: string; logPath: string | null }> =
+        await invoke('get_diagnostics_report');
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '获取诊断信息失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`获取诊断信息失败: ${error}`);
+    }
+  }
+
+  static async exportDiagnosticsReport(path: string): Promise<string> {
+    if (!isTauriEnvironment()) {
+      throw new Error('Not in Tauri environment');
+    }
+
+    try {
+      const response: ApiResponse<string> = await invoke('export_diagnostics_report', { path });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '导出诊断信息失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`导出诊断信息失败: ${error}`);
+    }
+  }
 }

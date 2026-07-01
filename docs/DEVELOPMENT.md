@@ -283,7 +283,10 @@ strip = true
 
 ### 日志记录
 
-使用结构化日志：
+使用 `log` crate + `env_logger`，日志同时写入 **stderr** 与本地文件 `~/.config/mpfm/logs/mpfm.log`（Windows: `%APPDATA%\mpfm\logs\mpfm.log`）。日志文件超过 5MB 时会自动截断保留后半部分。
+
+桌面版可通过设置 →「诊断与日志」导出诊断报告；CLI 用户可直接提供上述日志文件。
+
 ```rust
 debug!("创建协议操作符: protocol={}, host={}", protocol_type, host);
 info!("文件传输完成: {} bytes", size);
@@ -301,8 +304,9 @@ error!("协议初始化失败: {}", error);
 ### 调试工具
 
 ```bash
-# 详细日志
-RUST_LOG=debug cargo run
+# 详细日志（CLI / 桌面均写入 ~/.config/mpfm/logs/mpfm.log）
+RUST_LOG=debug cargo run --bin main_cli
+RUST_LOG=debug pnpm run tauri:dev
 
 # 性能分析
 cargo flamegraph --bin multi-protocol-file-manager

@@ -1,3 +1,6 @@
+pub mod diagnostics;
+pub mod logger;
+
 // 公开实际使用的函数，不再导出未使用的函数
 pub mod format {
 

@@ -371,7 +371,15 @@
     "virtualizeFileList": "Virtualize File List",
     "developerMode": "Developer Mode",
     "verboseLogging": "Verbose Logging",
-    "debugInfo": "Debug Info"
+    "debugInfo": "Debug Info",
+    "diagnostics": "Diagnostics & Logs",
+    "diagnosticsDescription": "The app writes logs to a local file automatically. Export a diagnostics report (version, system info, recent logs) when reporting issues. Do not share connection secrets.",
+    "exportDiagnostics": "Export Diagnostics",
+    "exportDiagnosticsSuccess": "Diagnostics report exported",
+    "exportDiagnosticsFailed": "Failed to export diagnostics",
+    "copyDiagnostics": "Copy to Clipboard",
+    "copyDiagnosticsSuccess": "Diagnostics report copied",
+    "copyDiagnosticsFailed": "Failed to copy diagnostics"
   },
   "demo": {
     "title": "Internationalization (i18n) Demo",

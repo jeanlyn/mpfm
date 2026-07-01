@@ -1,12 +1,14 @@
 use log::{error, info};
 use multi_protocol_file_manager::cli::app::App;
+use multi_protocol_file_manager::utils::logger;
+use multi_protocol_file_manager::VERSION;
 use std::process;
 
 fn main() {
-    // 初始化日志
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
+    if let Some(log_path) = logger::init(log::LevelFilter::Info) {
+        info!("mpfm {VERSION} CLI starting");
+        info!("Log file: {}", log_path.display());
+    }
 
     info!("启动 多协议文件管理器");
 

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, Form, Select, Switch, Typography, Space } from 'antd';
-import { GlobalOutlined, BgColorsOutlined, SettingOutlined } from '@ant-design/icons';
+import { GlobalOutlined, BgColorsOutlined, SettingOutlined, BugOutlined } from '@ant-design/icons';
 import LanguageSwitcher from './LanguageSwitcher';
+import DiagnosticsSection from './DiagnosticsSection';
 import { useAppI18n } from '../hooks/useI18n';
 
 const { Title, Text } = Typography;
@@ -77,6 +78,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ className }) => {
               <Switch defaultChecked />
             </Form.Item>
           </Form>
+        </Card>
+
+        {/* 诊断与日志 */}
+        <Card
+          title={
+            <Space>
+              <BugOutlined />
+              {settings.diagnostics}
+            </Space>
+          }
+        >
+          <DiagnosticsSection />
         </Card>
 
         {/* 高级设置 */}

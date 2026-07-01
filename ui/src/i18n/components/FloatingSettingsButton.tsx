@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button, Dropdown, Card, Space, Typography } from 'antd';
-import { SettingOutlined, GlobalOutlined } from '@ant-design/icons';
+import { SettingOutlined, GlobalOutlined, BugOutlined } from '@ant-design/icons';
 import LanguageSwitcher from './LanguageSwitcher';
+import DiagnosticsSection from './DiagnosticsSection';
 import { useAppI18n } from '../hooks/useI18n';
 
 const { Text } = Typography;
@@ -23,7 +24,7 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
           {settings.language}
         </Space>
       }
-      style={{ width: 200, margin: 0 }}
+      style={{ width: 280, margin: 0 }}
       styles={{ body: { padding: '12px' } }}
     >
       <Space direction="vertical" style={{ width: '100%' }}>
@@ -37,6 +38,29 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
     </Card>
   );
 
+  const diagnosticsContent = (
+    <Card
+      size="small"
+      title={
+        <Space>
+          <BugOutlined />
+          {settings.diagnostics}
+        </Space>
+      }
+      style={{ width: 320, margin: 0 }}
+      styles={{ body: { padding: '12px' } }}
+    >
+      <DiagnosticsSection />
+    </Card>
+  );
+
+  const menuContent = (
+    <Space direction="vertical" size="small">
+      {settingsContent}
+      {diagnosticsContent}
+    </Space>
+  );
+
   return (
     <div
       className={className}
@@ -48,7 +72,7 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
       }}
     >
       <Dropdown
-        overlay={settingsContent}
+        dropdownRender={() => menuContent}
         trigger={['click']}
         placement="topLeft"
         open={open}

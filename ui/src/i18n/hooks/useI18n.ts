@@ -411,6 +411,14 @@ export const useAppI18n = () => {
       developerMode: t('settings.developerMode'),
       verboseLogging: t('settings.verboseLogging'),
       debugInfo: t('settings.debugInfo'),
+      diagnostics: t('settings.diagnostics'),
+      diagnosticsDescription: t('settings.diagnosticsDescription'),
+      exportDiagnostics: t('settings.exportDiagnostics'),
+      exportDiagnosticsSuccess: t('settings.exportDiagnosticsSuccess'),
+      exportDiagnosticsFailed: t('settings.exportDiagnosticsFailed'),
+      copyDiagnostics: t('settings.copyDiagnostics'),
+      copyDiagnosticsSuccess: t('settings.copyDiagnosticsSuccess'),
+      copyDiagnosticsFailed: t('settings.copyDiagnosticsFailed'),
     },
     // 演示页面相关文本
     demo: {

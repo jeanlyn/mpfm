@@ -1,10 +1,16 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use multi_protocol_file_manager::commands::{config, connection, file};
+use log::info;
+use multi_protocol_file_manager::commands::{config, connection, diagnostics, file};
+use multi_protocol_file_manager::utils::logger;
+use multi_protocol_file_manager::VERSION;
 
 fn main() {
-    env_logger::init();
+    if let Some(log_path) = logger::init(log::LevelFilter::Info) {
+        info!("mpfm {VERSION} starting");
+        info!("Log file: {}", log_path.display());
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -38,7 +44,9 @@ fn main() {
             config::load_app_config,
             config::delete_app_config,
             config::export_app_config,
-            config::import_app_config
+            config::import_app_config,
+            diagnostics::get_diagnostics_report,
+            diagnostics::export_diagnostics_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -262,11 +262,42 @@ What happens after pushing `v*` tags:
 3. **Connection Failure**: Check network connectivity and storage service configuration
 4. **macOS Installation Failure**: If installation shows "mpfm is damaged and can't be opened", run `sudo xattr -r -d com.apple.quarantine /Applications/mpfm.app` to resolve
 
+### Logging & Diagnostics
+
+The app automatically writes runtime logs to a local file (and stderr):
+
+| Platform | Log path |
+|----------|----------|
+| macOS / Linux | `~/.config/mpfm/logs/mpfm.log` |
+| Windows | `%APPDATA%\mpfm\logs\mpfm.log` |
+
+Connection configs are stored at `~/.config/mpfm/connections.json` (Windows: `%APPDATA%\mpfm\`).
+
+**Export diagnostics (desktop):** Click the settings button (bottom-left) → **Diagnostics & Logs** → **Export Diagnostics**. This saves version info, system details, and the last 500 log lines to a text file you can attach to a GitHub Issue.
+
+**Increase log verbosity:** Set `RUST_LOG=debug` before starting the app.
+
+```bash
+# Development
+RUST_LOG=debug pnpm run tauri:dev
+
+# macOS installed app
+RUST_LOG=debug /Applications/mpfm.app/Contents/MacOS/mpfm 2>&1 | tee ~/Desktop/mpfm-debug.log
+
+# CLI
+RUST_LOG=debug ./main_cli ls --connection <id> --path / 2>&1 | tee mpfm-debug.log
+```
+
+When reporting issues, include OS, app version, steps to reproduce, on-screen error text, and the diagnostics report or log file. **Do not** share access keys or passwords from configs or logs.
+
 ### Development Debugging
 
 ```bash
-# Enable debug logging
+# Enable debug logging (CLI)
 RUST_LOG=debug cargo run --bin main_cli
+
+# Enable debug logging (desktop dev)
+RUST_LOG=debug pnpm run tauri:dev
 
 # Check code issues
 cargo clippy

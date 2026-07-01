@@ -255,11 +255,42 @@ pnpm run release -- --dry-run 0.2.4
 3. **连接失败**：检查网络连接和存储服务配置
 4. **mac安装失败**: 安装提示, "mpfm"已损坏， 无法打开，你应该将它移到废纸篓。运行`sudo xattr -r -d com.apple.quarantine  /Applications/mpfm.app`解决。
 
+### 日志与诊断
+
+应用会自动将运行日志写入本地文件（同时输出到 stderr）：
+
+| 平台 | 日志路径 |
+|------|---------|
+| macOS / Linux | `~/.config/mpfm/logs/mpfm.log` |
+| Windows | `%APPDATA%\mpfm\logs\mpfm.log` |
+
+连接配置位于 `~/.config/mpfm/connections.json`（Windows 为 `%APPDATA%\mpfm\`）。
+
+**桌面版导出诊断报告：** 点击左下角设置按钮 →「诊断与日志」→「导出诊断报告」，会生成包含版本、系统信息和最近 500 行日志的文本文件，可直接附在 GitHub Issue 中。
+
+**提高日志详细程度：** 设置环境变量 `RUST_LOG=debug` 后启动应用。
+
+```bash
+# 开发模式
+RUST_LOG=debug pnpm run tauri:dev
+
+# macOS 已安装应用
+RUST_LOG=debug /Applications/mpfm.app/Contents/MacOS/mpfm 2>&1 | tee ~/Desktop/mpfm-debug.log
+
+# CLI
+RUST_LOG=debug ./main_cli ls --connection <id> --path / 2>&1 | tee mpfm-debug.log
+```
+
+提交 Issue 时请附上：操作系统、应用版本、复现步骤、界面报错原文、诊断报告或日志文件。**请勿**在日志或配置中包含 access key、密码等敏感信息。
+
 ### 开发调试
 
 ```bash
-# 启用调试日志
+# 启用调试日志（CLI）
 RUST_LOG=debug cargo run --bin main_cli
+
+# 启用调试日志（桌面开发）
+RUST_LOG=debug pnpm run tauri:dev
 
 # 检查代码问题
 cargo clippy
