@@ -29,13 +29,26 @@ export interface DirectoryItem {
   expanded?: boolean;
 }
 
-export interface DraggableConnectionProps {
+export interface ConnectionItemProps {
   connection: Connection;
   directoryId: string;
+  isActive: boolean;
+  isS3: boolean;
+  bucketExpanded: boolean;
+  buckets: string[];
+  bucketLoading: boolean;
+  bucketLoadFailed: boolean;
+  bucketSwitching: boolean;
+  bucketCreating: boolean;
+  onSelect: () => void;
   onEdit: () => void;
   onCopy: () => void;
   onShare: () => void;
   onDelete: () => void;
+  onToggleBucket: () => void;
+  onRefreshBuckets: () => void;
+  onBucketSwitch: (bucket: string) => void | Promise<void>;
+  onBucketCreate: (name: string) => void | Promise<void>;
 }
 
 export interface DroppableDirectoryProps {

@@ -14,11 +14,12 @@ import { useConnectionModal } from './hooks/useConnectionModal';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useConnectionOperations } from './hooks/useConnectionOperations';
 import { useConnectionShare } from './hooks/useConnectionShare';
+import { useS3Buckets } from './hooks/useS3Buckets';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 // 组件
 import { Sidebar } from './components/Sidebar';
-import { DraggableConnection } from './components/DraggableConnection';
+import { ConnectionItem } from './components/ConnectionItem';
 import { DroppableDirectory } from './components/DroppableDirectory';
 import { ConnectionModal } from './components/ConnectionModal';
 import { DirectoryModal } from './components/DirectoryModal';
@@ -110,6 +111,20 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     handleConfirmImport,
   } = useConnectionShare(connections, onConnectionsChange);
 
+  // S3 bucket 管理
+  const {
+    isBucketExpanded,
+    handleToggleExpand,
+    loadBuckets,
+    switchBucket,
+    createBucket,
+    getBucketsForConnection,
+    isLoadingBuckets,
+    isLoadFailed,
+    isSwitchingBucket,
+    isCreatingBucket,
+  } = useS3Buckets(currentConnection, onConnectionSelect, onConnectionsChange);
+
   // 目录操作处理
   const handleDirectoryOperation = async (values: any) => {
     try {
@@ -181,33 +196,34 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               }}
             >
               {directory.expanded && (
-                <div style={{ paddingLeft: '8px', marginTop: '8px' }}>
+                <div style={{ paddingLeft: '4px', marginTop: '8px', width: '100%' }}>
                   <SortableContext
                     items={directoryConnections.map(conn => conn.id)}
                     strategy={verticalListSortingStrategy}
                   >
                     {directoryConnections.map((conn) => (
-                      <div
+                      <ConnectionItem
                         key={conn.id}
-                        onClick={() => onConnectionSelect(conn)}
-                        style={{
-                          marginBottom: '4px',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          backgroundColor: currentConnection?.id === conn.id ? '#e6f7ff' : 'transparent',
-                          border: currentConnection?.id === conn.id ? '1px solid #1890ff' : '1px solid transparent',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        <DraggableConnection
-                          connection={conn}
-                          directoryId={directory.id}
-                          onEdit={() => openModal(MODAL_TYPES.EDIT, conn)}
-                          onCopy={() => openModal(MODAL_TYPES.COPY, conn)}
-                          onShare={() => handleShareConnection(conn)}
-                          onDelete={() => handleDeleteConnection(conn.id)}
-                        />
-                      </div>
+                        connection={conn}
+                        directoryId={directory.id}
+                        isActive={currentConnection?.id === conn.id}
+                        isS3={conn.protocol_type === 's3' && !collapsed}
+                        bucketExpanded={isBucketExpanded(conn.id)}
+                        buckets={getBucketsForConnection(conn)}
+                        bucketLoading={isLoadingBuckets(conn.id)}
+                        bucketLoadFailed={isLoadFailed(conn.id)}
+                        bucketSwitching={isSwitchingBucket(conn.id)}
+                        bucketCreating={isCreatingBucket(conn.id)}
+                        onSelect={() => onConnectionSelect(conn)}
+                        onEdit={() => openModal(MODAL_TYPES.EDIT, conn)}
+                        onCopy={() => openModal(MODAL_TYPES.COPY, conn)}
+                        onShare={() => handleShareConnection(conn)}
+                        onDelete={() => handleDeleteConnection(conn.id)}
+                        onToggleBucket={() => handleToggleExpand(conn)}
+                        onRefreshBuckets={() => loadBuckets(conn)}
+                        onBucketSwitch={(bucket) => switchBucket(conn, bucket)}
+                        onBucketCreate={(name) => createBucket(conn, name)}
+                      />
                     ))}
                   </SortableContext>
                 </div>

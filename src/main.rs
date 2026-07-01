@@ -27,6 +27,7 @@ fn main() {
             connection::update_connection,
             connection::check_s3_bucket_exists,
             connection::create_s3_bucket,
+            connection::list_s3_buckets,
             file::list_files,
             file::list_files_paginated,
             file::upload_file,

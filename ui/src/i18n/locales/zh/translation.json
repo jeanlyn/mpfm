@@ -95,7 +95,28 @@
         "deleteDirectory": "删除目录",
         "confirmDeleteDirectory": "确定要删除这个目录吗？",
         "addConnectionToDirectory": "新建连接到此目录",
-        "refreshConnections": "刷新连接列表"
+        "refreshConnections": "刷新连接列表",
+        "moreActions": "更多操作"
+      },
+      "s3Buckets": {
+        "title": "存储桶",
+        "current": "当前",
+        "create": "新建",
+        "createPlaceholder": "输入新 bucket 名称",
+        "switch": "切换",
+        "switchTab": "切换",
+        "createTab": "新建",
+        "manage": "管理 Bucket",
+        "switchPlaceholder": "输入 bucket 名称切换",
+        "createSuccess": "存储桶创建成功",
+        "createFailed": "创建存储桶失败",
+        "loadFailed": "获取 bucket 列表失败",
+        "loadFailedHint": "无法列举 bucket，可手动输入 bucket 名称切换",
+        "switchSuccess": "已切换 bucket",
+        "switchFailed": "切换 bucket 失败",
+        "empty": "暂无 bucket",
+        "noBucket": "未配置 bucket",
+        "refresh": "刷新"
       },
       "fields": {
         "bucketName": "存储桶名称",

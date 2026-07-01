@@ -98,7 +98,28 @@
         "deleteDirectory": "Delete Directory",
         "confirmDeleteDirectory": "Are you sure you want to delete this directory?",
         "addConnectionToDirectory": "Add Connection to Directory",
-        "refreshConnections": "Refresh connections"
+        "refreshConnections": "Refresh connections",
+        "moreActions": "More actions"
+      },
+      "s3Buckets": {
+        "title": "Buckets",
+        "current": "Current",
+        "create": "Create",
+        "createPlaceholder": "Enter new bucket name",
+        "switch": "Switch",
+        "switchTab": "Switch",
+        "createTab": "Create",
+        "manage": "Manage Bucket",
+        "switchPlaceholder": "Enter bucket name to switch",
+        "createSuccess": "Bucket created successfully",
+        "createFailed": "Failed to create bucket",
+        "loadFailed": "Failed to load bucket list",
+        "loadFailedHint": "Cannot list buckets, enter bucket name manually to switch",
+        "switchSuccess": "Switched bucket",
+        "switchFailed": "Failed to switch bucket",
+        "empty": "No buckets",
+        "noBucket": "No bucket configured",
+        "refresh": "Refresh"
       },
       "fields": {
         "bucketName": "Bucket Name",

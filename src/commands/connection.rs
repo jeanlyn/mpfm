@@ -181,3 +181,23 @@ pub async fn create_s3_bucket(
         Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
     }
 }
+
+#[command]
+pub async fn list_s3_buckets(
+    region: String,
+    endpoint: Option<String>,
+    access_key: String,
+    secret_key: String,
+) -> ApiResponse<Vec<String>> {
+    match crate::utils::s3_list_buckets::list_s3_buckets(
+        &region,
+        endpoint.as_deref(),
+        &access_key,
+        &secret_key,
+    )
+    .await
+    {
+        Ok(buckets) => ApiResponse::success(buckets),
+        Err(e) => ApiResponse::error(e),
+    }
+}

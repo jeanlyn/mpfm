@@ -1,0 +1,217 @@
+.connection-item {
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.connection-item:hover {
+  background-color: #fafafa;
+}
+
+.connection-item--active {
+  background-color: #e6f7ff;
+  border-color: #1890ff;
+}
+
+.connection-item--dragging {
+  opacity: 0.5;
+  background-color: #f0f0f0;
+  border: 1px dashed #d9d9d9;
+}
+
+.connection-item__main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  width: 100%;
+}
+
+.connection-item__drag {
+  cursor: grab;
+  color: #999;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.connection-item__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.connection-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 2px;
+  transition: padding-right 0.15s ease;
+}
+
+.connection-item:hover .connection-item__body,
+.connection-item--active .connection-item__body {
+  padding-right: 52px;
+}
+
+.connection-item__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.connection-item__bucket {
+  flex: 0 1 38%;
+  min-width: 0;
+  max-width: 38%;
+  font-size: 11px;
+  line-height: 18px;
+  color: #8c8c8c;
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  text-align: right;
+}
+
+.connection-item--active .connection-item__bucket {
+  background: #dceeff;
+  color: #1677ff;
+}
+
+.connection-item__bucket-chevron {
+  font-size: 9px;
+  margin-left: 3px;
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+.connection-item__bucket-chevron--expanded {
+  transform: rotate(180deg);
+}
+
+.connection-item__actions {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  background: linear-gradient(to right, transparent, #fafafa 12px);
+  padding-left: 8px;
+}
+
+.connection-item--active .connection-item__actions {
+  background: linear-gradient(to right, transparent, #e6f7ff 12px);
+}
+
+.connection-item:hover .connection-item__actions,
+.connection-item--active .connection-item__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.connection-item--dragging .connection-item__actions {
+  opacity: 0;
+}
+
+.connection-item__action-btn {
+  padding: 0 4px !important;
+  min-width: unset !important;
+  height: 24px !important;
+}
+
+.connection-item__bucket-panel {
+  margin-top: 4px;
+  padding: 6px 0 0 28px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.connection-item__bucket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.connection-item__bucket-title {
+  color: #999;
+  font-size: 11px;
+}
+
+.connection-item__bucket-list {
+  max-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+}
+
+.connection-item__bucket-row {
+  padding: 2px 6px;
+  margin-bottom: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-item__bucket-row:hover {
+  background-color: #f5f5f5;
+}
+
+.connection-item__bucket-row--current {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  font-weight: 500;
+}
+
+.connection-item__bucket-row--current:hover {
+  background-color: #e6f7ff;
+}
+
+.connection-item__bucket-empty {
+  color: #999;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.connection-item__bucket-warning {
+  color: #faad14;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.connection-item__manage-btn {
+  font-size: 12px;
+  padding: 0 8px;
+  height: 24px;
+}
+
+.connection-item__manage-popover {
+  width: 200px;
+}
+
+.connection-item__manage-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

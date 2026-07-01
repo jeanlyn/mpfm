@@ -206,6 +206,34 @@ export class ApiService {
     }
   }
 
+  static async listS3Buckets(
+    region: string,
+    endpoint: string | null,
+    accessKey: string,
+    secretKey: string
+  ): Promise<string[]> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, returning mock bucket list');
+      return Promise.resolve(['demo-bucket', 'test-bucket']);
+    }
+
+    try {
+      const response: ApiResponse<string[]> = await invoke('list_s3_buckets', {
+        region,
+        endpoint,
+        accessKey,
+        secretKey,
+      });
+      if (response.success && response.data !== undefined) {
+        return response.data;
+      }
+      throw new Error(response.error || '列举 bucket 失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`列举 bucket 失败: ${error}`);
+    }
+  }
+
   static async listFiles(connectionId: string, path: string): Promise<FileInfo[]> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, returning mock file list');

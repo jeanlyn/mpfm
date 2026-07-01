@@ -1,5 +1,6 @@
 pub mod diagnostics;
 pub mod logger;
+pub mod s3_list_buckets;
 
 // 公开实际使用的函数，不再导出未使用的函数
 pub mod format {
