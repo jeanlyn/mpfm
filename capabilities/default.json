@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:window:allow-set-title",
+    "core:path:allow-basename",
     "core:event:default",
     "clipboard-manager:allow-write-text",
     "dialog:allow-save",

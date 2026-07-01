@@ -7,6 +7,7 @@ import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { PaginatedFileList, LoadingMode } from '../types';
 import { UploadProgress } from '../../../utils/uploadProgress';
 import { PAGINATION_MODE_THRESHOLD } from '../constants';
+import { extractLocalFileName } from '../utils';
 
 /**
  * 文件操作相关的 Hook
@@ -102,7 +103,7 @@ export const useFileOperations = (
       });
 
       if (selected && typeof selected === 'string') {
-        const fileName = selected.split('/').pop() || 'uploaded_file';
+        const fileName = (await extractLocalFileName(selected)) || 'uploaded_file';
         const remotePath = currentPath.endsWith('/') 
           ? currentPath + fileName 
           : currentPath + '/' + fileName;

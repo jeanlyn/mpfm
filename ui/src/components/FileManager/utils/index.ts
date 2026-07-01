@@ -25,12 +25,42 @@ export const calculateTableHeight = (reservedHeight: number, minHeight: number, 
   return availableHeight;
 };
 
-/**
- * 从文件路径中提取文件名
- */
-export const extractFileName = (path: string): string => {
-  return path.split('/').pop() || path;
+/** 检测当前是否为 Windows 操作系统 */
+const detectIsWindows = (): boolean =>
+  navigator.userAgent.includes('Windows') ||
+  navigator.platform.toLowerCase().startsWith('win');
+
+/** 按操作系统分隔符从本地路径提取文件名（非 Tauri 环境回退） */
+const extractLocalFileNameSync = (path: string): string => {
+  const separator = detectIsWindows() ? '\\' : '/';
+  const lastSep = path.lastIndexOf(separator);
+  if (lastSep === -1) return path;
+  const name = path.slice(lastSep + 1);
+  return name || path;
 };
+
+/**
+ * 从本地文件系统路径提取文件名（Tauri 下由 Rust 按 OS 解析，浏览器环境按 OS 回退）
+ */
+export const extractLocalFileName = async (path: string): Promise<string> => {
+  try {
+    const { basename } = await import('@tauri-apps/api/path');
+    return await basename(path);
+  } catch {
+    return extractLocalFileNameSync(path);
+  }
+};
+
+/** 从远程路径提取文件名（SFTP/FTP/S3 等协议统一使用 `/`） */
+export const extractRemoteFileName = (path: string): string => {
+  const lastSep = path.lastIndexOf('/');
+  if (lastSep === -1) return path;
+  const name = path.slice(lastSep + 1);
+  return name || path;
+};
+
+/** @deprecated 请使用 extractLocalFileName 或 extractRemoteFileName */
+export const extractFileName = extractRemoteFileName;
 
 /**
  * 格式化修改时间
