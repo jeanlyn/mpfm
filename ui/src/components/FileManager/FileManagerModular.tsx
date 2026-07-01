@@ -3,6 +3,7 @@ import { Layout, Table, Modal, Input, Typography, Spin } from 'antd';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
 import UploadProgressModal from './UploadProgressModal';
+import './FileManager.css';
 
 // 模块化组件导入
 import {
@@ -222,7 +223,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             rowKey="path"
             pagination={false}
             size="small"
-            scroll={{ y: state.tableHeight }}
+            scroll={{ x: 'max-content', y: state.tableHeight }}
             style={{ marginBottom: 0 }}
           />
         </Spin>

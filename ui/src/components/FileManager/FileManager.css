@@ -1,0 +1,17 @@
+.file-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  width: max-content;
+  margin-left: auto;
+}
+
+.file-manager-actions .ant-btn {
+  font-size: 12px;
+}
+
+.file-manager-download-compact {
+  flex-shrink: 0;
+}

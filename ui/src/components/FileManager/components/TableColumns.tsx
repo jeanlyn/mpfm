@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Space, Button, Popconfirm, Checkbox, Dropdown } from 'antd';
+import { Button, Popconfirm, Checkbox, Dropdown, Space } from 'antd';
 import {
   FolderOutlined,
   FileOutlined,
@@ -14,7 +14,7 @@ import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { isPreviewable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { formatFileSize, formatModifiedTime } from '../utils';
-import { COLUMN_WIDTHS, ACTION_BUTTON_WIDTH, ACTION_DOWNLOAD_WIDTH } from '../constants';
+import { COLUMN_WIDTHS, ACTIONS_COLUMN_MIN_WIDTH } from '../constants';
 
 interface TableColumnsProps {
   files: FileInfo[];
@@ -114,51 +114,33 @@ export const useTableColumns = ({
       title: fileManager.actions.properties,
       key: 'actions',
       width: COLUMN_WIDTHS.actions,
+      minWidth: ACTIONS_COLUMN_MIN_WIDTH,
       align: 'right' as const,
       render: (_: any, record: FileInfo) => (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>
-          {/* 预览按钮位置 - 固定宽度确保对齐 */}
-          <div style={{ width: ACTION_BUTTON_WIDTH }}>
-            {!record.is_dir && isPreviewable(record.name) && (
+        <div className="file-manager-actions">
+          {!record.is_dir && isPreviewable(record.name) && (
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => onPreview(record)}
+              title={fileManager.table.previewButton}
+            >
+              {fileManager.table.previewButton}
+            </Button>
+          )}
+
+          {!record.is_dir && (
+            <Space.Compact className="file-manager-download-compact">
               <Button
                 size="small"
-                icon={<EyeOutlined />}
-                onClick={() => onPreview(record)}
-                style={{ 
-                  fontSize: '12px', 
-                  width: '100%',
-                  padding: '4px 8px',
-                  overflow: 'hidden'
-                }}
-                title={fileManager.table.previewButton}
+                icon={<DownloadOutlined />}
+                onClick={() => onDownload(record)}
               >
-                <span style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  display: 'block'
-                }}>
-                  {fileManager.table.previewButton}
-                </span>
+                {fileManager.table.downloadButton}
               </Button>
-            )}
-          </div>
-          
-          {/* 下载按钮位置 - 主按钮直接下载，下拉箭头提供复制 CLI 命令 */}
-          <div style={{ width: ACTION_DOWNLOAD_WIDTH, display: 'flex', justifyContent: 'flex-end' }}>
-            {!record.is_dir && (
-              <Dropdown.Button
-                size="small"
+              <Dropdown
                 trigger={['click']}
                 placement="bottomRight"
-                icon={<DownOutlined />}
-                buttonsRender={([left, right]) => [
-                  left,
-                  <span key="caret" title={fileManager.actions.copyCliCommand}>
-                    {right}
-                  </span>,
-                ]}
-                onClick={() => onDownload(record)}
                 menu={{
                   items: [
                     {
@@ -188,42 +170,29 @@ export const useTableColumns = ({
                   ],
                 }}
               >
-                <DownloadOutlined />
-                <span style={{ fontSize: '12px' }}>{fileManager.table.downloadButton}</span>
-              </Dropdown.Button>
-            )}
-          </div>
-          
-          {/* 删除按钮位置 - 固定宽度确保对齐 */}
-          <div style={{ width: ACTION_BUTTON_WIDTH }}>
-            <Popconfirm
-              title={fileManager.table.confirmDelete}
-              onConfirm={() => onDelete(record)}
-              placement="topRight"
+                <Button
+                  size="small"
+                  icon={<DownOutlined />}
+                  title={fileManager.actions.copyCliCommand}
+                />
+              </Dropdown>
+            </Space.Compact>
+          )}
+
+          <Popconfirm
+            title={fileManager.table.confirmDelete}
+            onConfirm={() => onDelete(record)}
+            placement="topRight"
+          >
+            <Button
+              size="small"
+              icon={<DeleteOutlined />}
+              danger
+              title={fileManager.table.deleteButton}
             >
-              <Button
-                size="small"
-                icon={<DeleteOutlined />}
-                danger
-                style={{ 
-                  fontSize: '12px', 
-                  width: '100%',
-                  padding: '4px 8px',
-                  overflow: 'hidden'
-                }}
-                title={fileManager.table.deleteButton}
-              >
-                <span style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  display: 'block'
-                }}>
-                  {fileManager.table.deleteButton}
-                </span>
-              </Button>
-            </Popconfirm>
-          </div>
+              {fileManager.table.deleteButton}
+            </Button>
+          </Popconfirm>
         </div>
       ),
     },

@@ -15,10 +15,8 @@ export const RESERVED_HEIGHT = 252;
 export const MIN_TABLE_HEIGHT = 200;
 export const MAX_TABLE_HEIGHT = 650;
 
-// 操作按钮宽度
-export const ACTION_BUTTON_WIDTH = 76;
-// 下载拆分按钮（主按钮 + 复制命令下拉箭头）所需宽度
-export const ACTION_DOWNLOAD_WIDTH = 96;
+// 操作列最小宽度（需容纳 Preview + Download 下拉 + Delete 的英文标签）
+export const ACTIONS_COLUMN_MIN_WIDTH = 300;
 
 // 列宽定义
 export const COLUMN_WIDTHS = {
@@ -26,5 +24,5 @@ export const COLUMN_WIDTHS = {
   name: '35%',
   size: 120,
   modified: 180,
-  actions: 272,
+  actions: ACTIONS_COLUMN_MIN_WIDTH,
 } as const;
