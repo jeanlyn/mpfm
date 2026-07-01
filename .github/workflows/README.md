@@ -34,8 +34,8 @@
 - macOS Apple Silicon `app`
 - macOS Intel `app`
 - Linux 桌面包
-- Windows 默认安装包
-- Windows fixed WebView2 安装包
+- Windows 默认安装包（x64，在线引导 WebView2）
+- Windows fixed WebView2 安装包（x64 + arm64，各含 `.msi` 与 `-setup.exe`）
 - CLI:
   - `x86_64-unknown-linux-musl`
   - `aarch64-unknown-linux-musl`

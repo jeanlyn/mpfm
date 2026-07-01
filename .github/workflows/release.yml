@@ -326,22 +326,7 @@ jobs:
       - name: Download and setup WebView2 Runtime
         shell: pwsh
         run: |
-          $webviewVersion = "133.0.3065.92"
-          $arch = "${{ matrix.arch }}"
-          $fileName = "Microsoft.WebView2.FixedVersionRuntime.$webviewVersion.$arch.cab"
-          $extractPath = "Microsoft.WebView2.FixedVersionRuntime.$webviewVersion.$arch"
-          $url = "https://github.com/westinyang/WebView2RuntimeArchive/releases/download/$webviewVersion/$fileName"
-
-          Write-Host "Downloading WebView2 Runtime for $arch from $webviewVersion..."
-          Invoke-WebRequest -Uri $url -OutFile $fileName -UseBasicParsing
-
-          Write-Host "Extracting WebView2 Runtime to $extractPath..."
-          Expand .\$fileName -F:* ./
-
-          Write-Host "Updating tauri.win.conf.json with WebView2 path: $extractPath"
-          $config = Get-Content "tauri.win.conf.json" -Raw | ConvertFrom-Json
-          $config.bundle.windows.webviewInstallMode.path = "./$extractPath/"
-          $config | ConvertTo-Json -Depth 10 | Set-Content "tauri.win.conf.json" -Encoding UTF8
+          ./scripts/setup-webview2-runtime.ps1 -Arch "${{ matrix.arch }}"
 
       - name: Build fixed WebView2 application
         shell: pwsh
@@ -359,41 +344,14 @@ jobs:
       - name: Rename artifacts with fixed-webview2 suffix
         shell: pwsh
         run: |
-          $bundleDir = Get-ChildItem -Path ".\target\${{ matrix.target }}" -Recurse -Directory -Filter "bundle" | Select-Object -First 1 -ExpandProperty FullName
-          if (!$bundleDir) {
-              Write-Error "Could not find bundle directory in .\target\${{ matrix.target }}"
-              exit 1
-          }
-
-          Write-Host "Searching for artifacts in $bundleDir to rename (adding -fixed-webview2 suffix)..."
-
-          Get-ChildItem -Path $bundleDir -Recurse -File | ForEach-Object {
-              $file = $_
-              $newName = $null
-
-              if ($file.Name -match "^(.*)(\.msi\.zip)$") {
-                  $newName = "$($matches[1])-fixed-webview2$($matches[2])"
-              } elseif ($file.Name -match "^(.*)(\.(msi|exe))$") {
-                  $newName = "$($matches[1])-fixed-webview2$($matches[2])"
-              }
-
-              if ($newName) {
-                  Rename-Item -Path $file.FullName -NewName $newName -Force
-                  Write-Host "Renamed '$($file.Name)' to '$newName'"
-              }
-          }
+          ./scripts/rename-fixed-webview2-artifacts.ps1 -Target "${{ matrix.target }}"
 
       - name: Publish fixed WebView2 assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.check-version.outputs.tag_name }}
-          name: mpfm ${{ needs.check-version.outputs.tag_name }}
-          draft: true
-          prerelease: false
-          overwrite_files: true
-          files: |
-            target/${{ matrix.target }}/release/bundle/msi/*-fixed-webview2.msi
-            target/${{ matrix.target }}/release/bundle/nsis/*-fixed-webview2.exe
-            target/${{ matrix.target }}/release/bundle/msi/*-fixed-webview2.msi.zip
+        shell: pwsh
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/publish-fixed-webview2-assets.ps1 `
+            -Target "${{ matrix.target }}" `
+            -Tag "${{ needs.check-version.outputs.tag_name }}"
