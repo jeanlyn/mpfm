@@ -76,14 +76,20 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     updateMultipleState
   );
 
-  // 连接变化时重置状态
+  // 连接或 S3 bucket 变化时重置并重新加载
   useEffect(() => {
     if (connection) {
       resetState();
       fileSelection.clearSelection();
       fileOperations.loadFiles('/');
     }
-  }, [connection, resetState, fileSelection.clearSelection, fileOperations.loadFiles]);
+  }, [
+    connection?.id,
+    connection?.config?.bucket,
+    resetState,
+    fileSelection.clearSelection,
+    fileOperations.loadFiles,
+  ]);
 
   // 计算当前页面是否全选
   const isAllCurrentPageSelected = useMemo(() => {

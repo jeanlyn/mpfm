@@ -1,6 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Connection } from '../../../types';
 
+const buildTabTitle = (connection: Connection): string => {
+  if (connection.protocol_type === 's3' && connection.config.bucket) {
+    return `${connection.name} · ${connection.config.bucket}`;
+  }
+  return `${connection.name} (${connection.protocol_type.toUpperCase()})`;
+};
+
 export interface FileManagerTab {
   id: string;
   connection: Connection;
@@ -24,7 +31,7 @@ export const useTabManager = () => {
     return {
       id: connection.id,
       connection,
-      title: `${connection.name} (${connection.protocol_type.toUpperCase()})`,
+      title: buildTabTitle(connection),
       active: true,
     };
   }, []);
@@ -35,12 +42,14 @@ export const useTabManager = () => {
       const existingTabIndex = prevState.tabs.findIndex(tab => tab.id === connection.id);
       
       if (existingTabIndex !== -1) {
-        // Tab已存在，激活它
         const updatedTabs = prevState.tabs.map((tab, index) => ({
           ...tab,
           active: index === existingTabIndex,
+          ...(index === existingTabIndex
+            ? { connection, title: buildTabTitle(connection) }
+            : {}),
         }));
-        
+
         return {
           tabs: updatedTabs,
           activeTabId: connection.id,
