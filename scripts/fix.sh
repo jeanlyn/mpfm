@@ -30,4 +30,7 @@ fi
 echo "[fix] clippy strict check (-D warnings)"
 cargo clippy --all-targets --all-features -- -D warnings
 
+echo "[fix] frontend type-check"
+run_pnpm --dir ui run type-check
+
 echo "[fix] done"
