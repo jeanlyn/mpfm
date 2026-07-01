@@ -205,8 +205,13 @@ impl FileManager {
         local_dir_path: &Path,
         remote_base_path: &str,
     ) -> Result<DirectoryUploadResult> {
-        self.upload_directory_with_progress(local_dir_path, remote_base_path, |_, _, _, _, _, _| {}, None)
-            .await
+        self.upload_directory_with_progress(
+            local_dir_path,
+            remote_base_path,
+            |_, _, _, _, _, _| {},
+            None,
+        )
+        .await
     }
 
     /// 上传整个目录，并通过回调上报进度
@@ -282,16 +287,21 @@ impl FileManager {
                 .unwrap_or_else(|| remote_path.clone());
 
             match self
-                .upload_with_progress(&path, &remote_path, |transferred, total, _| {
-                    progress_callback(
-                        file_index + 1,
-                        file_count,
-                        transferred,
-                        total,
-                        &file_name,
-                        None,
-                    );
-                }, cancel_flag.clone())
+                .upload_with_progress(
+                    &path,
+                    &remote_path,
+                    |transferred, total, _| {
+                        progress_callback(
+                            file_index + 1,
+                            file_count,
+                            transferred,
+                            total,
+                            &file_name,
+                            None,
+                        );
+                    },
+                    cancel_flag.clone(),
+                )
                 .await
             {
                 Ok(_) => {
@@ -326,14 +336,7 @@ impl FileManager {
                         path.display(),
                         err_msg
                     );
-                    progress_callback(
-                        file_index + 1,
-                        file_count,
-                        0,
-                        0,
-                        &file_name,
-                        Some(&err_msg),
-                    );
+                    progress_callback(file_index + 1, file_count, 0, 0, &file_name, Some(&err_msg));
                 }
             }
         }

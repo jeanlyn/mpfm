@@ -50,15 +50,13 @@ pub fn build_diagnostics_report(build_target: &str) -> DiagnosticsInfo {
         }
     });
 
-    append_section(&mut report, "Recent Logs", |r| {
-        match log_path.as_deref() {
-            Some(path) => match read_tail_lines(path, TAIL_LINES) {
-                Ok(content) if content.is_empty() => r.push_str("(empty)\n"),
-                Ok(content) => r.push_str(&content),
-                Err(e) => r.push_str(&format!("Failed to read log file: {e}\n")),
-            },
-            None => r.push_str("(log file unavailable)\n"),
-        }
+    append_section(&mut report, "Recent Logs", |r| match log_path.as_deref() {
+        Some(path) => match read_tail_lines(path, TAIL_LINES) {
+            Ok(content) if content.is_empty() => r.push_str("(empty)\n"),
+            Ok(content) => r.push_str(&content),
+            Err(e) => r.push_str(&format!("Failed to read log file: {e}\n")),
+        },
+        None => r.push_str("(log file unavailable)\n"),
     });
 
     DiagnosticsInfo { log_path, report }

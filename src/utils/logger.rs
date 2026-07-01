@@ -28,9 +28,8 @@ fn trim_log_file(path: &PathBuf, keep_bytes: u64) -> io::Result<()> {
 }
 
 fn ensure_log_file() -> io::Result<PathBuf> {
-    let dir = log_dir().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::NotFound, "无法获取配置目录")
-    })?;
+    let dir =
+        log_dir().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "无法获取配置目录"))?;
     fs::create_dir_all(&dir)?;
     let path = dir.join(LOG_FILE_NAME);
     if path.exists() {

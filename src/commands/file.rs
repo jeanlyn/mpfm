@@ -279,10 +279,7 @@ fn format_download_curl_command(
                 "curl -L {} --aws-sigv4 'aws:amz:{}:s3' --user {} -o {}",
                 shell_escape(&url, CliShell::Bash),
                 region,
-                shell_escape(
-                    &format!("{}:{}", access_key, secret_key),
-                    CliShell::Bash
-                ),
+                shell_escape(&format!("{}:{}", access_key, secret_key), CliShell::Bash),
                 shell_escape(local_path, CliShell::Bash),
             ))
         }
@@ -320,10 +317,7 @@ fn format_download_curl_command(
 
             Ok(format!(
                 "curl -L -u {} {} -o {}",
-                shell_escape(
-                    &format!("{}:{}", username, password),
-                    CliShell::Bash
-                ),
+                shell_escape(&format!("{}:{}", username, password), CliShell::Bash),
                 shell_escape(&url, CliShell::Bash),
                 shell_escape(local_path, CliShell::Bash),
             ))
@@ -342,22 +336,22 @@ fn format_download_curl_command(
 pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<FileInfo>> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager.list(&path).await {
-                            Ok(entries) => {
-                                let files: Vec<FileInfo> =
-                                    entries.into_iter().map(|entry| entry.into()).collect();
-                                ApiResponse::success(files)
-                            }
-                            Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager.list(&path).await {
+                        Ok(entries) => {
+                            let files: Vec<FileInfo> =
+                                entries.into_iter().map(|entry| entry.into()).collect();
+                            ApiResponse::success(files)
                         }
+                        Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -371,31 +365,31 @@ pub async fn list_files_paginated(
 ) -> ApiResponse<PaginatedFileList> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager.list_paginated(&path, page, page_size).await {
-                            Ok((entries, total)) => {
-                                let files: Vec<FileInfo> =
-                                    entries.into_iter().map(|entry| entry.into()).collect();
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager.list_paginated(&path, page, page_size).await {
+                        Ok((entries, total)) => {
+                            let files: Vec<FileInfo> =
+                                entries.into_iter().map(|entry| entry.into()).collect();
 
-                                let paginated_list = PaginatedFileList {
-                                    files,
-                                    total,
-                                    page,
-                                    page_size,
-                                    has_more: (page + 1) * page_size < total,
-                                };
+                            let paginated_list = PaginatedFileList {
+                                files,
+                                total,
+                                page,
+                                page_size,
+                                has_more: (page + 1) * page_size < total,
+                            };
 
-                                ApiResponse::success(paginated_list)
-                            }
-                            Err(e) => ApiResponse::error(format!("分页列出文件失败: {}", e)),
+                            ApiResponse::success(paginated_list)
                         }
+                        Err(e) => ApiResponse::error(format!("分页列出文件失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -409,128 +403,125 @@ pub async fn upload_file(
 ) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        let app_for_progress = app.clone();
-                        let upload_id = generate_upload_id();
-                        let cancel_flag = register_upload_cancel_token(&upload_id);
-                        // 复用进度回调中已读取到的文件总大小，避免完成事件再次 stat 文件
-                        // （上传过程中文件被改写会导致二次 stat 拿到错误的尺寸）。
-                        let known_total = Arc::new(Mutex::new(0u64));
-                        let known_total_for_cb = known_total.clone();
-                        let upload_id_for_cb = upload_id.clone();
-                        let result = file_manager
-                            .upload_with_progress(
-                                std::path::Path::new(&local_path),
-                                &remote_path,
-                                move |transferred, total, file_name| {
-                                    if let Ok(mut t) = known_total_for_cb.lock() {
-                                        *t = total;
-                                    }
-                                    emit_upload_progress(
-                                        &app_for_progress,
-                                        UploadProgressPayload {
-                                            transferred,
-                                            total,
-                                            file_name: file_name.to_string(),
-                                            file_index: None,
-                                            file_count: None,
-                                            completed: false,
-                                            error: None,
-                                            uploaded_count: None,
-                                            failed_count: None,
-                                            upload_id: Some(upload_id_for_cb.clone()),
-                                            cancelled: None,
-                                        },
-                                    );
-                                },
-                                Some(cancel_flag),
-                            )
-                            .await;
-                        // 无论结果如何，都清理取消令牌
-                        remove_upload_cancel_token(&upload_id);
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    let app_for_progress = app.clone();
+                    let upload_id = generate_upload_id();
+                    let cancel_flag = register_upload_cancel_token(&upload_id);
+                    // 复用进度回调中已读取到的文件总大小，避免完成事件再次 stat 文件
+                    // （上传过程中文件被改写会导致二次 stat 拿到错误的尺寸）。
+                    let known_total = Arc::new(Mutex::new(0u64));
+                    let known_total_for_cb = known_total.clone();
+                    let upload_id_for_cb = upload_id.clone();
+                    let result = file_manager
+                        .upload_with_progress(
+                            std::path::Path::new(&local_path),
+                            &remote_path,
+                            move |transferred, total, file_name| {
+                                if let Ok(mut t) = known_total_for_cb.lock() {
+                                    *t = total;
+                                }
+                                emit_upload_progress(
+                                    &app_for_progress,
+                                    UploadProgressPayload {
+                                        transferred,
+                                        total,
+                                        file_name: file_name.to_string(),
+                                        file_index: None,
+                                        file_count: None,
+                                        completed: false,
+                                        error: None,
+                                        uploaded_count: None,
+                                        failed_count: None,
+                                        upload_id: Some(upload_id_for_cb.clone()),
+                                        cancelled: None,
+                                    },
+                                );
+                            },
+                            Some(cancel_flag),
+                        )
+                        .await;
+                    // 无论结果如何，都清理取消令牌
+                    remove_upload_cancel_token(&upload_id);
 
-                        match result {
-                            Ok(_) => {
-                                let total_size = known_total
-                                    .lock()
-                                    .map(|t| *t)
-                                    .unwrap_or(0u64);
-                                let file_name = std::path::Path::new(&local_path)
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_else(|| "uploaded_file".to_string());
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: total_size,
-                                        total: total_size,
-                                        file_name,
-                                        file_index: None,
-                                        file_count: None,
-                                        completed: true,
-                                        error: None,
-                                        uploaded_count: None,
-                                        failed_count: None,
-                                        upload_id: Some(upload_id),
-                                        cancelled: None,
-                                    },
-                                );
-                                ApiResponse::success(true)
-                            }
-                            Err(e) if e.is_cancelled() => {
-                                let file_name = std::path::Path::new(&local_path)
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_else(|| "uploaded_file".to_string());
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: 0,
-                                        total: 0,
-                                        file_name,
-                                        file_index: None,
-                                        file_count: None,
-                                        completed: true,
-                                        error: None,
-                                        uploaded_count: None,
-                                        failed_count: None,
-                                        upload_id: Some(upload_id),
-                                        cancelled: Some(true),
-                                    },
-                                );
-                                ApiResponse::error("上传已取消".to_string())
-                            }
-                            Err(e) => {
-                                let file_name = std::path::Path::new(&local_path)
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_else(|| "uploaded_file".to_string());
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: 0,
-                                        total: 0,
-                                        file_name,
-                                        file_index: None,
-                                        file_count: None,
-                                        completed: true,
-                                        error: Some(format!("上传文件失败: {}", e)),
-                                        uploaded_count: None,
-                                        failed_count: None,
-                                        upload_id: Some(upload_id),
-                                        cancelled: None,
-                                    },
-                                );
-                                ApiResponse::error(format!("上传文件失败: {}", e))
-                            }
+                    match result {
+                        Ok(_) => {
+                            let total_size = known_total.lock().map(|t| *t).unwrap_or(0u64);
+                            let file_name = std::path::Path::new(&local_path)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "uploaded_file".to_string());
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: total_size,
+                                    total: total_size,
+                                    file_name,
+                                    file_index: None,
+                                    file_count: None,
+                                    completed: true,
+                                    error: None,
+                                    uploaded_count: None,
+                                    failed_count: None,
+                                    upload_id: Some(upload_id),
+                                    cancelled: None,
+                                },
+                            );
+                            ApiResponse::success(true)
+                        }
+                        Err(e) if e.is_cancelled() => {
+                            let file_name = std::path::Path::new(&local_path)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "uploaded_file".to_string());
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: 0,
+                                    total: 0,
+                                    file_name,
+                                    file_index: None,
+                                    file_count: None,
+                                    completed: true,
+                                    error: None,
+                                    uploaded_count: None,
+                                    failed_count: None,
+                                    upload_id: Some(upload_id),
+                                    cancelled: Some(true),
+                                },
+                            );
+                            ApiResponse::error("上传已取消".to_string())
+                        }
+                        Err(e) => {
+                            let file_name = std::path::Path::new(&local_path)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "uploaded_file".to_string());
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: 0,
+                                    total: 0,
+                                    file_name,
+                                    file_index: None,
+                                    file_count: None,
+                                    completed: true,
+                                    error: Some(format!("上传文件失败: {}", e)),
+                                    uploaded_count: None,
+                                    failed_count: None,
+                                    upload_id: Some(upload_id),
+                                    cancelled: None,
+                                },
+                            );
+                            ApiResponse::error(format!("上传文件失败: {}", e))
                         }
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -544,129 +535,124 @@ pub async fn upload_directory(
 ) -> ApiResponse<usize> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        let app_for_progress = app.clone();
-                        let upload_id = generate_upload_id();
-                        let cancel_flag = register_upload_cancel_token(&upload_id);
-                        let upload_id_for_cb = upload_id.clone();
-                        let result = file_manager
-                            .upload_directory_with_progress(
-                                std::path::Path::new(&local_dir_path),
-                                &remote_base_path,
-                                move |file_index,
-                                      file_count,
-                                      transferred,
-                                      total,
-                                      file_name,
-                                      error| {
-                                    emit_upload_progress(
-                                        &app_for_progress,
-                                        UploadProgressPayload {
-                                            transferred,
-                                            total,
-                                            file_name: file_name.to_string(),
-                                            file_index: Some(file_index),
-                                            file_count: Some(file_count),
-                                            // 单文件失败时通过 error 字段上报，completed 保持 false，
-                                            // 由目录上传的最终完成事件统一汇总。
-                                            completed: false,
-                                            error: error.map(|s| s.to_string()),
-                                            uploaded_count: None,
-                                            failed_count: None,
-                                            upload_id: Some(upload_id_for_cb.clone()),
-                                            cancelled: None,
-                                        },
-                                    );
-                                },
-                                Some(cancel_flag),
-                            )
-                            .await;
-                        // 无论结果如何，都清理取消令牌
-                        remove_upload_cancel_token(&upload_id);
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    let app_for_progress = app.clone();
+                    let upload_id = generate_upload_id();
+                    let cancel_flag = register_upload_cancel_token(&upload_id);
+                    let upload_id_for_cb = upload_id.clone();
+                    let result = file_manager
+                        .upload_directory_with_progress(
+                            std::path::Path::new(&local_dir_path),
+                            &remote_base_path,
+                            move |file_index, file_count, transferred, total, file_name, error| {
+                                emit_upload_progress(
+                                    &app_for_progress,
+                                    UploadProgressPayload {
+                                        transferred,
+                                        total,
+                                        file_name: file_name.to_string(),
+                                        file_index: Some(file_index),
+                                        file_count: Some(file_count),
+                                        // 单文件失败时通过 error 字段上报，completed 保持 false，
+                                        // 由目录上传的最终完成事件统一汇总。
+                                        completed: false,
+                                        error: error.map(|s| s.to_string()),
+                                        uploaded_count: None,
+                                        failed_count: None,
+                                        upload_id: Some(upload_id_for_cb.clone()),
+                                        cancelled: None,
+                                    },
+                                );
+                            },
+                            Some(cancel_flag),
+                        )
+                        .await;
+                    // 无论结果如何，都清理取消令牌
+                    remove_upload_cancel_token(&upload_id);
 
-                        match result {
-                            Ok(res) => {
-                                // 部分失败也视为整体失败，但在 error 中说明成功/失败明细，
-                                // 便于前端区分"全部成功"与"部分成功"。
-                                let payload_error = if res.is_full_success() {
-                                    None
-                                } else {
-                                    Some(format!(
-                                        "部分文件上传失败：成功 {}，失败 {}（共 {}）",
-                                        res.uploaded, res.failed, res.total
-                                    ))
-                                };
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: 0,
-                                        total: 0,
-                                        file_name: String::new(),
-                                        file_index: None,
-                                        file_count: Some(res.total),
-                                        completed: true,
-                                        error: payload_error,
-                                        uploaded_count: Some(res.uploaded),
-                                        failed_count: Some(res.failed),
-                                        upload_id: Some(upload_id),
-                                        cancelled: None,
-                                    },
-                                );
-                                if res.is_full_success() {
-                                    ApiResponse::success(res.uploaded)
-                                } else {
-                                    ApiResponse::error(format!(
-                                        "上传目录失败：成功 {}，失败 {}（共 {}）",
-                                        res.uploaded, res.failed, res.total
-                                    ))
-                                }
-                            }
-                            Err(e) if e.is_cancelled() => {
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: 0,
-                                        total: 0,
-                                        file_name: String::new(),
-                                        file_index: None,
-                                        file_count: None,
-                                        completed: true,
-                                        error: None,
-                                        uploaded_count: None,
-                                        failed_count: None,
-                                        upload_id: Some(upload_id),
-                                        cancelled: Some(true),
-                                    },
-                                );
-                                ApiResponse::error("上传已取消".to_string())
-                            }
-                            Err(e) => {
-                                emit_upload_progress(
-                                    &app,
-                                    UploadProgressPayload {
-                                        transferred: 0,
-                                        total: 0,
-                                        file_name: String::new(),
-                                        file_index: None,
-                                        file_count: None,
-                                        completed: true,
-                                        error: Some(format!("上传目录失败: {}", e)),
-                                        uploaded_count: None,
-                                        failed_count: None,
-                                        upload_id: Some(upload_id),
-                                        cancelled: None,
-                                    },
-                                );
-                                ApiResponse::error(format!("上传目录失败: {}", e))
+                    match result {
+                        Ok(res) => {
+                            // 部分失败也视为整体失败，但在 error 中说明成功/失败明细，
+                            // 便于前端区分"全部成功"与"部分成功"。
+                            let payload_error = if res.is_full_success() {
+                                None
+                            } else {
+                                Some(format!(
+                                    "部分文件上传失败：成功 {}，失败 {}（共 {}）",
+                                    res.uploaded, res.failed, res.total
+                                ))
+                            };
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: 0,
+                                    total: 0,
+                                    file_name: String::new(),
+                                    file_index: None,
+                                    file_count: Some(res.total),
+                                    completed: true,
+                                    error: payload_error,
+                                    uploaded_count: Some(res.uploaded),
+                                    failed_count: Some(res.failed),
+                                    upload_id: Some(upload_id),
+                                    cancelled: None,
+                                },
+                            );
+                            if res.is_full_success() {
+                                ApiResponse::success(res.uploaded)
+                            } else {
+                                ApiResponse::error(format!(
+                                    "上传目录失败：成功 {}，失败 {}（共 {}）",
+                                    res.uploaded, res.failed, res.total
+                                ))
                             }
                         }
+                        Err(e) if e.is_cancelled() => {
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: 0,
+                                    total: 0,
+                                    file_name: String::new(),
+                                    file_index: None,
+                                    file_count: None,
+                                    completed: true,
+                                    error: None,
+                                    uploaded_count: None,
+                                    failed_count: None,
+                                    upload_id: Some(upload_id),
+                                    cancelled: Some(true),
+                                },
+                            );
+                            ApiResponse::error("上传已取消".to_string())
+                        }
+                        Err(e) => {
+                            emit_upload_progress(
+                                &app,
+                                UploadProgressPayload {
+                                    transferred: 0,
+                                    total: 0,
+                                    file_name: String::new(),
+                                    file_index: None,
+                                    file_count: None,
+                                    completed: true,
+                                    error: Some(format!("上传目录失败: {}", e)),
+                                    uploaded_count: None,
+                                    failed_count: None,
+                                    upload_id: Some(upload_id),
+                                    cancelled: None,
+                                },
+                            );
+                            ApiResponse::error(format!("上传目录失败: {}", e))
+                        }
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -679,21 +665,21 @@ pub async fn download_file(
 ) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager
-                            .download(&remote_path, std::path::Path::new(&local_path))
-                            .await
-                        {
-                            Ok(_) => ApiResponse::success(true),
-                            Err(e) => ApiResponse::error(format!("下载文件失败: {}", e)),
-                        }
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager
+                        .download(&remote_path, std::path::Path::new(&local_path))
+                        .await
+                    {
+                        Ok(_) => ApiResponse::success(true),
+                        Err(e) => ApiResponse::error(format!("下载文件失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -754,18 +740,18 @@ pub fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> ApiRespons
 pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager.delete(&path).await {
-                            Ok(_) => ApiResponse::success(true),
-                            Err(e) => ApiResponse::error(format!("删除文件失败: {}", e)),
-                        }
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager.delete(&path).await {
+                        Ok(_) => ApiResponse::success(true),
+                        Err(e) => ApiResponse::error(format!("删除文件失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -774,23 +760,23 @@ pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<boo
 pub async fn create_directory(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        let dir_path = if path.ends_with('/') {
-                            path
-                        } else {
-                            format!("{}/", path)
-                        };
-                        match file_manager.create_dir(&dir_path).await {
-                            Ok(_) => ApiResponse::success(true),
-                            Err(e) => ApiResponse::error(format!("创建目录失败: {}", e)),
-                        }
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    let dir_path = if path.ends_with('/') {
+                        path
+                    } else {
+                        format!("{}/", path)
+                    };
+                    match file_manager.create_dir(&dir_path).await {
+                        Ok(_) => ApiResponse::success(true),
+                        Err(e) => ApiResponse::error(format!("创建目录失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -799,18 +785,18 @@ pub async fn create_directory(connection_id: String, path: String) -> ApiRespons
 pub async fn get_directory_count(connection_id: String, path: String) -> ApiResponse<usize> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager.list(&path).await {
-                            Ok(entries) => ApiResponse::success(entries.len()),
-                            Err(e) => ApiResponse::error(format!("获取目录文件数失败: {}", e)),
-                        }
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager.list(&path).await {
+                        Ok(entries) => ApiResponse::success(entries.len()),
+                        Err(e) => ApiResponse::error(format!("获取目录文件数失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -917,9 +903,10 @@ mod tests {
     #[test]
     fn rejects_fs_curl_download_command() {
         let config = HashMap::new();
-        let error = super::format_download_curl_command("fs", &config, "/tmp/file.txt", "./file.txt")
-            .unwrap_err()
-            .to_string();
+        let error =
+            super::format_download_curl_command("fs", &config, "/tmp/file.txt", "./file.txt")
+                .unwrap_err()
+                .to_string();
 
         assert!(error.contains("本地文件系统连接不支持生成 curl 命令"));
     }
@@ -935,34 +922,34 @@ pub async fn search_files(
 ) -> ApiResponse<PaginatedFileList> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager
-                            .search_paginated(&path, &query, page, page_size)
-                            .await
-                        {
-                            Ok((entries, total)) => {
-                                let files: Vec<FileInfo> =
-                                    entries.into_iter().map(|entry| entry.into()).collect();
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager
+                        .search_paginated(&path, &query, page, page_size)
+                        .await
+                    {
+                        Ok((entries, total)) => {
+                            let files: Vec<FileInfo> =
+                                entries.into_iter().map(|entry| entry.into()).collect();
 
-                                let paginated_list = PaginatedFileList {
-                                    files,
-                                    total,
-                                    page,
-                                    page_size,
-                                    has_more: (page + 1) * page_size < total,
-                                };
+                            let paginated_list = PaginatedFileList {
+                                files,
+                                total,
+                                page,
+                                page_size,
+                                has_more: (page + 1) * page_size < total,
+                            };
 
-                                ApiResponse::success(paginated_list)
-                            }
-                            Err(e) => ApiResponse::error(format!("搜索文件失败: {}", e)),
+                            ApiResponse::success(paginated_list)
                         }
+                        Err(e) => ApiResponse::error(format!("搜索文件失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }
@@ -996,10 +983,7 @@ pub async fn get_file_content(
                                     return ApiResponse::error("文件不存在".to_string());
                                 }
                                 Err(e) => {
-                                    return ApiResponse::error(format!(
-                                        "获取文件信息失败: {}",
-                                        e
-                                    ));
+                                    return ApiResponse::error(format!("获取文件信息失败: {}", e));
                                 }
                             }
 
@@ -1023,7 +1007,10 @@ pub async fn get_file_content(
                                             ),
                                             Err(_) => {
                                                 // 如果不是有效的UTF-8，尝试其他编码或返回错误
-                                                ApiResponse::error("文件不是有效的UTF-8格式，请尝试二进制预览".to_string())
+                                                ApiResponse::error(
+                                                    "文件不是有效的UTF-8格式，请尝试二进制预览"
+                                                        .to_string(),
+                                                )
                                             }
                                         }
                                     }
@@ -1049,21 +1036,21 @@ pub async fn batch_download_files(
 ) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
-                Ok(protocol) => match protocol.create_operator() {
-                    Ok(operator) => {
-                        let file_manager = FileManager::new(operator);
-                        match file_manager
-                            .batch_download_as_zip(&file_paths, &save_path)
-                            .await
-                        {
-                            Ok(_) => ApiResponse::success(true),
-                            Err(e) => ApiResponse::error(format!("批量下载失败: {}", e)),
-                        }
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager
+                        .batch_download_as_zip(&file_paths, &save_path)
+                        .await
+                    {
+                        Ok(_) => ApiResponse::success(true),
+                        Err(e) => ApiResponse::error(format!("批量下载失败: {}", e)),
                     }
-                    Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-                },
-                Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
             },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(e),
     }
 }

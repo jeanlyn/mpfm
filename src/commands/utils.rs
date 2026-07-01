@@ -60,23 +60,13 @@ pub fn get_connection_config(
 
 /// 获取全部连接配置副本
 pub fn list_connection_configs() -> Result<Vec<ConnectionConfig>, String> {
-    with_connection_manager(|manager| {
-        Ok(manager
-            .get_connections()
-            .into_iter()
-            .cloned()
-            .collect())
-    })
+    with_connection_manager(|manager| Ok(manager.get_connections().into_iter().cloned().collect()))
 }
 
 /// 从磁盘重新加载连接配置并返回最新列表
 pub fn reload_connection_configs() -> Result<Vec<ConnectionConfig>, String> {
     with_connection_manager_mut(|manager| {
         manager.reload_from_disk().map_err(|e| e.to_string())?;
-        Ok(manager
-            .get_connections()
-            .into_iter()
-            .cloned()
-            .collect())
+        Ok(manager.get_connections().into_iter().cloned().collect())
     })
 }

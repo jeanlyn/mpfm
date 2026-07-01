@@ -36,7 +36,9 @@ pub struct ConnectionManager {
 }
 
 impl ConnectionManager {
-    fn load_connections_from_file(config_path: &PathBuf) -> Result<HashMap<String, ConnectionConfig>> {
+    fn load_connections_from_file(
+        config_path: &PathBuf,
+    ) -> Result<HashMap<String, ConnectionConfig>> {
         let connections = if config_path.exists() {
             let content = fs::read_to_string(config_path)?;
             if content.trim().is_empty() {

@@ -5,16 +5,16 @@ use crate::protocols::create_protocol;
 use tauri::command;
 
 use super::types::{ApiResponse, ConnectionInfo};
-use super::utils::{list_connection_configs, reload_connection_configs, with_connection_manager_mut};
+use super::utils::{
+    list_connection_configs, reload_connection_configs, with_connection_manager_mut,
+};
 
 #[command]
 pub async fn get_connections() -> ApiResponse<Vec<ConnectionInfo>> {
     match list_connection_configs() {
         Ok(configs) => {
-            let connections: Vec<ConnectionInfo> = configs
-                .into_iter()
-                .map(|config| config.into())
-                .collect();
+            let connections: Vec<ConnectionInfo> =
+                configs.into_iter().map(|config| config.into()).collect();
             ApiResponse::success(connections)
         }
         Err(e) => ApiResponse::error(e),
@@ -25,10 +25,8 @@ pub async fn get_connections() -> ApiResponse<Vec<ConnectionInfo>> {
 pub async fn reload_connections() -> ApiResponse<Vec<ConnectionInfo>> {
     match reload_connection_configs() {
         Ok(configs) => {
-            let connections: Vec<ConnectionInfo> = configs
-                .into_iter()
-                .map(|config| config.into())
-                .collect();
+            let connections: Vec<ConnectionInfo> =
+                configs.into_iter().map(|config| config.into()).collect();
             ApiResponse::success(connections)
         }
         Err(e) => ApiResponse::error(e),
@@ -131,24 +129,20 @@ pub async fn check_s3_bucket_exists(
     }
 
     match create_protocol("s3", &config) {
-        Ok(protocol) => {
-            match protocol.create_operator() {
-                Ok(operator) => {
-                    match operator.list("/").await {
-                        Ok(_) => ApiResponse::success(true),
-                        Err(e) => {
-                            let error_msg = e.to_string().to_lowercase();
-                            if error_msg.contains("nosuchbucket") || error_msg.contains("bucket") {
-                                ApiResponse::success(false)
-                            } else {
-                                ApiResponse::error(format!("检查 bucket 失败: {}", e))
-                            }
-                        }
+        Ok(protocol) => match protocol.create_operator() {
+            Ok(operator) => match operator.list("/").await {
+                Ok(_) => ApiResponse::success(true),
+                Err(e) => {
+                    let error_msg = e.to_string().to_lowercase();
+                    if error_msg.contains("nosuchbucket") || error_msg.contains("bucket") {
+                        ApiResponse::success(false)
+                    } else {
+                        ApiResponse::error(format!("检查 bucket 失败: {}", e))
                     }
                 }
-                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
-            }
-        }
+            },
+            Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+        },
         Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
     }
 }

@@ -41,13 +41,11 @@ fn sign_get_authorization(
     let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
     let date_stamp = now.format("%Y%m%d").to_string();
 
-    let canonical_headers = format!(
-        "host:{host}\nx-amz-content-sha256:{EMPTY_PAYLOAD_HASH}\nx-amz-date:{amz_date}\n"
-    );
+    let canonical_headers =
+        format!("host:{host}\nx-amz-content-sha256:{EMPTY_PAYLOAD_HASH}\nx-amz-date:{amz_date}\n");
     let signed_headers = "host;x-amz-content-sha256;x-amz-date";
-    let canonical_request = format!(
-        "GET\n/\n\n{canonical_headers}\n{signed_headers}\n{EMPTY_PAYLOAD_HASH}"
-    );
+    let canonical_request =
+        format!("GET\n/\n\n{canonical_headers}\n{signed_headers}\n{EMPTY_PAYLOAD_HASH}");
 
     let credential_scope = format!("{date_stamp}/{region}/s3/aws4_request");
     let string_to_sign = format!(
@@ -132,7 +130,10 @@ pub async fn list_s3_buckets(
         return Err(format!("列举 bucket 失败 ({status}): {body}"));
     }
 
-    let xml = response.text().await.map_err(|e| format!("读取响应失败: {e}"))?;
+    let xml = response
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {e}"))?;
     Ok(parse_bucket_names(&xml))
 }
 
