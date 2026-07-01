@@ -80,11 +80,15 @@
       "sidebar": {
         "expand": "展开面板",
         "collapse": "收起面板",
-        "addConnection": "添加连接"
+        "addConnection": "添加连接",
+        "moreActions": "更多操作",
+        "importConnections": "导入连接",
+        "exportAllConnections": "导出全部"
       },
       "tooltips": {
         "editConnection": "编辑连接",
-        "copyConnection": "复制连接", 
+        "copyConnection": "复制连接",
+        "shareConnection": "分享连接配置", 
         "deleteConnection": "删除连接",
         "confirmDeleteConnection": "确定要删除这个连接吗？",
         "editDirectory": "编辑目录",
@@ -130,6 +134,36 @@
         "rootDirectoryTooltip": "连接后的初始目录，留空则从根目录开始",
         "secureConnection": "启用FTPS安全连接",
         "secureConnectionTooltip": "启用FTPS安全连接（FTP over SSL/TLS）"
+      },
+      "share": {
+        "noConnectionsToExport": "没有可导出的连接",
+        "securityWarningTitle": "安全提示",
+        "securityWarningContent": "导出的配置包含 Access Key、Secret Key、FTP 密码等敏感凭据，将以明文形式写入剪贴板或文件。请仅分享给可信对象。",
+        "securityWarningConfirm": "继续导出",
+        "securityWarningCancel": "取消",
+        "modalTitle": "分享连接配置",
+        "modalDescription": "将以下 JSON 配置分享给其他用户，对方可通过「导入连接」快速添加。",
+        "copyButton": "复制到剪贴板",
+        "downloadButton": "下载 JSON 文件",
+        "closeButton": "关闭",
+        "copySuccess": "连接配置已复制到剪贴板",
+        "copyFailed": "复制到剪贴板失败",
+        "downloadSuccess": "连接配置已下载",
+        "downloadFailed": "下载失败"
+      },
+      "import": {
+        "modalTitle": "导入连接配置",
+        "modalDescription": "粘贴或选择 JSON 配置文件，预览无误后确认导入。",
+        "pastePlaceholder": "在此粘贴连接配置 JSON...",
+        "selectFileButton": "选择 JSON 文件",
+        "previewTitle": "待导入连接（{count} 条）",
+        "confirmButton": "确认导入",
+        "cancelButton": "取消",
+        "parseFailed": "配置解析失败，请检查 JSON 格式",
+        "importSuccessSingle": "连接导入成功",
+        "importSuccessMultiple": "成功导入 {count} 条连接",
+        "importFailed": "连接导入失败",
+        "nameSuffix": " - 导入"
       }
   },
   "fileManager": {

@@ -13,6 +13,7 @@ import { useDirectoryModal } from './hooks/useDirectoryModal';
 import { useConnectionModal } from './hooks/useConnectionModal';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useConnectionOperations } from './hooks/useConnectionOperations';
+import { useConnectionShare } from './hooks/useConnectionShare';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 
 // 组件
@@ -21,6 +22,8 @@ import { DraggableConnection } from './components/DraggableConnection';
 import { DroppableDirectory } from './components/DroppableDirectory';
 import { ConnectionModal } from './components/ConnectionModal';
 import { DirectoryModal } from './components/DirectoryModal';
+import { ConnectionShareModal } from './components/ConnectionShareModal';
+import { ConnectionImportModal } from './components/ConnectionImportModal';
 
 // 工具函数
 import { getConnectionIcon } from './utils.tsx';
@@ -86,6 +89,26 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     onConnectionsChange,
     closeModal
   );
+
+  // 连接分享与导入
+  const {
+    shareModalOpen,
+    shareContent,
+    importModalOpen,
+    importPreview,
+    importError,
+    importing,
+    handleShareConnection,
+    handleExportAll,
+    closeShareModal,
+    handleCopyShareContent,
+    handleDownloadShareContent,
+    openImportModal,
+    closeImportModal,
+    parseImportText,
+    handleImportFile,
+    handleConfirmImport,
+  } = useConnectionShare(connections, onConnectionsChange);
 
   // 目录操作处理
   const handleDirectoryOperation = async (values: any) => {
@@ -181,6 +204,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                           directoryId={directory.id}
                           onEdit={() => openModal(MODAL_TYPES.EDIT, conn)}
                           onCopy={() => openModal(MODAL_TYPES.COPY, conn)}
+                          onShare={() => handleShareConnection(conn)}
                           onDelete={() => handleDeleteConnection(conn.id)}
                         />
                       </div>
@@ -237,6 +261,8 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           onRefreshConnections={onRefreshConnections}
           onToggleCollapse={() => setCollapsed(!collapsed)}
           onAddConnection={() => openModal(MODAL_TYPES.ADD)}
+          onImportConnections={openImportModal}
+          onExportAllConnections={handleExportAll}
         >
           {renderExpandedContent()}
         </Sidebar>
@@ -280,6 +306,27 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
         form={directoryForm}
         onFinish={handleDirectoryOperation}
         onCancel={closeDirectoryModal}
+      />
+
+      {/* 连接分享模态框 */}
+      <ConnectionShareModal
+        open={shareModalOpen}
+        content={shareContent}
+        onCopy={handleCopyShareContent}
+        onDownload={handleDownloadShareContent}
+        onClose={closeShareModal}
+      />
+
+      {/* 连接导入模态框 */}
+      <ConnectionImportModal
+        open={importModalOpen}
+        preview={importPreview}
+        error={importError}
+        importing={importing}
+        onParseText={parseImportText}
+        onImportFile={handleImportFile}
+        onConfirm={handleConfirmImport}
+        onClose={closeImportModal}
       />
     </>
   );

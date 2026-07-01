@@ -3,6 +3,7 @@ import { Button, Tooltip, Popconfirm } from 'antd';
 import { 
   EditOutlined, 
   CopyOutlined, 
+  ShareAltOutlined,
   DeleteOutlined, 
   DragOutlined 
 } from '@ant-design/icons';
@@ -20,6 +21,7 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
   directoryId, 
   onEdit, 
   onCopy, 
+  onShare,
   onDelete 
 }) => {
   const { connection: i18n } = useAppI18n();
@@ -117,6 +119,23 @@ export const DraggableConnection: React.FC<DraggableConnectionProps> = ({
                 minWidth: 'unset',
                 height: '24px',
                 color: '#52c41a'
+              }}
+            />
+          </Tooltip>
+          <Tooltip title={i18n.tooltips.shareConnection}>
+            <Button
+              icon={<ShareAltOutlined />}
+              size="small"
+              type="text"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShare();
+              }}
+              style={{ 
+                padding: '0 4px',
+                minWidth: 'unset',
+                height: '24px',
+                color: '#722ed1'
               }}
             />
           </Tooltip>

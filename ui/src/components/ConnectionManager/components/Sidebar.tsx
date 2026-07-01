@@ -1,14 +1,19 @@
-import React from 'react';
-import { Layout, Typography, Button, Tooltip, Menu } from 'antd';
+import React, { useMemo } from 'react';
+import { Layout, Typography, Button, Tooltip, Menu, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import { 
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlusOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import { ConnectionManagerProps } from '../types';
 import { getConnectionIcon } from '../utils.tsx';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
+import './Sidebar.css';
 
 const { Sider } = Layout;
 const { Title } = Typography;
@@ -17,6 +22,8 @@ interface SidebarProps extends ConnectionManagerProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onAddConnection: () => void;
+  onImportConnections: () => void;
+  onExportAllConnections: () => void;
   children: React.ReactNode;
 }
 
@@ -30,9 +37,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onConnectionSelect,
   onToggleCollapse,
   onAddConnection,
+  onImportConnections,
+  onExportAllConnections,
   children,
 }) => {
   const { connection } = useAppI18n();
+
+  const bulkActionMenu: MenuProps = useMemo(
+    () => ({
+      items: [
+        {
+          key: 'import',
+          icon: <ImportOutlined />,
+          label: connection.sidebar.importConnections,
+        },
+        {
+          key: 'export',
+          icon: <ExportOutlined />,
+          label: connection.sidebar.exportAllConnections,
+          disabled: connections.length === 0,
+        },
+      ],
+      onClick: ({ key }) => {
+        if (key === 'import') onImportConnections();
+        if (key === 'export') onExportAllConnections();
+      },
+    }),
+    [
+      connection.sidebar.importConnections,
+      connection.sidebar.exportAllConnections,
+      connections.length,
+      onImportConnections,
+      onExportAllConnections,
+    ]
+  );
+
   // 折叠状态的菜单项
   const collapsedMenuItems = connections
     .sort((a, b) => a.name.localeCompare(b.name)) // 按名称排序
@@ -46,26 +85,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
     label: null,
   }));
 
+  const collapsedSiderWidth = 48;
+
   return (
     <Sider 
-      width={collapsed ? 80 : 280} 
+      className="connection-sidebar"
+      width={280}
+      collapsedWidth={collapsedSiderWidth}
       collapsed={collapsed}
       collapsible
       trigger={null}
       style={{ 
         background: '#fff', 
         borderRight: '1px solid #f0f0f0',
-        transition: 'all 0.2s'
+        transition: 'all 0.2s',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ padding: collapsed ? '16px 8px' : '16px' }}>
+      <div
+        style={{
+          padding: collapsed ? '8px 0' : '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: collapsed ? 'center' : 'stretch',
+        }}
+      >
         {/* 标题和折叠按钮 */}
         <div style={{ 
           display: 'flex', 
-          justifyContent: 'space-between', 
+          justifyContent: collapsed ? 'center' : 'space-between', 
           alignItems: 'center',
-          marginBottom: '16px',
-          height: '32px'
+          marginBottom: collapsed ? '8px' : '16px',
+          height: '32px',
+          width: collapsed ? '100%' : undefined,
         }}>
           {!collapsed && (
             <Title level={4} style={{ margin: 0, fontSize: '16px' }}>
@@ -89,28 +141,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </Tooltip>
         </div>
 
-        {/* 添加连接按钮 */}
-        <Tooltip title={collapsed ? connection.add : ""} placement="right">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onAddConnection}
-            style={{ 
-              width: '100%', 
-              marginBottom: '16px',
-              ...(collapsed && { 
-                width: '48px', 
-                height: '48px',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              })
-            }}
-          >
-            {!collapsed && connection.sidebar.addConnection}
-          </Button>
-        </Tooltip>
+        {/* 添加连接 + 更多操作 */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: collapsed ? 'column' : 'row',
+            gap: collapsed ? '4px' : '8px',
+            marginBottom: collapsed ? '8px' : '16px',
+            alignItems: 'center',
+            width: collapsed ? '100%' : undefined,
+          }}
+        >
+          <Tooltip title={collapsed ? connection.add : undefined} placement="right">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={onAddConnection}
+              style={{
+                ...(collapsed
+                  ? {
+                      width: '32px',
+                      height: '32px',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }
+                  : {
+                      flex: 1,
+                      minWidth: 0,
+                    }),
+              }}
+            >
+              {!collapsed && connection.sidebar.addConnection}
+            </Button>
+          </Tooltip>
+
+          <Dropdown menu={bulkActionMenu} trigger={['click']} placement={collapsed ? 'bottomRight' : 'bottomLeft'}>
+            <Tooltip title={connection.sidebar.moreActions} placement="right">
+              <Button
+                type="text"
+                icon={<MoreOutlined />}
+                style={{
+                  flexShrink: 0,
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  color: 'rgba(0, 0, 0, 0.45)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              />
+            </Tooltip>
+          </Dropdown>
+        </div>
 
         {/* 连接列表 */}
         {collapsed ? (
@@ -127,7 +212,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }}
             style={{
               border: 'none',
-              width: '48px'
+              width: '100%',
+              background: 'transparent',
             }}
             inlineCollapsed={collapsed}
           />

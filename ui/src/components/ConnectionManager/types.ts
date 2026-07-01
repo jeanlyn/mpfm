@@ -34,6 +34,7 @@ export interface DraggableConnectionProps {
   directoryId: string;
   onEdit: () => void;
   onCopy: () => void;
+  onShare: () => void;
   onDelete: () => void;
 }
 

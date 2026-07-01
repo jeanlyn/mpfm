@@ -1,0 +1,9 @@
+/* 折叠侧栏收窄后，对齐 Ant Design Menu 默认 80px 宽度 */
+.connection-sidebar.ant-layout-sider-collapsed .ant-menu-inline-collapsed {
+  width: 48px !important;
+}
+
+.connection-sidebar.ant-layout-sider-collapsed .ant-menu-inline-collapsed > .ant-menu-item {
+  width: 48px;
+  padding-inline: calc(50% - 14px);
+}

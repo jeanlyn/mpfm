@@ -82,12 +82,16 @@
       },
       "sidebar": {
         "expand": "Expand Panel",
-        "collapse": "Collapse Panel", 
-        "addConnection": "Add Connection"
+        "collapse": "Collapse Panel",
+        "addConnection": "Add Connection",
+        "moreActions": "More",
+        "importConnections": "Import Connections",
+        "exportAllConnections": "Export All"
       },
       "tooltips": {
         "editConnection": "Edit Connection",
         "copyConnection": "Copy Connection",
+        "shareConnection": "Share Connection Config",
         "deleteConnection": "Delete Connection", 
         "confirmDeleteConnection": "Are you sure you want to delete this connection?",
         "editDirectory": "Edit Directory",
@@ -133,6 +137,36 @@
         "rootDirectoryTooltip": "Initial directory after connection, empty starts from root",
         "secureConnection": "Enable FTPS Secure Connection",
         "secureConnectionTooltip": "Enable FTPS secure connection (FTP over SSL/TLS)"
+      },
+      "share": {
+        "noConnectionsToExport": "No connections to export",
+        "securityWarningTitle": "Security Warning",
+        "securityWarningContent": "The exported config contains sensitive credentials such as Access Keys, Secret Keys, and FTP passwords in plain text. Only share with trusted recipients.",
+        "securityWarningConfirm": "Continue Export",
+        "securityWarningCancel": "Cancel",
+        "modalTitle": "Share Connection Config",
+        "modalDescription": "Share the JSON below with others. They can use Import Connection to add it quickly.",
+        "copyButton": "Copy to Clipboard",
+        "downloadButton": "Download JSON File",
+        "closeButton": "Close",
+        "copySuccess": "Connection config copied to clipboard",
+        "copyFailed": "Failed to copy to clipboard",
+        "downloadSuccess": "Connection config downloaded",
+        "downloadFailed": "Download failed"
+      },
+      "import": {
+        "modalTitle": "Import Connection Config",
+        "modalDescription": "Paste or select a JSON config file, preview, then confirm import.",
+        "pastePlaceholder": "Paste connection config JSON here...",
+        "selectFileButton": "Select JSON File",
+        "previewTitle": "Connections to import ({count})",
+        "confirmButton": "Confirm Import",
+        "cancelButton": "Cancel",
+        "parseFailed": "Failed to parse config, please check JSON format",
+        "importSuccessSingle": "Connection imported successfully",
+        "importSuccessMultiple": "Successfully imported {count} connections",
+        "importFailed": "Failed to import connections",
+        "nameSuffix": " - Import"
       }
   },
   "fileManager": {
