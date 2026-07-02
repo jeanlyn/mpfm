@@ -30,8 +30,8 @@ bash "${script_dir}/build-cli.sh"
 
 echo "[build-release] build desktop bundle"
 if [ "$(uname -s)" = "Darwin" ]; then
-  echo "[build-release] macOS detected, building app bundle to avoid Finder-only DMG packaging in headless environments"
-  bash "${script_dir}/build-desktop.sh" --bundles app
+  echo "[build-release] macOS detected, building dmg bundle"
+  bash "${script_dir}/build-desktop.sh" --bundles dmg
 else
   bash "${script_dir}/build-desktop.sh"
 fi

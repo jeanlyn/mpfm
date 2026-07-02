@@ -27,4 +27,10 @@ run_pnpm --dir ui run type-check
 echo "[check] frontend build"
 run_pnpm --dir ui run build
 
+echo "[check] release notes"
+bash "$SCRIPT_DIR/test-release-notes.sh"
+
+echo "[check] release workflow"
+bash "$SCRIPT_DIR/test-release-workflow.sh"
+
 echo "[check] OK"

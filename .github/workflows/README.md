@@ -31,8 +31,8 @@
 - 同时附加包含 fixed WebView2 Runtime 的 Windows 特别版
 
 **当前产物覆盖：**
-- macOS Apple Silicon `app`
-- macOS Intel `app`
+- macOS Apple Silicon `dmg`
+- macOS Intel `dmg`
 - Linux 桌面包
 - Windows 默认安装包（x64，在线引导 WebView2）
 - Windows fixed WebView2 安装包（x64 + arm64，各含 `.msi` 与 `-setup.exe`）
@@ -47,7 +47,8 @@
 **保护措施：**
 - 发布前执行 `bash ./scripts/release-version.sh --expect-tag <tag>`
 - 校验 `Cargo.toml`、`package.json`、`ui/package.json`、`tauri.conf.json`、`tauri.win.conf.json` 的版本完全一致
-- macOS runner 默认发布 `app` bundle，避免无头环境依赖 Finder/AppleScript 生成 DMG 时失败
+- 发布时根据当前 `v*` tag 与上一个 `v*` tag 之间的 Conventional Commit 自动生成分组 Release Notes，并自动附带安装 FAQ
+- macOS runner 默认发布 `dmg` 安装包，避免用户下载到 `.app.tar.gz` 后还需要手动解压和移动应用
 
 ## 推荐发版方式
 
@@ -70,6 +71,26 @@ pnpm run release -- 0.2.4
 pnpm run release -- --dry-run 0.2.4
 ```
 
+## FAQ
+
+### macOS 安装时报错怎么办？
+
+如果打开 DMG 中的应用时看到“无法验证开发者”“已损坏，无法打开”或类似 Gatekeeper 提示：
+
+1. 确认安装包来自本仓库 GitHub Release 页面。
+2. 先尝试在“系统设置 > 隐私与安全性”中点击“仍要打开”。
+3. 如果仍然打不开，可以对已拖到 Applications 的应用执行：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/mpfm.app
+```
+
+然后重新打开应用。
+
+### 发版后 Release Notes 会自动更新吗？
+
+会。`release.yml` 会根据当前 `v*` tag 和上一个 `v*` tag 之间的 Conventional Commit 自动生成分组 Release Notes，附带安装 FAQ，并写回同一个 Draft Release。
+
 ## 本地脚本入口
 
 ```bash
@@ -82,5 +103,6 @@ pnpm run build:cli         # 构建 CLI
 pnpm run build:desktop     # 构建桌面端
 pnpm run build:release     # 发版前一键检查 + 测试 + 构建
 pnpm run release:version   # 检查版本元数据是否一致
+./scripts/release-notes.sh --tag v0.2.4 --repo-url https://github.com/jeanlyn/mpfm
 pnpm run release -- 0.2.4  # 一键发版
 ```

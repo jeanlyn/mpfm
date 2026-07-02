@@ -43,9 +43,36 @@ jobs:
           echo "tag_name=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+  release-notes:
+    name: Generate Release Notes
+    needs: [check-version]
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - name: Checkout workflow source and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate grouped release notes
+        id: notes
+        env:
+          RELEASE_TAG: ${{ needs.check-version.outputs.tag_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          git fetch --force --tags
+          bash ./scripts/release-notes.sh --tag "$RELEASE_TAG" --repo-url "$REPO_URL" > release-notes.md
+          cat release-notes.md
+          {
+            echo 'body<<__MPFM_RELEASE_NOTES__'
+            cat release-notes.md
+            echo '__MPFM_RELEASE_NOTES__'
+          } >> "$GITHUB_OUTPUT"
+
   publish-desktop:
     name: Desktop (${{ matrix.name }})
-    needs: [check-version]
+    needs: [check-version, release-notes]
     permissions:
       contents: write
     strategy:
@@ -55,11 +82,11 @@ jobs:
           - name: macOS Apple Silicon
             os: macos-latest
             rust_target: aarch64-apple-darwin
-            bundle_args: --target aarch64-apple-darwin --bundles app
+            bundle_args: --target aarch64-apple-darwin --bundles dmg
           - name: macOS Intel
             os: macos-latest
             rust_target: x86_64-apple-darwin
-            bundle_args: --target x86_64-apple-darwin --bundles app
+            bundle_args: --target x86_64-apple-darwin --bundles dmg
           - name: Linux
             os: ubuntu-22.04
             rust_target: ""
@@ -127,7 +154,7 @@ jobs:
         with:
           tagName: ${{ needs.check-version.outputs.tag_name }}
           releaseName: mpfm ${{ needs.check-version.outputs.tag_name }}
-          releaseBody: See the assets to download this version and install.
+          releaseBody: ${{ needs.release-notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.bundle_args }}
@@ -265,7 +292,7 @@ jobs:
 
   publish-cli-release:
     name: Publish CLI Release Assets
-    needs: [check-version, build-cli]
+    needs: [check-version, release-notes, build-cli]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -285,6 +312,7 @@ jobs:
         with:
           tag_name: ${{ needs.check-version.outputs.tag_name }}
           name: mpfm ${{ needs.check-version.outputs.tag_name }}
+          body: ${{ needs.release-notes.outputs.body }}
           draft: true
           prerelease: false
           overwrite_files: true
@@ -390,3 +418,19 @@ jobs:
           ./scripts/publish-fixed-webview2-assets.ps1 `
             -Target "${{ matrix.target }}" `
             -Tag "${{ needs.check-version.outputs.tag_name }}"
+
+  update-release-notes:
+    name: Update Release Notes
+    needs: [check-version, release-notes, publish-desktop, publish-cli-release, publish-fixed-webview2]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update draft release body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.check-version.outputs.tag_name }}
+          RELEASE_BODY: ${{ needs.release-notes.outputs.body }}
+        run: |
+          printf '%s\n' "$RELEASE_BODY" > release-notes.md
+          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
