@@ -8,6 +8,7 @@ import { PaginatedFileList, LoadingMode } from '../types';
 import { UploadProgress } from '../../../utils/uploadProgress';
 import { PAGINATION_MODE_THRESHOLD } from '../constants';
 import { extractLocalFileName } from '../utils';
+import { isLocalDirectory } from '../utils/isLocalDirectory';
 
 /**
  * 文件操作相关的 Hook
@@ -156,6 +157,123 @@ export const useFileOperations = (
     });
   }, [app.cancel, fileManager.messages.uploadOverwriteTitle, fileManager.messages.uploadOverwriteDescription, fileManager.messages.uploadOverwriteConfirm]);
 
+  const buildRemotePath = useCallback((fileName: string) => {
+    return currentPath.endsWith('/')
+      ? currentPath + fileName
+      : currentPath + '/' + fileName;
+  }, [currentPath]);
+
+  const checkUploadConflict = useCallback(async (remotePath: string): Promise<boolean> => {
+    if (!connection) return false;
+
+    const pathInfo = await ApiService.checkFileExists(connection.id, remotePath);
+    if (!pathInfo.exists) {
+      return true;
+    }
+
+    if (pathInfo.isDir) {
+      Modal.warning({
+        title: fileManager.messages.uploadConflictDirectoryTitle,
+        content: fileManager.messages.uploadConflictDirectoryDescription.replace('{path}', remotePath),
+        okText: app.confirm,
+      });
+      return false;
+    }
+
+    return confirmUploadOverwrite(remotePath);
+  }, [
+    connection,
+    app.confirm,
+    confirmUploadOverwrite,
+    fileManager.messages.uploadConflictDirectoryTitle,
+    fileManager.messages.uploadConflictDirectoryDescription,
+  ]);
+
+  const performDirectoryUpload = useCallback(async (localDirPath: string) => {
+    if (!connection) return;
+
+    onStateUpdate({
+      uploadVisible: true,
+      uploadProgress: {
+        transferred: 0,
+        total: 0,
+        fileName: '',
+        completed: false,
+      },
+    });
+
+    const lastProgressRef: { current: UploadProgress | null } = { current: null };
+    try {
+      const count = await ApiService.uploadDirectory(
+        connection.id,
+        localDirPath,
+        currentPath,
+        (progress: UploadProgress) => {
+          lastProgressRef.current = progress;
+          onStateUpdate({ uploadProgress: progress });
+        }
+      );
+      message.success(
+        (fileManager.messages.uploadDirectorySuccess || '文件夹上传成功，共上传 {count} 个文件')
+          .replace('{count}', count.toString())
+      );
+      loadFiles(currentPath, currentPage);
+    } catch (error) {
+      if (lastProgressRef.current?.cancelled) {
+        return;
+      }
+      const fallbackError =
+        error instanceof Error ? error.message : String(error);
+      const last = lastProgressRef.current;
+      onStateUpdate({
+        uploadProgress: {
+          transferred: 0,
+          total: 0,
+          fileName: '',
+          completed: true,
+          fileCount: last?.fileCount,
+          uploadedCount: last?.uploadedCount,
+          failedCount: last?.failedCount,
+          error: last?.error ?? fallbackError,
+        },
+      });
+      throw error;
+    }
+  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.messages.uploadDirectorySuccess]);
+
+  const uploadLocalFile = useCallback(async (localPath: string) => {
+    const fileName = (await extractLocalFileName(localPath)) || 'uploaded_file';
+    const remotePath = buildRemotePath(fileName);
+
+    if (!(await checkUploadConflict(remotePath))) {
+      return;
+    }
+
+    await performFileUpload(localPath, remotePath, fileName);
+  }, [buildRemotePath, checkUploadConflict, performFileUpload]);
+
+  const uploadLocalPath = useCallback(async (localPath: string) => {
+    if (!connection) return;
+
+    if (await isLocalDirectory(localPath)) {
+      await performDirectoryUpload(localPath);
+    } else {
+      await uploadLocalFile(localPath);
+    }
+  }, [connection, performDirectoryUpload, uploadLocalFile]);
+
+  const uploadLocalPaths = useCallback(async (paths: string[]) => {
+    if (!connection || paths.length === 0) return;
+
+    for (const localPath of paths) {
+      try {
+        await uploadLocalPath(localPath);
+      } catch (error) {
+        message.error(`${fileManager.messages.uploadFailed}: ${error}`);
+      }
+    }
+  }, [connection, uploadLocalPath, fileManager.messages.uploadFailed]);
+
   // 上传文件
   const handleUpload = useCallback(async () => {
     if (!connection) return;
@@ -167,42 +285,16 @@ export const useFileOperations = (
       });
 
       if (selected && typeof selected === 'string') {
-        const fileName = (await extractLocalFileName(selected)) || 'uploaded_file';
-        const remotePath = currentPath.endsWith('/') 
-          ? currentPath + fileName 
-          : currentPath + '/' + fileName;
-
-        const pathInfo = await ApiService.checkFileExists(connection.id, remotePath);
-        if (pathInfo.exists) {
-          if (pathInfo.isDir) {
-            Modal.warning({
-              title: fileManager.messages.uploadConflictDirectoryTitle,
-              content: fileManager.messages.uploadConflictDirectoryDescription.replace('{path}', remotePath),
-              okText: app.confirm,
-            });
-            return;
-          }
-          const confirmed = await confirmUploadOverwrite(remotePath);
-          if (!confirmed) {
-            return;
-          }
-        }
-
-        await performFileUpload(selected, remotePath, fileName);
+        await uploadLocalPath(selected);
       }
     } catch (error) {
       message.error(`${fileManager.messages.uploadFailed}: ${error}`);
     }
   }, [
     connection,
-    currentPath,
-    app.confirm,
-    performFileUpload,
-    confirmUploadOverwrite,
+    uploadLocalPath,
     fileManager.dialogs.selectFileToUpload,
     fileManager.messages.uploadFailed,
-    fileManager.messages.uploadConflictDirectoryTitle,
-    fileManager.messages.uploadConflictDirectoryDescription,
   ]);
 
   const handleUploadClose = useCallback(() => {
@@ -224,63 +316,12 @@ export const useFileOperations = (
       });
 
       if (selected && typeof selected === 'string') {
-        onStateUpdate({
-          uploadVisible: true,
-          uploadProgress: {
-            transferred: 0,
-            total: 0,
-            fileName: '',
-            completed: false,
-          },
-        });
-
-        // 记录最后一次进度事件，便于在失败时保留汇总信息（uploaded/failed/total）。
-        // 用对象包裹以绕过 TS 控制流分析（异步回调中的赋值对 catch 不可见）。
-        const lastProgressRef: { current: UploadProgress | null } = { current: null };
-        try {
-          const count = await ApiService.uploadDirectory(
-            connection.id,
-            selected,
-            currentPath,
-            (progress: UploadProgress) => {
-              lastProgressRef.current = progress;
-              onStateUpdate({ uploadProgress: progress });
-            }
-          );
-          message.success(
-            (fileManager.messages.uploadDirectorySuccess || '文件夹上传成功，共上传 {count} 个文件')
-              .replace('{count}', count.toString())
-          );
-          loadFiles(currentPath, currentPage);
-        } catch (error) {
-          // 取消时后端已通过事件下发 cancelled 态，这里不覆盖、也不当作失败提示
-          if (lastProgressRef.current?.cancelled) {
-            return;
-          }
-          // 部分失败时，Rust 在最终完成事件里已携带 uploadedCount/failedCount/error，
-          // 此处保留这些信息（仅补上 completed 以便用户关闭对话框），避免覆盖丢失。
-          const fallbackError =
-            error instanceof Error ? error.message : String(error);
-          const last = lastProgressRef.current;
-          onStateUpdate({
-            uploadProgress: {
-              transferred: 0,
-              total: 0,
-              fileName: '',
-              completed: true,
-              fileCount: last?.fileCount,
-              uploadedCount: last?.uploadedCount,
-              failedCount: last?.failedCount,
-              error: last?.error ?? fallbackError,
-            },
-          });
-          throw error;
-        }
+        await performDirectoryUpload(selected);
       }
     } catch (error) {
       message.error(`${fileManager.messages.uploadDirectoryFailed || '上传文件夹失败'}: ${error}`);
     }
-  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.dialogs, fileManager.messages]);
+  }, [connection, performDirectoryUpload, fileManager.dialogs, fileManager.messages.uploadDirectoryFailed]);
 
   // 下载文件
   const handleDownload = useCallback(async (file: FileInfo) => {
@@ -378,6 +419,7 @@ export const useFileOperations = (
     handleFileDoubleClick,
     handleUpload,
     handleUploadDirectory,
+    uploadLocalPaths,
     handleUploadClose,
     handleDownload,
     handleCopyDownloadCommand,

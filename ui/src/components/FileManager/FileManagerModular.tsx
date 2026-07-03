@@ -13,6 +13,7 @@ import {
   useTableColumns,
   BatchOperationToolbar,
   BatchDownloadModal,
+  DragUploadOverlay,
 } from './components';
 
 // Hooks 导入
@@ -23,6 +24,7 @@ import {
   usePreviewAndBatch,
   useTableHeight,
   useFileSelection,
+  useDragUpload,
 } from './hooks';
 
 // 类型导入
@@ -43,6 +45,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
   // 表格高度：按容器实际高度计算，填满 flex 剩余区域
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const handleHeightChange = useCallback((height: number) => {
     updateState('tableHeight', height);
   }, [updateState]);
@@ -62,6 +65,16 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     state.pageSize,
     updateMultipleState
   );
+
+  const handleDragDropUpload = useCallback((paths: string[]) => {
+    void fileOperations.uploadLocalPaths(paths);
+  }, [fileOperations.uploadLocalPaths]);
+
+  const { isDraggingOver } = useDragUpload({
+    connection,
+    dropZoneRef,
+    onDrop: handleDragDropUpload,
+  });
 
   // 搜索和分页
   const searchAndPagination = useSearchAndPagination(
@@ -173,13 +186,26 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   }
 
   return (
-    <Content style={{ 
-      padding: '24px', 
+    <Content style={{
+      padding: 0,
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
     }}>
+      <div
+        ref={dropZoneRef}
+        className="file-manager-content"
+        style={{
+          padding: '24px',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+      <DragUploadOverlay visible={isDraggingOver} />
       {/* 工具栏 */}
       <Toolbar
         currentPath={state.currentPath}
@@ -287,6 +313,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         progress={state.uploadProgress}
         onClose={fileOperations.handleUploadClose}
       />
+      </div>
     </Content>
   );
 };

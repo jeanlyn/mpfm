@@ -13,6 +13,7 @@
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-exists",
+    "fs:allow-stat",
     "fs:allow-create",
     "fs:allow-mkdir",
     "fs:scope-config",

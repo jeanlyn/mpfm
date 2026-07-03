@@ -5,3 +5,4 @@ export { useFileOperations } from './useFileOperations';
 export { useSearchAndPagination } from './useSearchAndPagination';
 export { usePreviewAndBatch } from './usePreviewAndBatch';
 export { useTableHeight } from './useTableHeight';
+export { useDragUpload } from './useDragUpload';

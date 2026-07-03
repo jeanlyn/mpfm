@@ -281,6 +281,8 @@
       "uploadOverwriteConfirm": "继续上传",
       "uploadConflictDirectoryTitle": "无法上传",
       "uploadConflictDirectoryDescription": "远程路径「{path}」已存在同名目录，无法上传文件到该路径。",
+      "dragDropHint": "支持拖入文件或文件夹",
+      "dragDropRelease": "松开鼠标以上传",
       "downloadSuccess": "文件下载成功",
       "downloadFailed": "文件下载失败",
       "deleteSuccess": "删除成功",

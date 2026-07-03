@@ -284,6 +284,8 @@
       "uploadOverwriteConfirm": "Upload Anyway",
       "uploadConflictDirectoryTitle": "Cannot Upload",
       "uploadConflictDirectoryDescription": "A directory already exists at \"{path}\". Cannot upload a file to this path.",
+      "dragDropHint": "Drop files or folders here",
+      "dragDropRelease": "Release to upload",
       "downloadSuccess": "File downloaded successfully",
       "downloadFailed": "File download failed",
       "deleteSuccess": "Deleted successfully",

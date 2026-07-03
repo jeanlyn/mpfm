@@ -298,6 +298,8 @@ export const useAppI18n = () => {
         uploadOverwriteConfirm: t('fileManager.messages.uploadOverwriteConfirm'),
         uploadConflictDirectoryTitle: t('fileManager.messages.uploadConflictDirectoryTitle'),
         uploadConflictDirectoryDescription: t('fileManager.messages.uploadConflictDirectoryDescription'),
+        dragDropHint: t('fileManager.messages.dragDropHint'),
+        dragDropRelease: t('fileManager.messages.dragDropRelease'),
       },
       table: {
         confirmDelete: t('fileManager.table.confirmDelete'),
