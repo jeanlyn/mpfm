@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo } from '../../../types';
 import { ApiService } from '../../../services/api';
@@ -19,7 +19,7 @@ export const useFileOperations = (
   pageSize: number,
   onStateUpdate: (updates: any) => void
 ) => {
-  const { fileManager } = useAppI18n();
+  const { fileManager, app } = useAppI18n();
 
   // 智能选择加载模式
   const chooseLoadingMode = useCallback(async (path: string): Promise<LoadingMode> => {
@@ -92,6 +92,70 @@ export const useFileOperations = (
     }
   }, [loadFiles, onStateUpdate]);
 
+  const performFileUpload = useCallback(async (
+    localPath: string,
+    remotePath: string,
+    fileName: string,
+  ) => {
+    if (!connection) return;
+
+    onStateUpdate({
+      uploadVisible: true,
+      uploadProgress: {
+        transferred: 0,
+        total: 0,
+        fileName,
+        completed: false,
+      },
+    });
+
+    // 用对象包裹记录最后一次进度，绕过 TS 控制流分析（异步回调中的赋值对 catch 不可见）。
+    const lastProgressRef: { current: UploadProgress | null } = { current: null };
+    try {
+      await ApiService.uploadFile(
+        connection.id,
+        localPath,
+        remotePath,
+        (progress: UploadProgress) => {
+          lastProgressRef.current = progress;
+          onStateUpdate({ uploadProgress: progress });
+        }
+      );
+      message.success(fileManager.messages.uploadSuccess);
+      loadFiles(currentPath, currentPage);
+    } catch (error) {
+      // 取消时后端已通过事件下发 cancelled 态，这里不覆盖、也不当作失败提示
+      if (lastProgressRef.current?.cancelled) {
+        return;
+      }
+      const fallbackError =
+        error instanceof Error ? error.message : String(error);
+      onStateUpdate({
+        uploadProgress: {
+          transferred: 0,
+          total: 0,
+          fileName,
+          completed: true,
+          error: fallbackError,
+        },
+      });
+      throw error;
+    }
+  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.messages.uploadSuccess]);
+
+  const confirmUploadOverwrite = useCallback((remotePath: string) => {
+    return new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: fileManager.messages.uploadOverwriteTitle,
+        content: fileManager.messages.uploadOverwriteDescription.replace('{path}', remotePath),
+        okText: fileManager.messages.uploadOverwriteConfirm,
+        cancelText: app.cancel,
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  }, [app.cancel, fileManager.messages.uploadOverwriteTitle, fileManager.messages.uploadOverwriteDescription, fileManager.messages.uploadOverwriteConfirm]);
+
   // 上传文件
   const handleUpload = useCallback(async () => {
     if (!connection) return;
@@ -108,53 +172,38 @@ export const useFileOperations = (
           ? currentPath + fileName 
           : currentPath + '/' + fileName;
 
-        onStateUpdate({
-          uploadVisible: true,
-          uploadProgress: {
-            transferred: 0,
-            total: 0,
-            fileName,
-            completed: false,
-          },
-        });
-
-        // 用对象包裹记录最后一次进度，绕过 TS 控制流分析（异步回调中的赋值对 catch 不可见）。
-        const lastProgressRef: { current: UploadProgress | null } = { current: null };
-        try {
-          await ApiService.uploadFile(
-            connection.id,
-            selected,
-            remotePath,
-            (progress: UploadProgress) => {
-              lastProgressRef.current = progress;
-              onStateUpdate({ uploadProgress: progress });
-            }
-          );
-          message.success(fileManager.messages.uploadSuccess);
-          loadFiles(currentPath, currentPage);
-        } catch (error) {
-          // 取消时后端已通过事件下发 cancelled 态，这里不覆盖、也不当作失败提示
-          if (lastProgressRef.current?.cancelled) {
+        const pathInfo = await ApiService.checkFileExists(connection.id, remotePath);
+        if (pathInfo.exists) {
+          if (pathInfo.isDir) {
+            Modal.warning({
+              title: fileManager.messages.uploadConflictDirectoryTitle,
+              content: fileManager.messages.uploadConflictDirectoryDescription.replace('{path}', remotePath),
+              okText: app.confirm,
+            });
             return;
           }
-          const fallbackError =
-            error instanceof Error ? error.message : String(error);
-          onStateUpdate({
-            uploadProgress: {
-              transferred: 0,
-              total: 0,
-              fileName,
-              completed: true,
-              error: fallbackError,
-            },
-          });
-          throw error;
+          const confirmed = await confirmUploadOverwrite(remotePath);
+          if (!confirmed) {
+            return;
+          }
         }
+
+        await performFileUpload(selected, remotePath, fileName);
       }
     } catch (error) {
       message.error(`${fileManager.messages.uploadFailed}: ${error}`);
     }
-  }, [connection, currentPath, currentPage, loadFiles, onStateUpdate, fileManager.dialogs.selectFileToUpload, fileManager.messages.uploadSuccess, fileManager.messages.uploadFailed]);
+  }, [
+    connection,
+    currentPath,
+    app.confirm,
+    performFileUpload,
+    confirmUploadOverwrite,
+    fileManager.dialogs.selectFileToUpload,
+    fileManager.messages.uploadFailed,
+    fileManager.messages.uploadConflictDirectoryTitle,
+    fileManager.messages.uploadConflictDirectoryDescription,
+  ]);
 
   const handleUploadClose = useCallback(() => {
     onStateUpdate({

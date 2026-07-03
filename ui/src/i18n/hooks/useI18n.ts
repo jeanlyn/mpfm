@@ -293,6 +293,11 @@ export const useAppI18n = () => {
         uploadDirectoryProgress: t('fileManager.messages.uploadDirectoryProgress'),
         uploadingCurrentFile: t('fileManager.messages.uploadingCurrentFile'),
         uploadDirectoryPartialSuccess: t('fileManager.messages.uploadDirectoryPartialSuccess'),
+        uploadOverwriteTitle: t('fileManager.messages.uploadOverwriteTitle'),
+        uploadOverwriteDescription: t('fileManager.messages.uploadOverwriteDescription'),
+        uploadOverwriteConfirm: t('fileManager.messages.uploadOverwriteConfirm'),
+        uploadConflictDirectoryTitle: t('fileManager.messages.uploadConflictDirectoryTitle'),
+        uploadConflictDirectoryDescription: t('fileManager.messages.uploadConflictDirectoryDescription'),
       },
       table: {
         confirmDelete: t('fileManager.table.confirmDelete'),

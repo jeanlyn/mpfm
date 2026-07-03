@@ -30,6 +30,7 @@ fn main() {
             connection::list_s3_buckets,
             file::list_files,
             file::list_files_paginated,
+            file::check_file_exists,
             file::upload_file,
             file::upload_directory,
             file::cancel_upload,

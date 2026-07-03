@@ -278,6 +278,29 @@ export class ApiService {
     }
   }
 
+  static async checkFileExists(
+    connectionId: string,
+    path: string
+  ): Promise<{ exists: boolean; isDir: boolean }> {
+    if (!isTauriEnvironment()) {
+      return { exists: false, isDir: false };
+    }
+
+    try {
+      const response: ApiResponse<{ exists: boolean; isDir: boolean }> = await invoke(
+        'check_file_exists',
+        { connectionId, path }
+      );
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '检查文件是否存在失败');
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`检查文件是否存在失败: ${error}`);
+    }
+  }
+
   static async uploadFile(
     connectionId: string,
     localPath: string,

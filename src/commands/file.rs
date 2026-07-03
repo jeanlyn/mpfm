@@ -736,6 +736,35 @@ pub fn copy_text_to_clipboard(app: tauri::AppHandle, text: String) -> ApiRespons
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathExistsInfo {
+    exists: bool,
+    is_dir: bool,
+}
+
+#[command]
+pub async fn check_file_exists(connection_id: String, path: String) -> ApiResponse<PathExistsInfo> {
+    match get_connection_config(&connection_id) {
+        Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
+            Ok(protocol) => match protocol.create_operator() {
+                Ok(operator) => {
+                    let file_manager = FileManager::new(operator);
+                    match file_manager.path_exists(&path).await {
+                        Ok((exists, is_dir)) => {
+                            ApiResponse::success(PathExistsInfo { exists, is_dir })
+                        }
+                        Err(e) => ApiResponse::error(format!("检查文件是否存在失败: {}", e)),
+                    }
+                }
+                Err(e) => ApiResponse::error(format!("创建操作符失败: {}", e)),
+            },
+            Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
+        },
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
 #[command]
 pub async fn delete_file(connection_id: String, path: String) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {

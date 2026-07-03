@@ -355,6 +355,16 @@ impl FileManager {
         Ok(result)
     }
 
+    /// 检查远程路径是否存在，返回 (是否存在, 是否为目录)
+    pub async fn path_exists(&self, path: &str) -> Result<(bool, bool)> {
+        let path = normalize_path(path);
+        if !self.operator.exists(&path).await? {
+            return Ok((false, false));
+        }
+        let metadata = self.operator.stat(&path).await?;
+        Ok((true, metadata.is_dir()))
+    }
+
     /// 下载文件
     pub async fn download(&self, remote_path: &str, local_path: &Path) -> Result<()> {
         debug!("下载文件: {} -> {}", remote_path, local_path.display());
