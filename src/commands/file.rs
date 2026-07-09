@@ -3,6 +3,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use log::{debug, warn};
+use opendal::Operator;
+
 use crate::core::file::{copy_remote_file_between_operators, FileManager};
 use crate::core::{Error, Result};
 use crate::protocols::create_protocol;
@@ -1100,10 +1103,17 @@ pub async fn copy_files_between_connections(
     source_paths: Vec<String>,
     target_connection_id: String,
     target_base_path: String,
-) -> ApiResponse<usize> {
+    overwrite: Option<bool>,
+) -> ApiResponse<CopyResultSummary> {
     if source_paths.is_empty() {
         return ApiResponse::error("未指定要复制的文件".to_string());
     }
+
+    if source_connection_id == target_connection_id {
+        return ApiResponse::error("源连接与目标连接相同，无法跨连接复制".to_string());
+    }
+
+    let overwrite = overwrite.unwrap_or(false);
 
     let src_operator = match create_operator_for_connection(&source_connection_id) {
         Ok(op) => op,
@@ -1127,10 +1137,15 @@ pub async fn copy_files_between_connections(
         return ApiResponse::error("没有可复制的文件".to_string());
     }
 
+    // 预先创建目标侧所需的父目录（FTP / 文件系统类后端写入嵌套文件时必需）
+    ensure_remote_parent_dirs(&dst_operator, copy_items.iter().map(|(_, d)| d.as_str()))
+        .await;
+
     let upload_id = generate_upload_id();
     let cancel_flag = register_upload_cancel_token(&upload_id);
     let file_count = copy_items.len();
     let mut copied_count = 0usize;
+    let mut failed_count = 0usize;
 
     for (index, (src_path, dst_path)) in copy_items.iter().enumerate() {
         if cancel_flag.load(Ordering::Relaxed) {
@@ -1146,7 +1161,7 @@ pub async fn copy_files_between_connections(
                     completed: true,
                     error: None,
                     uploaded_count: Some(copied_count),
-                    failed_count: None,
+                    failed_count: Some(failed_count),
                     upload_id: Some(upload_id.clone()),
                     cancelled: Some(true),
                 },
@@ -1162,6 +1177,7 @@ pub async fn copy_files_between_connections(
             &dst_operator,
             src_path,
             dst_path,
+            overwrite,
             move |transferred, total, file_name| {
                 emit_upload_progress(
                     &app_for_progress,
@@ -1189,6 +1205,7 @@ pub async fn copy_files_between_connections(
                 copied_count += 1;
             }
             Err(e) if e.is_cancelled() => {
+                failed_count += 1;
                 remove_upload_cancel_token(&upload_id);
                 emit_upload_progress(
                     &app,
@@ -1201,15 +1218,24 @@ pub async fn copy_files_between_connections(
                         completed: true,
                         error: None,
                         uploaded_count: Some(copied_count),
-                        failed_count: None,
+                        failed_count: Some(failed_count),
                         upload_id: Some(upload_id),
                         cancelled: Some(true),
                     },
                 );
                 return ApiResponse::error("复制已取消".to_string());
             }
+            // 单文件失败容错：记录失败后继续处理剩余文件，与目录上传行为一致
             Err(e) => {
-                remove_upload_cancel_token(&upload_id);
+                failed_count += 1;
+                warn!(
+                    "复制文件失败 ({}/{}): {} -> {} : {}",
+                    index + 1,
+                    file_count,
+                    src_path,
+                    dst_path,
+                    e
+                );
                 emit_upload_progress(
                     &app,
                     UploadProgressPayload {
@@ -1218,15 +1244,14 @@ pub async fn copy_files_between_connections(
                         file_name: remote_display_name(src_path),
                         file_index: Some(index),
                         file_count: Some(file_count),
-                        completed: true,
-                        error: Some(format!("复制文件失败: {}", e)),
+                        completed: false,
+                        error: Some(e.to_string()),
                         uploaded_count: Some(copied_count),
-                        failed_count: Some(file_count - copied_count),
-                        upload_id: Some(upload_id),
+                        failed_count: Some(failed_count),
+                        upload_id: Some(upload_id.clone()),
                         cancelled: None,
                     },
                 );
-                return ApiResponse::error(format!("复制文件失败: {}", e));
             }
         }
     }
@@ -1243,12 +1268,48 @@ pub async fn copy_files_between_connections(
             completed: true,
             error: None,
             uploaded_count: Some(copied_count),
-            failed_count: None,
+            failed_count: Some(failed_count),
             upload_id: Some(upload_id),
             cancelled: None,
         },
     );
-    ApiResponse::success(copied_count)
+    ApiResponse::success(CopyResultSummary {
+        copied: copied_count,
+        failed: failed_count,
+        total: file_count,
+    })
+}
+
+/// 跨连接复制结果摘要
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct CopyResultSummary {
+    pub copied: usize,
+    pub failed: usize,
+    pub total: usize,
+}
+
+/// 为一批目标路径提取并创建所需的父目录。
+///
+/// 对 S3 等对象存储为幂等无副作用操作；对 FTP / 文件系统类后端则是
+/// 写入嵌套文件所必需的前置步骤。创建失败仅记录日志，不阻断主流程。
+async fn ensure_remote_parent_dirs<'a, I>(operator: &Operator, paths: I)
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let mut remote_dirs = std::collections::HashSet::new();
+    for dst_path in paths {
+        if let Some((parent, _)) = dst_path.rsplit_once('/') {
+            if !parent.is_empty() && parent != "/" {
+                remote_dirs.insert(format!("{}/", parent));
+            }
+        }
+    }
+    for remote_dir in remote_dirs {
+        let trimmed = remote_dir.trim_start_matches('/');
+        if let Err(e) = operator.create_dir(trimmed).await {
+            debug!("创建远程目录失败 {} (可忽略): {}", remote_dir, e);
+        }
+    }
 }
 
 fn remote_display_name(path: &str) -> String {

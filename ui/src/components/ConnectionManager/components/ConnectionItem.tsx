@@ -53,7 +53,7 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
   onBucketSwitch,
   onBucketCreate,
 }) => {
-  const { connection: i18n, app } = useAppI18n();
+  const { connection: i18n, app, fileManager } = useAppI18n();
   const { s3Buckets: bucketI18n } = i18n;
   const [createOpen, setCreateOpen] = useState(false);
   const [bucketInput, setBucketInput] = useState('');
@@ -214,7 +214,11 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
 
         <div className="connection-item__body">
           <Tooltip
-            title={`${connection.name} (${connection.protocol_type.toUpperCase()})`}
+            title={
+              isFileDropTarget
+                ? fileManager.messages.dragFileToConnection
+                : `${connection.name} (${connection.protocol_type.toUpperCase()})`
+            }
             placement="top"
           >
             <span className="connection-item__name">{connection.name}</span>

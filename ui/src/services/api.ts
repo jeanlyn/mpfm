@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Connection, FileInfo, PaginatedFileList, ApiResponse } from '../types';
+import { Connection, FileInfo, PaginatedFileList, ApiResponse, CopyResultSummary } from '../types';
 import { listenUploadProgress, UploadProgress } from '../utils/uploadProgress';
 
 // 检测是否在 Tauri 环境中
@@ -392,11 +392,12 @@ export class ApiService {
     sourcePaths: string[],
     targetConnectionId: string,
     targetBasePath: string,
+    overwrite: boolean,
     onProgress?: (progress: UploadProgress) => void
-  ): Promise<number> {
+  ): Promise<CopyResultSummary> {
     if (!isTauriEnvironment()) {
       console.warn('Not in Tauri environment, simulating cross-connection copy');
-      return Promise.resolve(sourcePaths.length);
+      return Promise.resolve({ copied: sourcePaths.length, failed: 0, total: sourcePaths.length });
     }
 
     const unlisten = onProgress
@@ -404,19 +405,21 @@ export class ApiService {
       : null;
 
     try {
-      const response: ApiResponse<number> = await invoke('copy_files_between_connections', {
+      const response: ApiResponse<CopyResultSummary> = await invoke('copy_files_between_connections', {
         sourceConnectionId,
         sourcePaths,
         targetConnectionId,
         targetBasePath,
+        overwrite,
       });
       if (!response.success) {
         throw new Error(response.error || '跨连接复制失败');
       }
-      return response.data ?? 0;
+      return response.data ?? { copied: 0, failed: 0, total: 0 };
     } catch (error) {
-      console.error('Tauri invoke error:', error);
-      throw new Error(`跨连接复制失败: ${error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Tauri invoke error:', message);
+      throw new Error(message);
     } finally {
       if (unlisten) {
         await unlisten();

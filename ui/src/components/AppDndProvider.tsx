@@ -9,7 +9,6 @@ import {
   PointerSensor,
   KeyboardSensor,
   type DragStartEvent,
-  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
@@ -44,7 +43,7 @@ export const AppDndProvider: React.FC<AppDndProviderProps> = ({
   onRemoteFileDrop,
   onOpenTab,
 }) => {
-  const { directory } = useAppI18n();
+  const { directory, fileManager } = useAppI18n();
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null);
   const [activeFiles, setActiveFiles] = useState<FileInfo[]>([]);
 
@@ -80,10 +79,6 @@ export const AppDndProvider: React.FC<AppDndProviderProps> = ({
       setActiveConnection(null);
       setActiveFiles(fileData.files);
     }
-  }, []);
-
-  const handleDragOver = useCallback((_event: DragOverEvent) => {
-    // Visual feedback handled by droppable components
   }, []);
 
   const handleConnectionSortEnd = useCallback(
@@ -179,7 +174,6 @@ export const AppDndProvider: React.FC<AppDndProviderProps> = ({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       {children}
@@ -200,7 +194,7 @@ export const AppDndProvider: React.FC<AppDndProviderProps> = ({
             <span>
               {activeFiles.length === 1
                 ? activeFiles[0].name
-                : `${activeFiles.length} items`}
+                : fileManager.messages.itemsCount.replace('{count}', String(activeFiles.length))}
             </span>
           </div>
         ) : null}

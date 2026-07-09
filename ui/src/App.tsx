@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout, message } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import TabbedFileManager from './components/TabbedFileManager';
 import FloatingSettingsButton from './i18n/components/FloatingSettingsButton';
 import UploadProgressModal from './components/FileManager/UploadProgressModal';
-import { Connection } from './types';
+import { Connection, FileInfo } from './types';
 import { ApiService } from './services/api';
 import { isSameConnection } from './utils/connection';
 import { useAppI18n } from './i18n/hooks/useI18n';
@@ -30,7 +30,6 @@ const AppContent: React.FC = () => {
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
-  const [openTabRequest, setOpenTabRequest] = useState<Connection | null>(null);
   const { connection } = useAppI18n();
 
   useWindowTitle();
@@ -62,7 +61,7 @@ const AppContent: React.FC = () => {
     }
   }, [connection.messages.refreshFailed, connection.messages.refreshSuccess]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     refreshConnections();
   }, [refreshConnections]);
 
@@ -70,7 +69,6 @@ const AppContent: React.FC = () => {
     setCurrentConnection((prev) =>
       isSameConnection(prev, conn) ? prev : conn
     );
-    setOpenTabRequest(conn);
   }, []);
 
   const handleConnectionsChange = () => {
@@ -78,14 +76,15 @@ const AppContent: React.FC = () => {
   };
 
   const handleRemoteFileDrop = useCallback(
-    (sourceConnectionId: string, files: import('./types').FileInfo[], targetConnection: Connection) => {
+    (sourceConnectionId: string, files: FileInfo[], targetConnection: Connection) => {
       void transferFiles(sourceConnectionId, files, targetConnection);
     },
     [transferFiles]
   );
 
   const handleOpenTab = useCallback((conn: Connection) => {
-    setOpenTabRequest(conn);
+    // 拖拽落到未打开的连接时，激活该连接以驱动 TabbedFileManager 打开标签页。
+    // 与点击走同一条 selectedConnection 路径，避免双重 openTab 触发。
     setCurrentConnection((prev) => (isSameConnection(prev, conn) ? prev : conn));
   }, []);
 
@@ -112,8 +111,6 @@ const AppContent: React.FC = () => {
           <TabbedFileManager
             selectedConnection={currentConnection}
             onConnectionSelect={handleConnectionSelect}
-            openTabRequest={openTabRequest}
-            onOpenTabRequestHandled={() => setOpenTabRequest(null)}
           />
         </Layout>
       </AppDndProvider>

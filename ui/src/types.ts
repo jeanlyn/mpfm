@@ -27,3 +27,10 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+/// 跨连接复制结果摘要
+export interface CopyResultSummary {
+  copied: number;
+  failed: number;
+  total: number;
+}

@@ -14,8 +14,6 @@ const { Title } = Typography;
 interface TabbedFileManagerProps {
   selectedConnection: Connection | null;
   onConnectionSelect: (connection: Connection) => void;
-  openTabRequest?: Connection | null;
-  onOpenTabRequestHandled?: () => void;
 }
 
 /**
@@ -25,8 +23,6 @@ interface TabbedFileManagerProps {
 const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
   selectedConnection,
   onConnectionSelect,
-  openTabRequest,
-  onOpenTabRequestHandled,
 }) => {
   const {
     tabs,
@@ -87,13 +83,6 @@ const TabbedFileManager: React.FC<TabbedFileManagerProps> = ({
       openTab(selectedConnection);
     }
   }, [selectedConnection, openTab]);
-
-  React.useEffect(() => {
-    if (openTabRequest) {
-      openTab(openTabRequest);
-      onOpenTabRequestHandled?.();
-    }
-  }, [openTabRequest, openTab, onOpenTabRequestHandled]);
 
   // 如果没有选择连接且没有打开的Tab，显示欢迎界面
   if (!selectedConnection && tabs.length === 0) {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Modal, message } from 'antd';
-import { Connection, FileInfo } from '../types';
+import { Connection, FileInfo, CopyResultSummary } from '../types';
 import { ApiService } from '../services/api';
 import { useAppI18n } from '../i18n/hooks/useI18n';
 import { useConnectionPathRegistry } from '../contexts/ConnectionPathRegistry';
@@ -41,12 +41,16 @@ export const useCrossConnectionTransfer = (handlers: TransferStateHandlers) => {
     ]
   );
 
+  /// 检查目标侧冲突，对已存在的文件询问是否覆盖、对同名目录直接拒绝。
+  /// 返回 { canProceed, overwrite }：canProceed 为 false 表示用户已中止，
+  /// overwrite 表示本次复制是否应按覆盖模式执行。
   const checkTargetConflicts = useCallback(
     async (
       targetConnectionId: string,
       targetBasePath: string,
       files: FileInfo[]
-    ): Promise<boolean> => {
+    ): Promise<{ canProceed: boolean; overwrite: boolean }> => {
+      let overwrite = false;
       for (const file of files) {
         const remotePath = file.is_dir
           ? buildRemotePath(
@@ -69,15 +73,16 @@ export const useCrossConnectionTransfer = (handlers: TransferStateHandlers) => {
             ),
             okText: app.confirm,
           });
-          return false;
+          return { canProceed: false, overwrite: false };
         }
 
         const confirmed = await confirmOverwrite(remotePath);
         if (!confirmed) {
-          return false;
+          return { canProceed: false, overwrite: false };
         }
+        overwrite = true;
       }
-      return true;
+      return { canProceed: true, overwrite };
     },
     [
       app.confirm,
@@ -97,10 +102,16 @@ export const useCrossConnectionTransfer = (handlers: TransferStateHandlers) => {
         return;
       }
 
+      // 同连接自复制短路：源与目标是同一连接时直接忽略
+      if (sourceConnectionId === targetConnection.id) {
+        message.info(fileManager.messages.copySameConnectionIgnored);
+        return;
+      }
+
       const targetBasePath = getPath(targetConnection.id);
       const sourcePaths = files.map((f) => f.path);
 
-      const canProceed = await checkTargetConflicts(
+      const { canProceed, overwrite } = await checkTargetConflicts(
         targetConnection.id,
         targetBasePath,
         files
@@ -123,27 +134,35 @@ export const useCrossConnectionTransfer = (handlers: TransferStateHandlers) => {
       const lastProgressRef: { current: UploadProgress | null } = { current: null };
 
       try {
-        const count = await ApiService.copyFilesBetweenConnections(
+        const result: CopyResultSummary = await ApiService.copyFilesBetweenConnections(
           sourceConnectionId,
           sourcePaths,
           targetConnection.id,
           targetBasePath,
+          overwrite,
           (progress) => {
             lastProgressRef.current = progress;
             handlers.setUploadProgress(progress);
           }
         );
 
-        message.success(
-          fileManager.messages.copySuccess.replace('{count}', count.toString())
-        );
+        if (result.failed === 0) {
+          message.success(
+            fileManager.messages.copySuccess.replace('{count}', String(result.copied))
+          );
+        } else {
+          message.warning(
+            fileManager.messages.copyPartial
+              .replace('{copied}', String(result.copied))
+              .replace('{failed}', String(result.failed))
+          );
+        }
         refreshConnection(targetConnection.id);
       } catch (error) {
         if (lastProgressRef.current?.cancelled) {
           return;
         }
-        const fallbackError =
-          error instanceof Error ? error.message : String(error);
+        const fallbackError = error instanceof Error ? error.message : String(error);
         handlers.setUploadProgress({
           transferred: 0,
           total: 0,
@@ -158,7 +177,9 @@ export const useCrossConnectionTransfer = (handlers: TransferStateHandlers) => {
       checkTargetConflicts,
       fileManager.actions.copy,
       fileManager.messages.copyFailed,
+      fileManager.messages.copySameConnectionIgnored,
       fileManager.messages.copySuccess,
+      fileManager.messages.copyPartial,
       getPath,
       handlers,
       refreshConnection,

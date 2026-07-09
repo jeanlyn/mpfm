@@ -818,7 +818,7 @@ impl FileManager {
 
             let metadata = self.operator.stat(&normalized).await?;
             if metadata.is_dir() {
-                let dir_name = remote_basename(source_path);
+                let dir_name = remote_basename(source_path)?;
                 let target_dir_root = join_remote_path_for_copy(target_base, &dir_name);
                 let files = self.list_files_recursive(source_path).await?;
                 for file_path in files {
@@ -827,7 +827,7 @@ impl FileManager {
                     items.push((file_path, dst));
                 }
             } else {
-                let file_name = remote_basename(source_path);
+                let file_name = remote_basename(source_path)?;
                 let dst = join_remote_path_for_copy(target_base, &file_name);
                 items.push((source_path.clone(), dst));
             }
@@ -837,19 +837,43 @@ impl FileManager {
     }
 }
 
+/// 跨连接复制的汇总结果：成功/失败计数，便于上层区分"全部成功"与"部分成功"
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct CopyResult {
+    /// 成功复制的文件数
+    pub copied: usize,
+    /// 复制失败的文件数
+    pub failed: usize,
+    /// 文件总数
+    pub total: usize,
+}
+
+impl CopyResult {
+    /// 是否全部复制成功
+    pub fn is_full_success(&self) -> bool {
+        self.failed == 0
+    }
+}
+
 /// 跨 Operator 流式复制单个远程文件
+///
+/// `overwrite` 为 true 时，若目标已存在则先删除再写入，使前端的覆盖确认与后端语义一致。
 pub async fn copy_remote_file_between_operators<F>(
     src: &Operator,
     dst: &Operator,
     src_path: &str,
     dst_path: &str,
+    overwrite: bool,
     mut progress_callback: F,
     cancel_flag: Option<Arc<AtomicBool>>,
 ) -> Result<()>
 where
     F: FnMut(u64, u64, &str) + Send,
 {
-    debug!("跨连接复制文件: {} -> {}", src_path, dst_path);
+    debug!(
+        "跨连接复制文件 (overwrite={}): {} -> {}",
+        overwrite, src_path, dst_path
+    );
 
     let normalized_src = normalize_path(src_path);
     let normalized_dst = normalize_path(dst_path);
@@ -862,10 +886,14 @@ where
     }
 
     if dst.exists(&normalized_dst).await? {
-        return Err(Error::new_config(&format!(
-            "目标路径已存在: {}",
-            dst_path
-        )));
+        if !overwrite {
+            return Err(Error::new_config(&format!(
+                "目标路径已存在: {}",
+                dst_path
+            )));
+        }
+        debug!("目标已存在，覆盖写入前删除: {}", dst_path);
+        dst.delete(&normalized_dst).await?;
     }
 
     let metadata = src.stat(&normalized_src).await?;
@@ -877,8 +905,16 @@ where
     }
 
     let total_size = metadata.content_length();
-    let file_name = remote_basename(src_path);
+    let file_name = remote_basename(src_path)?;
     progress_callback(0, total_size, &file_name);
+
+    // 空文件无需读写，直接关闭 writer 即可完成
+    if total_size == 0 {
+        let mut writer = dst.writer(&normalized_dst).await?;
+        writer.close().await?;
+        info!("跨连接复制成功(空文件): {} -> {}", src_path, dst_path);
+        return Ok(());
+    }
 
     let reader = src.reader(&normalized_src).await?;
     let mut writer = dst.writer(&normalized_dst).await?;
@@ -894,7 +930,7 @@ where
             if buffer.is_empty() {
                 break;
             }
-            writer.write(buffer.to_bytes().to_vec()).await?;
+            writer.write(buffer.to_bytes()).await?;
             transferred += buffer.len() as u64;
             progress_callback(transferred, total_size, &file_name);
         }
@@ -980,12 +1016,17 @@ fn collect_directory_upload_items(
     Ok(items)
 }
 
-fn remote_basename(path: &str) -> String {
+/// 取路径最后一段名称（basename）。对根路径返回错误，避免在目标侧
+/// 产生名为 "root" 的歧义目录。
+fn remote_basename(path: &str) -> Result<String> {
     let p = path.trim_end_matches('/');
     if p.is_empty() || p == "/" {
-        return "root".to_string();
+        return Err(Error::new_config(&format!(
+            "无法从根路径提取文件名: {}",
+            path
+        )));
     }
-    p.rsplit('/').next().unwrap_or(p).to_string()
+    Ok(p.rsplit('/').next().unwrap_or(p).to_string())
 }
 
 fn join_remote_path_for_copy(base: &str, rel: &str) -> String {
@@ -998,31 +1039,28 @@ fn join_remote_path_for_copy(base: &str, rel: &str) -> String {
     }
 }
 
+/// 计算文件相对目录的路径。统一去除前导斜杠后再做前缀判断，
+/// 兼容"目录带/不带前导斜杠"的输入差异。
+///
+/// 前缀匹配要求在目录名后必须有路径分隔符，避免 `/dir1` 误匹配 `/dir10`。
 fn relative_path_from_dir(dir_path: &str, file_path: &str) -> Result<String> {
-    let dir = dir_path.trim_end_matches('/');
-    let file = file_path.trim_end_matches('/');
+    let dir = dir_path.trim_end_matches('/').trim_start_matches('/');
+    let file = file_path.trim_end_matches('/').trim_start_matches('/');
 
-    let rel = if file.starts_with(dir) {
-        file.strip_prefix(dir)
-            .unwrap_or(file)
-            .trim_start_matches('/')
+    // 要求 file == dir（目录自身）或 file 以 "dir/" 开头（目录内文件），
+    // 否则会出现 /dir1 错误匹配 /dir10 的情况。
+    if file == dir {
+        return Ok(String::new());
+    }
+    let prefix_with_sep = format!("{}/", dir);
+    if let Some(rest) = file.strip_prefix(&prefix_with_sep) {
+        Ok(rest.to_string())
     } else {
-        let dir_norm = dir.trim_start_matches('/');
-        let file_norm = file.trim_start_matches('/');
-        if file_norm.starts_with(dir_norm) {
-            file_norm
-                .strip_prefix(dir_norm)
-                .unwrap_or(file_norm)
-                .trim_start_matches('/')
-        } else {
-            return Err(Error::new_config(&format!(
-                "文件 {} 不在目录 {} 下",
-                file_path, dir_path
-            )));
-        }
-    };
-
-    Ok(rel.to_string())
+        Err(Error::new_config(&format!(
+            "文件 {} 不在目录 {} 下",
+            file_path, dir_path
+        )))
+    }
 }
 
 /// 规范化路径，处理开头的斜杠
@@ -1251,5 +1289,185 @@ mod tests {
         assert_eq!(normalize_path("test/path"), "test/path");
         assert_eq!(normalize_path("/"), "");
         assert_eq!(normalize_path(""), "");
+    }
+
+    #[test]
+    fn test_remote_basename() {
+        assert_eq!(remote_basename("/a/b/file.txt").unwrap(), "file.txt");
+        assert_eq!(remote_basename("/dir1").unwrap(), "dir1");
+        assert_eq!(remote_basename("dir1/").unwrap(), "dir1");
+        assert_eq!(remote_basename("single").unwrap(), "single");
+        // 根路径不应产生名为 "root" 的歧义结果
+        assert!(remote_basename("/").is_err());
+        assert!(remote_basename("").is_err());
+        assert!(remote_basename("//").is_err());
+    }
+
+    #[test]
+    fn test_join_remote_path_for_copy() {
+        assert_eq!(join_remote_path_for_copy("/base", "file.txt"), "/base/file.txt");
+        assert_eq!(join_remote_path_for_copy("/base/", "sub/x.txt"), "/base/sub/x.txt");
+        assert_eq!(join_remote_path_for_copy("/", "file.txt"), "/file.txt");
+        assert_eq!(join_remote_path_for_copy("", "file.txt"), "/file.txt");
+        // 相对路径前导斜杠应被去除
+        assert_eq!(join_remote_path_for_copy("/base", "/abs/rel.txt"), "/base/abs/rel.txt");
+    }
+
+    #[test]
+    fn test_relative_path_from_dir() {
+        // 标准情况
+        assert_eq!(
+            relative_path_from_dir("/dir1", "/dir1/file3.txt").unwrap(),
+            "file3.txt"
+        );
+        // 嵌套子目录
+        assert_eq!(
+            relative_path_from_dir("/dir1", "/dir1/subdir1/file4.txt").unwrap(),
+            "subdir1/file4.txt"
+        );
+        // 前导斜杠不一致（带/不带）
+        assert_eq!(
+            relative_path_from_dir("dir1", "/dir1/subdir1/file4.txt").unwrap(),
+            "subdir1/file4.txt"
+        );
+        // 文件不在目录下
+        assert!(relative_path_from_dir("/dir1", "/dir2/file5.txt").is_err());
+        // 仅前缀同名（dir1 vs dir10）不应误判
+        assert!(relative_path_from_dir("/dir1", "/dir10/file.txt").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_copy_remote_file_between_operators_basic() {
+        let (src, _src_temp) = create_test_operator().await;
+        let (dst, _dst_temp) = create_test_operator().await;
+        setup_test_files(&src).await.unwrap();
+
+        let mut calls = 0u32;
+        copy_remote_file_between_operators(
+            &src,
+            &dst,
+            "/file1.txt",
+            "/file1.txt",
+            false,
+            |_, _, _| {
+                calls += 1;
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(calls > 0, "进度回调应至少触发一次");
+        let content = dst.read("file1.txt").await.unwrap();
+        assert_eq!(content.to_vec(), b"content of file1");
+    }
+
+    #[tokio::test]
+    async fn test_copy_remote_file_between_operators_existing_rejected() {
+        let (src, _src_temp) = create_test_operator().await;
+        let (dst, _dst_temp) = create_test_operator().await;
+        setup_test_files(&src).await.unwrap();
+        setup_test_files(&dst).await.unwrap(); // 目标侧已存在 file1.txt
+
+        let result = copy_remote_file_between_operators(
+            &src,
+            &dst,
+            "/file1.txt",
+            "/file1.txt",
+            false, // 不覆盖
+            |_, _, _| {},
+            None,
+        )
+        .await;
+
+        assert!(result.is_err(), "不覆盖时目标已存在应报错");
+    }
+
+    #[tokio::test]
+    async fn test_copy_remote_file_between_operators_overwrite() {
+        let (src, _src_temp) = create_test_operator().await;
+        let (dst, _dst_temp) = create_test_operator().await;
+        setup_test_files(&src).await.unwrap();
+        // 目标侧写入一个旧版本
+        dst.write("file1.txt", "old content").await.unwrap();
+
+        copy_remote_file_between_operators(
+            &src,
+            &dst,
+            "/file1.txt",
+            "/file1.txt",
+            true, // 覆盖
+            |_, _, _| {},
+            None,
+        )
+        .await
+        .unwrap();
+
+        let content = dst.read("file1.txt").await.unwrap();
+        assert_eq!(
+            content.to_vec(),
+            b"content of file1",
+            "覆盖后应为源文件内容"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy_remote_file_empty_file() {
+        let (src, _src_temp) = create_test_operator().await;
+        let (dst, _dst_temp) = create_test_operator().await;
+        // 写入空文件
+        src.write("empty.txt", "").await.unwrap();
+
+        copy_remote_file_between_operators(
+            &src,
+            &dst,
+            "/empty.txt",
+            "/empty.txt",
+            false,
+            |_, _, _| {},
+            None,
+        )
+        .await
+        .unwrap();
+
+        let meta = dst.stat("empty.txt").await.unwrap();
+        assert_eq!(meta.content_length(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_collect_remote_copy_items_file() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        let items = file_manager
+            .collect_remote_copy_items(&["/file1.txt".to_string()], "/target")
+            .await
+            .unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].0, "/file1.txt");
+        assert_eq!(items[0].1, "/target/file1.txt");
+    }
+
+    #[tokio::test]
+    async fn test_collect_remote_copy_items_directory() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+        setup_test_files(&file_manager.operator).await.unwrap();
+
+        let items = file_manager
+            .collect_remote_copy_items(&["/dir1".to_string()], "/target")
+            .await
+            .unwrap();
+
+        // dir1 包含 file3.txt 与 subdir1/file4.txt
+        assert_eq!(items.len(), 2);
+        let mut dsts: Vec<_> = items.iter().map(|(_, d)| d.as_str()).collect();
+        dsts.sort();
+        assert_eq!(
+            dsts,
+            vec!["/target/dir1/file3.txt", "/target/dir1/subdir1/file4.txt"]
+        );
     }
 }
