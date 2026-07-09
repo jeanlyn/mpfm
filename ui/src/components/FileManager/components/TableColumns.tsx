@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { Button, Popconfirm, Checkbox, Dropdown, Space } from 'antd';
 import {
-  FolderOutlined,
-  FileOutlined,
   DownloadOutlined,
   DeleteOutlined,
   EyeOutlined,
@@ -15,8 +13,10 @@ import { isPreviewable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { formatFileSize, formatModifiedTime } from '../utils';
 import { COLUMN_WIDTHS, ACTIONS_COLUMN_MIN_WIDTH } from '../constants';
+import { FileNameCell } from './FileNameCell';
 
 interface TableColumnsProps {
+  connectionId: string;
   files: FileInfo[];
   searchResults: FileInfo[];
   isSearchMode: boolean;
@@ -34,6 +34,7 @@ interface TableColumnsProps {
  * 表格列定义组件
  */
 export const useTableColumns = ({
+  connectionId,
   files,
   searchResults,
   isSearchMode,
@@ -78,20 +79,12 @@ export const useTableColumns = ({
         showTitle: false,
       },
       render: (text: string, record: FileInfo) => (
-        <Space>
-          {record.is_dir ? (
-            <FolderOutlined style={{ color: '#1890ff' }} />
-          ) : (
-            <FileOutlined style={{ color: '#666' }} />
-          )}
-          <span 
-            style={{ cursor: 'pointer' }}
-            onDoubleClick={() => onFileDoubleClick(record)}
-            title={text} // 鼠标悬停显示完整文件名
-          >
-            {text}
-          </span>
-        </Space>
+        <FileNameCell
+          connectionId={connectionId}
+          text={text}
+          record={record}
+          onDoubleClick={onFileDoubleClick}
+        />
       ),
     },
     {
@@ -197,6 +190,7 @@ export const useTableColumns = ({
       ),
     },
   ], [
+    connectionId,
     fileSelection.hasSelection,
     fileSelection.selectedFiles,
     isAllCurrentPageSelected,

@@ -39,6 +39,7 @@ fn main() {
             file::build_download_curl_command,
             file::copy_text_to_clipboard,
             file::batch_download_files,
+            file::copy_files_between_connections,
             file::delete_file,
             file::create_directory,
             file::get_directory_count,

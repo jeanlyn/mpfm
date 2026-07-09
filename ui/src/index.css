@@ -22,3 +22,28 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+.dnd-overlay {
+  padding: 8px 12px;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #d9d9d9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.dnd-overlay--connection {
+  min-width: 200px;
+}
+
+.dnd-overlay__icon {
+  color: #1890ff;
+}
+
+.dnd-overlay__handle {
+  color: #999;
+  margin-left: auto;
+}

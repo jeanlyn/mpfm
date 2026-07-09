@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { message } from 'antd';
-import { PlusOutlined, DragOutlined } from '@ant-design/icons';
-import { DndContext, closestCenter, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { PlusOutlined } from '@ant-design/icons';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 // 类型定义
@@ -11,11 +10,11 @@ import { ConnectionManagerProps, MODAL_TYPES, DirectoryItem } from './types';
 import { useDirectories } from './hooks/useDirectories';
 import { useDirectoryModal } from './hooks/useDirectoryModal';
 import { useConnectionModal } from './hooks/useConnectionModal';
-import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useConnectionOperations } from './hooks/useConnectionOperations';
 import { useConnectionShare } from './hooks/useConnectionShare';
 import { useS3Buckets } from './hooks/useS3Buckets';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
+import { registerConnectionDndBridge } from '../../dnd/types';
 
 // 组件
 import { Sidebar } from './components/Sidebar';
@@ -25,9 +24,6 @@ import { ConnectionModal } from './components/ConnectionModal';
 import { DirectoryModal } from './components/DirectoryModal';
 import { ConnectionShareModal } from './components/ConnectionShareModal';
 import { ConnectionImportModal } from './components/ConnectionImportModal';
-
-// 工具函数
-import { getConnectionIcon } from './utils.tsx';
 
 /**
  * 连接管理器主组件
@@ -69,15 +65,6 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     openModal,
     closeModal,
   } = useConnectionModal(directories);
-
-  // 拖拽功能
-  const {
-    activeConnection,
-    sensors,
-    handleDragStart,
-    handleDragOver,
-    handleDragEnd,
-  } = useDragAndDrop(connections, directories, saveDirectories);
 
   // 连接操作
   const {
@@ -154,16 +141,14 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     }
   };
 
-  // 拖拽动画配置
-  const dropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: {
-        active: {
-          opacity: '0.5',
-        },
-      },
-    }),
-  };
+  useEffect(() => {
+    registerConnectionDndBridge({
+      connections,
+      directories,
+      saveDirectories,
+    });
+    return () => registerConnectionDndBridge(null);
+  }, [connections, directories, saveDirectories]);
 
   // 连接列表变化时同步目录配置
   useEffect(() => {
@@ -261,49 +246,20 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
 
   return (
     <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
+      <Sidebar
+        collapsed={collapsed}
+        connections={connections}
+        currentConnection={currentConnection}
+        onConnectionSelect={onConnectionSelect}
+        onConnectionsChange={onConnectionsChange}
+        onRefreshConnections={onRefreshConnections}
+        onToggleCollapse={() => setCollapsed(!collapsed)}
+        onAddConnection={() => openModal(MODAL_TYPES.ADD)}
+        onImportConnections={openImportModal}
+        onExportAllConnections={handleExportAll}
       >
-        <Sidebar
-          collapsed={collapsed}
-          connections={connections}
-          currentConnection={currentConnection}
-          onConnectionSelect={onConnectionSelect}
-          onConnectionsChange={onConnectionsChange}
-          onRefreshConnections={onRefreshConnections}
-          onToggleCollapse={() => setCollapsed(!collapsed)}
-          onAddConnection={() => openModal(MODAL_TYPES.ADD)}
-          onImportConnections={openImportModal}
-          onExportAllConnections={handleExportAll}
-        >
-          {renderExpandedContent()}
-        </Sidebar>
-
-        {/* 拖拽覆盖层 */}
-        <DragOverlay dropAnimation={dropAnimation}>
-          {activeConnection ? (
-            <div style={{
-              padding: '8px 12px',
-              backgroundColor: '#fff',
-              borderRadius: '6px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              border: '1px solid #d9d9d9',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              minWidth: '200px',
-            }}>
-              {getConnectionIcon(activeConnection.protocol_type)}
-              <span style={{ fontWeight: 'medium' }}>{activeConnection.name}</span>
-              <DragOutlined style={{ color: '#999', marginLeft: 'auto' }} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        {renderExpandedContent()}
+      </Sidebar>
 
       {/* 连接操作模态框 */}
       <ConnectionModal

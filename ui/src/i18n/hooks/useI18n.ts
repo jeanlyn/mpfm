@@ -269,6 +269,8 @@ export const useAppI18n = () => {
         renameFailed: t('fileManager.messages.renameFailed'),
         copySuccess: t('fileManager.messages.copySuccess'),
         copyFailed: t('fileManager.messages.copyFailed'),
+        transferCopying: t('fileManager.messages.transferCopying'),
+        dragFileToConnection: t('fileManager.messages.dragFileToConnection'),
         moveSuccess: t('fileManager.messages.moveSuccess'),
         moveFailed: t('fileManager.messages.moveFailed'),
         loadFilesFailed: t('fileManager.messages.loadFilesFailed'),

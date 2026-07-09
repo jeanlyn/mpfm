@@ -24,6 +24,12 @@
   border: 1px dashed #d9d9d9;
 }
 
+.connection-item--drop-target {
+  border-color: #1890ff;
+  background-color: #e6f7ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
 .connection-item__main {
   position: relative;
   display: flex;

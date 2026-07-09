@@ -112,3 +112,10 @@
 .tabbed-file-manager .ant-dropdown-menu-item:hover {
   background-color: #f0f8ff;
 }
+
+.tab-drop-target {
+  border-radius: 4px;
+  outline: 2px solid #1890ff;
+  outline-offset: 2px;
+  background: rgba(24, 144, 255, 0.08);
+}

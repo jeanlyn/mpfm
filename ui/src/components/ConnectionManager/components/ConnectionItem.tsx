@@ -21,10 +21,15 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { ConnectionItemProps } from '../types';
 import { getConnectionIcon } from '../utils.tsx';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
+import {
+  DND_TYPES,
+  connectionDropId,
+} from '../../../dnd/types';
 import './ConnectionItem.css';
 
 export const ConnectionItem: React.FC<ConnectionItemProps> = ({
@@ -56,18 +61,34 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
   const {
     attributes,
     listeners,
-    setNodeRef,
+    setNodeRef: setSortableRef,
     transform,
     transition,
     isDragging,
   } = useSortable({
     id: connection.id,
     data: {
-      type: 'connection',
+      type: DND_TYPES.CONNECTION_SORT,
       connection,
       directoryId,
     },
   });
+
+  const { setNodeRef: setDropRef, isOver, active } = useDroppable({
+    id: connectionDropId(connection.id),
+    data: {
+      type: DND_TYPES.CONNECTION_DROP,
+      connection,
+    },
+  });
+
+  const isFileDropTarget =
+    isOver && active?.data.current?.type === DND_TYPES.REMOTE_FILE;
+
+  const setNodeRef = (node: HTMLElement | null) => {
+    setSortableRef(node);
+    setDropRef(node);
+  };
 
   const currentBucket = connection.config.bucket || '';
 
@@ -172,6 +193,7 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
         'connection-item',
         isActive ? 'connection-item--active' : '',
         isDragging ? 'connection-item--dragging' : '',
+        isFileDropTarget ? 'connection-item--drop-target' : '',
       ]
         .filter(Boolean)
         .join(' ')}

@@ -1,23 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Layout, message, Alert } from 'antd';
+import React, { useState, useCallback } from 'react';
+import { Layout, message } from 'antd';
 import ConnectionManager from './components/ConnectionManager';
 import TabbedFileManager from './components/TabbedFileManager';
 import FloatingSettingsButton from './i18n/components/FloatingSettingsButton';
+import UploadProgressModal from './components/FileManager/UploadProgressModal';
 import { Connection } from './types';
 import { ApiService } from './services/api';
 import { isSameConnection } from './utils/connection';
 import { useAppI18n } from './i18n/hooks/useI18n';
 import { I18nProvider } from './i18n/contexts/I18nContext';
 import { useWindowTitle } from './i18n/hooks/useWindowTitle';
+import { ConnectionPathRegistryProvider } from './contexts/ConnectionPathRegistry';
+import { AppDndProvider } from './components/AppDndProvider';
+import { useCrossConnectionTransfer } from './hooks/useCrossConnectionTransfer';
+import { UploadProgress } from './utils/uploadProgress';
 
-// 检测是否在 Tauri 环境中
-const isTauriEnvironment = (): boolean => {
-  return true;
-};
 const App: React.FC = () => {
   return (
     <I18nProvider>
-      <AppContent />
+      <ConnectionPathRegistryProvider>
+        <AppContent />
+      </ConnectionPathRegistryProvider>
     </I18nProvider>
   );
 };
@@ -25,9 +28,17 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<Connection | null>(null);
-  const { connection, app } = useAppI18n();
+  const [uploadVisible, setUploadVisible] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [openTabRequest, setOpenTabRequest] = useState<Connection | null>(null);
+  const { connection } = useAppI18n();
 
   useWindowTitle();
+
+  const { transferFiles } = useCrossConnectionTransfer({
+    setUploadVisible,
+    setUploadProgress,
+  });
 
   const refreshConnections = useCallback(async (showSuccessMessage = false) => {
     try {
@@ -51,47 +62,68 @@ const AppContent: React.FC = () => {
     }
   }, [connection.messages.refreshFailed, connection.messages.refreshSuccess]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     refreshConnections();
   }, [refreshConnections]);
 
-  const handleConnectionSelect = useCallback((connection: Connection) => {
+  const handleConnectionSelect = useCallback((conn: Connection) => {
     setCurrentConnection((prev) =>
-      isSameConnection(prev, connection) ? prev : connection
+      isSameConnection(prev, conn) ? prev : conn
     );
+    setOpenTabRequest(conn);
   }, []);
 
   const handleConnectionsChange = () => {
     refreshConnections();
   };
 
+  const handleRemoteFileDrop = useCallback(
+    (sourceConnectionId: string, files: import('./types').FileInfo[], targetConnection: Connection) => {
+      void transferFiles(sourceConnectionId, files, targetConnection);
+    },
+    [transferFiles]
+  );
+
+  const handleOpenTab = useCallback((conn: Connection) => {
+    setOpenTabRequest(conn);
+    setCurrentConnection((prev) => (isSameConnection(prev, conn) ? prev : conn));
+  }, []);
+
+  const handleUploadClose = useCallback(() => {
+    setUploadVisible(false);
+    setUploadProgress(null);
+  }, []);
+
   return (
     <div className="app" style={{ position: 'relative', height: '100vh' }}>
-      {!isTauriEnvironment() && (
-        <Alert
-          message={app.demo.title}
-          description={app.demo.description}
-          type="info"
-          showIcon
-          style={{ margin: '16px' }}
-        />
-      )}
-      
-      <Layout style={{ height: isTauriEnvironment() ? '100vh' : 'calc(100vh - 80px)' }}>
-        <ConnectionManager
-          connections={connections}
-          currentConnection={currentConnection}
-          onConnectionSelect={handleConnectionSelect}
-          onConnectionsChange={handleConnectionsChange}
-          onRefreshConnections={() => refreshConnections(true)}
-        />
-        <TabbedFileManager
-          selectedConnection={currentConnection}
-          onConnectionSelect={handleConnectionSelect}
-        />
-      </Layout>
-      
-      {/* 悬浮设置按钮 */}
+      <AppDndProvider
+        connections={connections}
+        onRemoteFileDrop={handleRemoteFileDrop}
+        onOpenTab={handleOpenTab}
+      >
+        <Layout style={{ height: '100vh' }}>
+          <ConnectionManager
+            connections={connections}
+            currentConnection={currentConnection}
+            onConnectionSelect={handleConnectionSelect}
+            onConnectionsChange={handleConnectionsChange}
+            onRefreshConnections={() => refreshConnections(true)}
+          />
+          <TabbedFileManager
+            selectedConnection={currentConnection}
+            onConnectionSelect={handleConnectionSelect}
+            openTabRequest={openTabRequest}
+            onOpenTabRequestHandled={() => setOpenTabRequest(null)}
+          />
+        </Layout>
+      </AppDndProvider>
+
+      <UploadProgressModal
+        visible={uploadVisible}
+        progress={uploadProgress}
+        onClose={handleUploadClose}
+      />
+
       <FloatingSettingsButton />
     </div>
   );

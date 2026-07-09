@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::core::file::FileManager;
+use crate::core::file::{copy_remote_file_between_operators, FileManager};
 use crate::core::{Error, Result};
 use crate::protocols::create_protocol;
 use serde::Serialize;
@@ -1082,4 +1082,176 @@ pub async fn batch_download_files(
         },
         Err(e) => ApiResponse::error(e),
     }
+}
+
+fn create_operator_for_connection(connection_id: &str) -> std::result::Result<opendal::Operator, String> {
+    let (protocol_type, config) = get_connection_config(connection_id)?;
+    let protocol = create_protocol(&protocol_type, &config)
+        .map_err(|e| format!("创建协议失败: {}", e))?;
+    protocol
+        .create_operator()
+        .map_err(|e| format!("创建操作符失败: {}", e))
+}
+
+#[command]
+pub async fn copy_files_between_connections(
+    app: AppHandle,
+    source_connection_id: String,
+    source_paths: Vec<String>,
+    target_connection_id: String,
+    target_base_path: String,
+) -> ApiResponse<usize> {
+    if source_paths.is_empty() {
+        return ApiResponse::error("未指定要复制的文件".to_string());
+    }
+
+    let src_operator = match create_operator_for_connection(&source_connection_id) {
+        Ok(op) => op,
+        Err(e) => return ApiResponse::error(format!("创建源连接操作符失败: {}", e)),
+    };
+    let dst_operator = match create_operator_for_connection(&target_connection_id) {
+        Ok(op) => op,
+        Err(e) => return ApiResponse::error(format!("创建目标连接操作符失败: {}", e)),
+    };
+
+    let src_file_manager = FileManager::new(src_operator.clone());
+    let copy_items = match src_file_manager
+        .collect_remote_copy_items(&source_paths, &target_base_path)
+        .await
+    {
+        Ok(items) => items,
+        Err(e) => return ApiResponse::error(format!("收集复制项失败: {}", e)),
+    };
+
+    if copy_items.is_empty() {
+        return ApiResponse::error("没有可复制的文件".to_string());
+    }
+
+    let upload_id = generate_upload_id();
+    let cancel_flag = register_upload_cancel_token(&upload_id);
+    let file_count = copy_items.len();
+    let mut copied_count = 0usize;
+
+    for (index, (src_path, dst_path)) in copy_items.iter().enumerate() {
+        if cancel_flag.load(Ordering::Relaxed) {
+            remove_upload_cancel_token(&upload_id);
+            emit_upload_progress(
+                &app,
+                UploadProgressPayload {
+                    transferred: 0,
+                    total: 0,
+                    file_name: String::new(),
+                    file_index: Some(index),
+                    file_count: Some(file_count),
+                    completed: true,
+                    error: None,
+                    uploaded_count: Some(copied_count),
+                    failed_count: None,
+                    upload_id: Some(upload_id.clone()),
+                    cancelled: Some(true),
+                },
+            );
+            return ApiResponse::error("复制已取消".to_string());
+        }
+
+        let app_for_progress = app.clone();
+        let upload_id_for_cb = upload_id.clone();
+        let file_index = index;
+        let result = copy_remote_file_between_operators(
+            &src_operator,
+            &dst_operator,
+            src_path,
+            dst_path,
+            move |transferred, total, file_name| {
+                emit_upload_progress(
+                    &app_for_progress,
+                    UploadProgressPayload {
+                        transferred,
+                        total,
+                        file_name: file_name.to_string(),
+                        file_index: Some(file_index),
+                        file_count: Some(file_count),
+                        completed: false,
+                        error: None,
+                        uploaded_count: None,
+                        failed_count: None,
+                        upload_id: Some(upload_id_for_cb.clone()),
+                        cancelled: None,
+                    },
+                );
+            },
+            Some(cancel_flag.clone()),
+        )
+        .await;
+
+        match result {
+            Ok(()) => {
+                copied_count += 1;
+            }
+            Err(e) if e.is_cancelled() => {
+                remove_upload_cancel_token(&upload_id);
+                emit_upload_progress(
+                    &app,
+                    UploadProgressPayload {
+                        transferred: 0,
+                        total: 0,
+                        file_name: remote_display_name(src_path),
+                        file_index: Some(index),
+                        file_count: Some(file_count),
+                        completed: true,
+                        error: None,
+                        uploaded_count: Some(copied_count),
+                        failed_count: None,
+                        upload_id: Some(upload_id),
+                        cancelled: Some(true),
+                    },
+                );
+                return ApiResponse::error("复制已取消".to_string());
+            }
+            Err(e) => {
+                remove_upload_cancel_token(&upload_id);
+                emit_upload_progress(
+                    &app,
+                    UploadProgressPayload {
+                        transferred: 0,
+                        total: 0,
+                        file_name: remote_display_name(src_path),
+                        file_index: Some(index),
+                        file_count: Some(file_count),
+                        completed: true,
+                        error: Some(format!("复制文件失败: {}", e)),
+                        uploaded_count: Some(copied_count),
+                        failed_count: Some(file_count - copied_count),
+                        upload_id: Some(upload_id),
+                        cancelled: None,
+                    },
+                );
+                return ApiResponse::error(format!("复制文件失败: {}", e));
+            }
+        }
+    }
+
+    remove_upload_cancel_token(&upload_id);
+    emit_upload_progress(
+        &app,
+        UploadProgressPayload {
+            transferred: 0,
+            total: 0,
+            file_name: String::new(),
+            file_index: Some(file_count),
+            file_count: Some(file_count),
+            completed: true,
+            error: None,
+            uploaded_count: Some(copied_count),
+            failed_count: None,
+            upload_id: Some(upload_id),
+            cancelled: None,
+        },
+    );
+    ApiResponse::success(copied_count)
+}
+
+fn remote_display_name(path: &str) -> String {
+    let p = path.trim_end_matches('/');
+    p.rsplit('/').next().unwrap_or(p).to_string()
 }

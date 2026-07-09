@@ -799,6 +799,120 @@ impl FileManager {
         info!("递归找到 {} 个文件", result.len());
         Ok(result)
     }
+
+    /// 收集跨连接复制所需的 (源路径, 目标路径) 对
+    pub async fn collect_remote_copy_items(
+        &self,
+        source_paths: &[String],
+        target_base_path: &str,
+    ) -> Result<Vec<(String, String)>> {
+        let mut items = Vec::new();
+        let target_base = target_base_path.trim_end_matches('/');
+
+        for source_path in source_paths {
+            let normalized = normalize_path(source_path);
+            if !self.operator.exists(&normalized).await? {
+                debug!("跳过不存在的路径: {}", source_path);
+                continue;
+            }
+
+            let metadata = self.operator.stat(&normalized).await?;
+            if metadata.is_dir() {
+                let dir_name = remote_basename(source_path);
+                let target_dir_root = join_remote_path_for_copy(target_base, &dir_name);
+                let files = self.list_files_recursive(source_path).await?;
+                for file_path in files {
+                    let rel = relative_path_from_dir(source_path, &file_path)?;
+                    let dst = join_remote_path_for_copy(&target_dir_root, &rel);
+                    items.push((file_path, dst));
+                }
+            } else {
+                let file_name = remote_basename(source_path);
+                let dst = join_remote_path_for_copy(target_base, &file_name);
+                items.push((source_path.clone(), dst));
+            }
+        }
+
+        Ok(items)
+    }
+}
+
+/// 跨 Operator 流式复制单个远程文件
+pub async fn copy_remote_file_between_operators<F>(
+    src: &Operator,
+    dst: &Operator,
+    src_path: &str,
+    dst_path: &str,
+    mut progress_callback: F,
+    cancel_flag: Option<Arc<AtomicBool>>,
+) -> Result<()>
+where
+    F: FnMut(u64, u64, &str) + Send,
+{
+    debug!("跨连接复制文件: {} -> {}", src_path, dst_path);
+
+    let normalized_src = normalize_path(src_path);
+    let normalized_dst = normalize_path(dst_path);
+
+    if !src.exists(&normalized_src).await? {
+        return Err(Error::new_not_found(&format!(
+            "源文件不存在: {}",
+            src_path
+        )));
+    }
+
+    if dst.exists(&normalized_dst).await? {
+        return Err(Error::new_config(&format!(
+            "目标路径已存在: {}",
+            dst_path
+        )));
+    }
+
+    let metadata = src.stat(&normalized_src).await?;
+    if metadata.is_dir() {
+        return Err(Error::new_config(&format!(
+            "源路径是目录，请通过目录复制流程处理: {}",
+            src_path
+        )));
+    }
+
+    let total_size = metadata.content_length();
+    let file_name = remote_basename(src_path);
+    progress_callback(0, total_size, &file_name);
+
+    let reader = src.reader(&normalized_src).await?;
+    let mut writer = dst.writer(&normalized_dst).await?;
+
+    let copy_result: Result<()> = async {
+        let mut transferred = 0u64;
+        while transferred < total_size {
+            if is_cancelled(&cancel_flag) {
+                return Err(Error::new_cancelled("复制已被用户取消"));
+            }
+            let end = std::cmp::min(transferred + UPLOAD_CHUNK_SIZE as u64, total_size);
+            let buffer = reader.read(transferred..end).await?;
+            if buffer.is_empty() {
+                break;
+            }
+            writer.write(buffer.to_bytes().to_vec()).await?;
+            transferred += buffer.len() as u64;
+            progress_callback(transferred, total_size, &file_name);
+        }
+        Ok(())
+    }
+    .await;
+
+    match copy_result {
+        Ok(()) => {
+            writer.close().await?;
+            info!("跨连接复制成功: {} -> {}", src_path, dst_path);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = writer.abort().await;
+            Err(e)
+        }
+    }
 }
 
 /// 收集目录中所有待上传文件的本地路径与远程路径
@@ -864,6 +978,51 @@ fn collect_directory_upload_items(
     }
 
     Ok(items)
+}
+
+fn remote_basename(path: &str) -> String {
+    let p = path.trim_end_matches('/');
+    if p.is_empty() || p == "/" {
+        return "root".to_string();
+    }
+    p.rsplit('/').next().unwrap_or(p).to_string()
+}
+
+fn join_remote_path_for_copy(base: &str, rel: &str) -> String {
+    let rel = rel.trim_start_matches('/');
+    if base.is_empty() || base == "/" {
+        format!("/{}", rel)
+    } else {
+        let base = base.trim_start_matches('/').trim_end_matches('/');
+        format!("/{}/{}", base, rel)
+    }
+}
+
+fn relative_path_from_dir(dir_path: &str, file_path: &str) -> Result<String> {
+    let dir = dir_path.trim_end_matches('/');
+    let file = file_path.trim_end_matches('/');
+
+    let rel = if file.starts_with(dir) {
+        file.strip_prefix(dir)
+            .unwrap_or(file)
+            .trim_start_matches('/')
+    } else {
+        let dir_norm = dir.trim_start_matches('/');
+        let file_norm = file.trim_start_matches('/');
+        if file_norm.starts_with(dir_norm) {
+            file_norm
+                .strip_prefix(dir_norm)
+                .unwrap_or(file_norm)
+                .trim_start_matches('/')
+        } else {
+            return Err(Error::new_config(&format!(
+                "文件 {} 不在目录 {} 下",
+                file_path, dir_path
+            )));
+        }
+    };
+
+    Ok(rel.to_string())
 }
 
 /// 规范化路径，处理开头的斜杠

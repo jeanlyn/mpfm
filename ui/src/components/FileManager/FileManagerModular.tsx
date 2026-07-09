@@ -29,6 +29,7 @@ import {
 
 // 类型导入
 import { FileManagerProps } from './types';
+import { useConnectionPathRegistry } from '../../contexts/ConnectionPathRegistry';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -38,6 +39,11 @@ const { Title } = Typography;
  */
 const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   const { fileManager } = useAppI18n();
+  const {
+    registerPath,
+    registerRefresh,
+    unregisterRefresh,
+  } = useConnectionPathRegistry();
   
   // 状态管理
   const { state, updateState, updateMultipleState, resetState } = useFileManagerState();
@@ -111,6 +117,29 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     fileOperations.loadFiles,
   ]);
 
+  useEffect(() => {
+    if (!connection) return;
+    registerPath(connection.id, state.currentPath);
+  }, [connection, state.currentPath, registerPath]);
+
+  useEffect(() => {
+    if (!connection) return;
+
+    const refresh = () => {
+      fileOperations.loadFiles(state.currentPath, state.currentPage);
+    };
+
+    registerRefresh(connection.id, refresh);
+    return () => unregisterRefresh(connection.id);
+  }, [
+    connection,
+    state.currentPath,
+    state.currentPage,
+    fileOperations.loadFiles,
+    registerRefresh,
+    unregisterRefresh,
+  ]);
+
   // 计算当前页面是否全选
   const isAllCurrentPageSelected = useMemo(() => {
     const currentFiles = state.isSearchMode ? state.searchResults : state.files;
@@ -120,6 +149,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
 
   // 表格列定义
   const columns = useTableColumns({
+    connectionId: connection?.id ?? '',
     files: state.files,
     searchResults: state.searchResults,
     isSearchMode: state.isSearchMode,

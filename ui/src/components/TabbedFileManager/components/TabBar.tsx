@@ -4,6 +4,7 @@ import { CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { FileManagerTab } from '../hooks/useTabManager';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
+import { DroppableTabLabel } from './DroppableTabLabel';
 
 interface TabBarProps {
   tabs: FileManagerTab[];
@@ -118,6 +119,7 @@ const TabBar: React.FC<TabBarProps> = ({
     return {
       key: tab.id,
       label: (
+        <DroppableTabLabel connection={tab.connection} title={tab.title}>
         <Dropdown menu={contextMenu} trigger={['contextMenu']}>
           <div
             style={{
@@ -155,6 +157,7 @@ const TabBar: React.FC<TabBarProps> = ({
             />
           </div>
         </Dropdown>
+        </DroppableTabLabel>
       ),
       closable: false, // 我们自己处理关闭
     };

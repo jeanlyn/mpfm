@@ -61,3 +61,19 @@
 .file-manager-download-compact {
   flex-shrink: 0;
 }
+
+.file-name-cell {
+  width: 100%;
+}
+
+.file-name-cell__drag-handle {
+  cursor: grab;
+  color: #999;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.file-name-cell__drag-handle:active {
+  cursor: grabbing;
+}

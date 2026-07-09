@@ -387,6 +387,43 @@ export class ApiService {
     }
   }
 
+  static async copyFilesBetweenConnections(
+    sourceConnectionId: string,
+    sourcePaths: string[],
+    targetConnectionId: string,
+    targetBasePath: string,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<number> {
+    if (!isTauriEnvironment()) {
+      console.warn('Not in Tauri environment, simulating cross-connection copy');
+      return Promise.resolve(sourcePaths.length);
+    }
+
+    const unlisten = onProgress
+      ? await listenUploadProgress(onProgress)
+      : null;
+
+    try {
+      const response: ApiResponse<number> = await invoke('copy_files_between_connections', {
+        sourceConnectionId,
+        sourcePaths,
+        targetConnectionId,
+        targetBasePath,
+      });
+      if (!response.success) {
+        throw new Error(response.error || '跨连接复制失败');
+      }
+      return response.data ?? 0;
+    } catch (error) {
+      console.error('Tauri invoke error:', error);
+      throw new Error(`跨连接复制失败: ${error}`);
+    } finally {
+      if (unlisten) {
+        await unlisten();
+      }
+    }
+  }
+
   static async downloadFile(
     connectionId: string,
     remotePath: string,
