@@ -879,18 +879,12 @@ where
     let normalized_dst = normalize_path(dst_path);
 
     if !src.exists(&normalized_src).await? {
-        return Err(Error::new_not_found(&format!(
-            "源文件不存在: {}",
-            src_path
-        )));
+        return Err(Error::new_not_found(&format!("源文件不存在: {}", src_path)));
     }
 
     if dst.exists(&normalized_dst).await? {
         if !overwrite {
-            return Err(Error::new_config(&format!(
-                "目标路径已存在: {}",
-                dst_path
-            )));
+            return Err(Error::new_config(&format!("目标路径已存在: {}", dst_path)));
         }
         debug!("目标已存在，覆盖写入前删除: {}", dst_path);
         dst.delete(&normalized_dst).await?;
@@ -1305,12 +1299,21 @@ mod tests {
 
     #[test]
     fn test_join_remote_path_for_copy() {
-        assert_eq!(join_remote_path_for_copy("/base", "file.txt"), "/base/file.txt");
-        assert_eq!(join_remote_path_for_copy("/base/", "sub/x.txt"), "/base/sub/x.txt");
+        assert_eq!(
+            join_remote_path_for_copy("/base", "file.txt"),
+            "/base/file.txt"
+        );
+        assert_eq!(
+            join_remote_path_for_copy("/base/", "sub/x.txt"),
+            "/base/sub/x.txt"
+        );
         assert_eq!(join_remote_path_for_copy("/", "file.txt"), "/file.txt");
         assert_eq!(join_remote_path_for_copy("", "file.txt"), "/file.txt");
         // 相对路径前导斜杠应被去除
-        assert_eq!(join_remote_path_for_copy("/base", "/abs/rel.txt"), "/base/abs/rel.txt");
+        assert_eq!(
+            join_remote_path_for_copy("/base", "/abs/rel.txt"),
+            "/base/abs/rel.txt"
+        );
     }
 
     #[test]

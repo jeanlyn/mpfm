@@ -1087,10 +1087,12 @@ pub async fn batch_download_files(
     }
 }
 
-fn create_operator_for_connection(connection_id: &str) -> std::result::Result<opendal::Operator, String> {
+fn create_operator_for_connection(
+    connection_id: &str,
+) -> std::result::Result<opendal::Operator, String> {
     let (protocol_type, config) = get_connection_config(connection_id)?;
-    let protocol = create_protocol(&protocol_type, &config)
-        .map_err(|e| format!("创建协议失败: {}", e))?;
+    let protocol =
+        create_protocol(&protocol_type, &config).map_err(|e| format!("创建协议失败: {}", e))?;
     protocol
         .create_operator()
         .map_err(|e| format!("创建操作符失败: {}", e))
@@ -1138,8 +1140,7 @@ pub async fn copy_files_between_connections(
     }
 
     // 预先创建目标侧所需的父目录（FTP / 文件系统类后端写入嵌套文件时必需）
-    ensure_remote_parent_dirs(&dst_operator, copy_items.iter().map(|(_, d)| d.as_str()))
-        .await;
+    ensure_remote_parent_dirs(&dst_operator, copy_items.iter().map(|(_, d)| d.as_str())).await;
 
     let upload_id = generate_upload_id();
     let cancel_flag = register_upload_cancel_token(&upload_id);
