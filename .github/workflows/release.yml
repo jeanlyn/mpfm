@@ -432,5 +432,7 @@ jobs:
           RELEASE_TAG: ${{ needs.check-version.outputs.tag_name }}
           RELEASE_BODY: ${{ needs.release-notes.outputs.body }}
         run: |
-          printf '%s\n' "$RELEASE_BODY" > release-notes.md
-          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
+          printf '%s\n' "$RELEASE_BODY" |
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file -
