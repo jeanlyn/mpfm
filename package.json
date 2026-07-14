@@ -1,6 +1,6 @@
 {
   "name": "multi-protocol-file-manager",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "packageManager": "pnpm@10.17.1",
   "description": "Multi-protocol file manager with GUI interface",
   "scripts": {
