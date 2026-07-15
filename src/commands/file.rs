@@ -344,8 +344,9 @@ pub async fn list_files(connection_id: String, path: String) -> ApiResponse<Vec<
                     let file_manager = FileManager::new(operator);
                     match file_manager.list(&path).await {
                         Ok(entries) => {
-                            let files: Vec<FileInfo> =
-                                entries.into_iter().map(|entry| entry.into()).collect();
+                            let files =
+                                entries_to_file_info(&file_manager, entries, protocol_type == "fs")
+                                    .await;
                             ApiResponse::success(files)
                         }
                         Err(e) => ApiResponse::error(format!("列出文件失败: {}", e)),
@@ -373,8 +374,9 @@ pub async fn list_files_paginated(
                     let file_manager = FileManager::new(operator);
                     match file_manager.list_paginated(&path, page, page_size).await {
                         Ok((entries, total)) => {
-                            let files: Vec<FileInfo> =
-                                entries.into_iter().map(|entry| entry.into()).collect();
+                            let files =
+                                entries_to_file_info(&file_manager, entries, protocol_type == "fs")
+                                    .await;
 
                             let paginated_list = PaginatedFileList {
                                 files,
@@ -962,8 +964,9 @@ pub async fn search_files(
                         .await
                     {
                         Ok((entries, total)) => {
-                            let files: Vec<FileInfo> =
-                                entries.into_iter().map(|entry| entry.into()).collect();
+                            let files =
+                                entries_to_file_info(&file_manager, entries, protocol_type == "fs")
+                                    .await;
 
                             let paginated_list = PaginatedFileList {
                                 files,
@@ -983,6 +986,23 @@ pub async fn search_files(
             Err(e) => ApiResponse::error(format!("创建协议失败: {}", e)),
         },
         Err(e) => ApiResponse::error(e),
+    }
+}
+
+async fn entries_to_file_info(
+    file_manager: &FileManager,
+    entries: Vec<opendal::Entry>,
+    enrich_metadata: bool,
+) -> Vec<FileInfo> {
+    if enrich_metadata {
+        file_manager
+            .enrich_entries_metadata(entries)
+            .await
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    } else {
+        entries.into_iter().map(Into::into).collect()
     }
 }
 

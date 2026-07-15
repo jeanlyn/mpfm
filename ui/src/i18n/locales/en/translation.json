@@ -208,6 +208,9 @@
       "copyBashCommand": "Copy Bash Command",
       "copyPowerShellCommand": "Copy PowerShell Command",
       "copyCurlCommand": "Copy cURL Command",
+      "editWithLocalEditor": "Edit with Local Editor",
+      "openWith": "Open with {editor}",
+      "chooseEditor": "Choose local editor",
       "newFolder": "New Folder",
       "rename": "Rename",
       "copy": "Copy",
@@ -231,6 +234,7 @@
       "downloadButton": "Download",
       "copyCommandButton": "Copy Command",
       "previewButton": "Preview",
+      "editButton": "Edit",
       "selectFile": "Select File"
     },
     "breadcrumb": {
@@ -313,7 +317,14 @@
       "selectSaveLocation": "Select save location",
       "batchDownloadProgress": "Downloading {current}/{total} files...",
       "processingDirectories": "Processing directories, please wait...",
-      "downloadingFromDirectories": "Downloading files from directories..."
+      "downloadingFromDirectories": "Downloading files from directories...",
+      "editorEditingSingle": "Editing {name}",
+      "editorEditingMultiple": "Editing {names}{ellipsis} ({count} files)",
+      "editorSynced": "Editing finished; synchronized {count} time(s)",
+      "editorNoChanges": "The editor was closed without content changes",
+      "editorFailed": "Local editing failed",
+      "detectingEditors": "Detecting installed editors...",
+      "noEditorsDetected": "No editor detected; select one in Settings"
     }
   },
   "fileTypes": {
@@ -451,7 +462,15 @@
     "exportDiagnosticsFailed": "Failed to export diagnostics",
     "copyDiagnostics": "Copy to Clipboard",
     "copyDiagnosticsSuccess": "Diagnostics report copied",
-    "copyDiagnosticsFailed": "Failed to copy diagnostics"
+    "copyDiagnosticsFailed": "Failed to copy diagnostics",
+    "localEditor": "Local Text Editor",
+    "editorAutoDetect": "Leave blank to detect VS Code, Notepad3, Notepad, or TextEdit",
+    "editorBrowse": "Select editor",
+    "editorSave": "Save editor setting",
+    "editorSelect": "Select a text editor application or executable",
+    "editorHint": "VS Code automatically uses --wait. Each save overwrites and synchronizes the remote file.",
+    "editorSaved": "Text editor setting saved",
+    "editorSaveFailed": "Failed to save text editor setting"
   },
   "demo": {
     "title": "Internationalization (i18n) Demo",

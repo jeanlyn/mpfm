@@ -205,6 +205,9 @@
       "copyBashCommand": "复制 Bash 命令",
       "copyPowerShellCommand": "复制 PowerShell 命令",
       "copyCurlCommand": "复制 cURL 命令",
+      "editWithLocalEditor": "用本地编辑器编辑",
+      "openWith": "使用 {editor} 打开",
+      "chooseEditor": "选择本地编辑器",
       "newFolder": "新建文件夹",
       "rename": "重命名",
       "copy": "复制",
@@ -228,6 +231,7 @@
       "downloadButton": "下载",
       "copyCommandButton": "复制命令",
       "previewButton": "预览",
+      "editButton": "编辑",
       "selectFile": "选择文件"
     },
     "breadcrumb": {
@@ -310,7 +314,14 @@
       "selectSaveLocation": "选择保存位置",
       "batchDownloadProgress": "正在下载 {current}/{total} 个文件...",
       "processingDirectories": "正在处理文件夹，请稍候...",
-      "downloadingFromDirectories": "正在从文件夹中下载文件..."
+      "downloadingFromDirectories": "正在从文件夹中下载文件...",
+      "editorEditingSingle": "正在编辑 {name}",
+      "editorEditingMultiple": "正在编辑 {names}{ellipsis} 等 {count} 个文件",
+      "editorSynced": "编辑完成，已自动同步 {count} 次",
+      "editorNoChanges": "编辑器已关闭，文件内容没有变化",
+      "editorFailed": "本地编辑失败",
+      "detectingEditors": "正在检测系统编辑器...",
+      "noEditorsDetected": "未检测到可用编辑器，请在设置中选择"
     }
   },
   "fileTypes": {
@@ -450,7 +461,15 @@
     "exportDiagnosticsFailed": "导出诊断报告失败",
     "copyDiagnostics": "复制到剪贴板",
     "copyDiagnosticsSuccess": "诊断报告已复制",
-    "copyDiagnosticsFailed": "复制诊断报告失败"
+    "copyDiagnosticsFailed": "复制诊断报告失败",
+    "localEditor": "本地文本编辑器",
+    "editorAutoDetect": "留空时自动检测 VS Code、Notepad3、记事本或 TextEdit",
+    "editorBrowse": "选择编辑器",
+    "editorSave": "保存编辑器设置",
+    "editorSelect": "选择文本编辑器应用或可执行文件",
+    "editorHint": "VS Code 会自动使用 --wait；编辑期间每次保存都会覆盖同步到远端。",
+    "editorSaved": "文本编辑器设置已保存",
+    "editorSaveFailed": "保存文本编辑器设置失败"
   },
   "demo": {
     "title": "国际化 (i18n) 演示",

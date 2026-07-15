@@ -1,14 +1,119 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { message, Modal } from 'antd';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo } from '../../../types';
-import { ApiService } from '../../../services/api';
+import { ApiService, DetectedEditor } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { PaginatedFileList, LoadingMode } from '../types';
 import { UploadProgress } from '../../../utils/uploadProgress';
 import { PAGINATION_MODE_THRESHOLD } from '../constants';
 import { extractLocalFileName } from '../utils';
 import { isLocalDirectory } from '../utils/isLocalDirectory';
+import {
+  EDITOR_SETTINGS_CHANGED_EVENT,
+  getEditorDisplayName,
+  loadEditorSettings,
+} from '../../../utils/editorSettings';
+
+const EDITOR_STATUS_MESSAGE_KEY = 'local-editor-status';
+const MAX_EDITOR_NAMES_IN_STATUS = 3;
+
+interface EditorStatusMessages {
+  editingSingle: string;
+  editingMultiple: string;
+  synced: string;
+  noChanges: string;
+  failed: string;
+}
+
+type EditorCompletion =
+  | { type: 'uploaded'; syncCount: number }
+  | { type: 'unchanged' }
+  | { type: 'failed'; error: string };
+
+const activeEditorFiles = new Map<string, string>();
+let editorBatchResult = {
+  syncCount: 0,
+  uploaded: false,
+  failures: [] as string[],
+};
+
+const resetEditorBatchResult = () => {
+  editorBatchResult = {
+    syncCount: 0,
+    uploaded: false,
+    failures: [],
+  };
+};
+
+const showEditorLoadingStatus = (messages: EditorStatusMessages) => {
+  const names = Array.from(activeEditorFiles.values());
+  if (names.length === 0) return;
+
+  const content = names.length === 1
+    ? messages.editingSingle.replace('{name}', names[0])
+    : messages.editingMultiple
+        .replace('{names}', names.slice(0, MAX_EDITOR_NAMES_IN_STATUS).join(', '))
+        .replace('{ellipsis}', names.length > MAX_EDITOR_NAMES_IN_STATUS ? '…' : '')
+        .replace('{count}', String(names.length));
+
+  message.loading({
+    key: EDITOR_STATUS_MESSAGE_KEY,
+    content,
+    duration: 0,
+  });
+};
+
+const beginEditorActivity = (
+  activityId: string,
+  fileName: string,
+  messages: EditorStatusMessages
+): boolean => {
+  if (activeEditorFiles.has(activityId)) return false;
+  if (activeEditorFiles.size === 0) resetEditorBatchResult();
+
+  activeEditorFiles.set(activityId, fileName);
+  showEditorLoadingStatus(messages);
+  return true;
+};
+
+const finishEditorActivity = (
+  activityId: string,
+  completion: EditorCompletion,
+  messages: EditorStatusMessages
+) => {
+  if (completion.type === 'uploaded') {
+    editorBatchResult.uploaded = true;
+    editorBatchResult.syncCount += completion.syncCount;
+  } else if (completion.type === 'failed') {
+    editorBatchResult.failures.push(completion.error);
+  }
+
+  activeEditorFiles.delete(activityId);
+  if (activeEditorFiles.size > 0) {
+    showEditorLoadingStatus(messages);
+    return;
+  }
+
+  if (editorBatchResult.failures.length > 0) {
+    message.error({
+      key: EDITOR_STATUS_MESSAGE_KEY,
+      content: `${messages.failed}: ${editorBatchResult.failures[0]}`,
+    });
+  } else if (editorBatchResult.uploaded) {
+    message.success({
+      key: EDITOR_STATUS_MESSAGE_KEY,
+      content: messages.synced.replace('{count}', String(editorBatchResult.syncCount)),
+    });
+  } else {
+    message.info({
+      key: EDITOR_STATUS_MESSAGE_KEY,
+      content: messages.noChanges,
+    });
+  }
+
+  resetEditorBatchResult();
+};
 
 /**
  * 文件操作相关的 Hook
@@ -21,6 +126,61 @@ export const useFileOperations = (
   onStateUpdate: (updates: any) => void
 ) => {
   const { fileManager, app } = useAppI18n();
+  const [editingPaths, setEditingPaths] = useState<Set<string>>(() => new Set());
+  const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
+  const [detectingEditors, setDetectingEditors] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const refreshEditors = async () => {
+      if (active) setDetectingEditors(true);
+      const [systemEditorsResult, settingsResult] = await Promise.allSettled([
+        ApiService.detectLocalEditors(),
+        loadEditorSettings(),
+      ]);
+
+      if (!active) return;
+
+      const systemEditors = systemEditorsResult.status === 'fulfilled'
+        ? systemEditorsResult.value
+        : [];
+      if (systemEditorsResult.status === 'rejected') {
+        console.warn('检测本地文本编辑器失败:', systemEditorsResult.reason);
+      }
+
+      const configuredPath = settingsResult.status === 'fulfilled'
+        ? settingsResult.value.executablePath.trim()
+        : '';
+      const configuredEditor: DetectedEditor | null = configuredPath
+        ? { name: getEditorDisplayName(configuredPath), path: configuredPath }
+        : null;
+
+      // 手工配置优先：便携版不会出现在注册表里，但应与安装版拥有相同的下拉体验。
+      const editors = configuredEditor
+        ? [
+            configuredEditor,
+            ...systemEditors.filter((editor) =>
+              editor.name.toLowerCase() !== configuredEditor.name.toLowerCase()
+              && editor.path.replace(/\\/g, '/').toLowerCase()
+                !== configuredEditor.path.replace(/\\/g, '/').toLowerCase()
+            ),
+          ]
+        : systemEditors;
+
+      setDetectedEditors(editors);
+      setDetectingEditors(false);
+    };
+
+    const handleSettingsChanged = () => {
+      void refreshEditors();
+    };
+    void refreshEditors();
+    window.addEventListener(EDITOR_SETTINGS_CHANGED_EVENT, handleSettingsChanged);
+    return () => {
+      active = false;
+      window.removeEventListener(EDITOR_SETTINGS_CHANGED_EVENT, handleSettingsChanged);
+    };
+  }, []);
 
   // 智能选择加载模式
   const chooseLoadingMode = useCallback(async (path: string): Promise<LoadingMode> => {
@@ -371,6 +531,65 @@ export const useFileOperations = (
     }
   }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
 
+  // 调用本地文本编辑器。命令在编辑器打开期间保持运行，后端会监测保存并覆盖上传。
+  const handleEdit = useCallback(async (file: FileInfo, selectedEditorPath?: string) => {
+    if (!connection || file.is_dir) return;
+
+    const statusMessages: EditorStatusMessages = {
+      editingSingle: fileManager.messages.editorEditingSingle,
+      editingMultiple: fileManager.messages.editorEditingMultiple,
+      synced: fileManager.messages.editorSynced,
+      noChanges: fileManager.messages.editorNoChanges,
+      failed: fileManager.messages.editorFailed,
+    };
+    const activityId = `${connection.id}:${file.path}`;
+    if (!beginEditorActivity(activityId, file.name, statusMessages)) return;
+
+    setEditingPaths((current) => new Set(current).add(file.path));
+    let completion: EditorCompletion = { type: 'unchanged' };
+    try {
+      let editorPath = selectedEditorPath;
+      if (!editorPath) {
+        try {
+          const editorSettings = await loadEditorSettings();
+          editorPath = editorSettings.executablePath || undefined;
+        } catch (error) {
+          console.warn('读取文本编辑器设置失败，将尝试自动检测编辑器:', error);
+        }
+      }
+
+      const result = await ApiService.editFileWithLocalEditor(
+        connection.id,
+        file.path,
+        editorPath
+      );
+
+      if (result.uploaded) {
+        completion = { type: 'uploaded', syncCount: result.syncCount };
+        loadFiles(currentPath, currentPage);
+      }
+    } catch (error) {
+      completion = { type: 'failed', error: String(error) };
+    } finally {
+      setEditingPaths((current) => {
+        const next = new Set(current);
+        next.delete(file.path);
+        return next;
+      });
+      finishEditorActivity(activityId, completion, statusMessages);
+    }
+  }, [
+    connection,
+    currentPath,
+    currentPage,
+    fileManager.messages.editorEditingMultiple,
+    fileManager.messages.editorEditingSingle,
+    fileManager.messages.editorFailed,
+    fileManager.messages.editorNoChanges,
+    fileManager.messages.editorSynced,
+    loadFiles,
+  ]);
+
   // 删除文件
   const handleDelete = useCallback(async (file: FileInfo) => {
     if (!connection) return;
@@ -424,6 +643,10 @@ export const useFileOperations = (
     handleDownload,
     handleCopyDownloadCommand,
     handleCopyDownloadCurlCommand,
+    handleEdit,
+    editingPaths,
+    detectedEditors,
+    detectingEditors,
     handleDelete,
     handleCreateDirectory,
     navigateUp,

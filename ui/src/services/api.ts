@@ -2,6 +2,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { Connection, FileInfo, PaginatedFileList, ApiResponse, CopyResultSummary } from '../types';
 import { listenUploadProgress, UploadProgress } from '../utils/uploadProgress';
 
+export interface EditFileResult {
+  changed: boolean;
+  uploaded: boolean;
+  syncCount: number;
+  editorName: string;
+}
+
+export interface DetectedEditor {
+  name: string;
+  path: string;
+}
+
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
   return true;
@@ -452,6 +464,47 @@ export class ApiService {
       }
       console.error('Tauri invoke error:', error);
       throw error;
+    }
+  }
+
+  static async editFileWithLocalEditor(
+    connectionId: string,
+    remotePath: string,
+    editorPath?: string
+  ): Promise<EditFileResult> {
+    try {
+      const response: ApiResponse<EditFileResult> = await invoke(
+        'edit_file_with_local_editor',
+        {
+          connectionId,
+          remotePath,
+          editorPath: editorPath?.trim() || null,
+        }
+      );
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '本地编辑失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
+  static async detectLocalEditors(): Promise<DetectedEditor[]> {
+    try {
+      const response: ApiResponse<DetectedEditor[]> = await invoke('detect_local_editors');
+      if (response.success) {
+        return response.data || [];
+      }
+      throw new Error(response.error || '检测本地编辑器失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
     }
   }
 

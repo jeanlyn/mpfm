@@ -77,3 +77,8 @@
 .file-name-cell__drag-handle:active {
   cursor: grabbing;
 }
+
+.file-manager-directory-row > td {
+  cursor: pointer;
+  user-select: none;
+}

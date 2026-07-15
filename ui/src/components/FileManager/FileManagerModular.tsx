@@ -155,10 +155,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     isSearchMode: state.isSearchMode,
     fileSelection,
     isAllCurrentPageSelected,
-    onFileDoubleClick: fileOperations.handleFileDoubleClick,
     onDownload: fileOperations.handleDownload,
     onCopyDownloadCommand: fileOperations.handleCopyDownloadCommand,
     onCopyDownloadCurlCommand: fileOperations.handleCopyDownloadCurlCommand,
+    onEdit: fileOperations.handleEdit,
+    editingPaths: fileOperations.editingPaths,
+    detectedEditors: fileOperations.detectedEditors,
+    detectingEditors: fileOperations.detectingEditors,
     onDelete: fileOperations.handleDelete,
     onPreview: previewAndBatch.handlePreview,
   });
@@ -281,6 +284,18 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
             rowKey="path"
             pagination={false}
             size="small"
+            rowClassName={(record) => record.is_dir ? 'file-manager-directory-row' : ''}
+            onRow={(record) => ({
+              onDoubleClick: (event) => {
+                if (!record.is_dir) return;
+                const target = event.target as HTMLElement;
+                if (target.closest('.file-manager-actions, .ant-checkbox-wrapper, button, input, a, [role="button"]')) {
+                  return;
+                }
+                event.preventDefault();
+                fileOperations.handleFileDoubleClick(record);
+              },
+            })}
             scroll={{ x: 'max-content', y: state.tableHeight }}
             style={{ marginBottom: 0 }}
           />

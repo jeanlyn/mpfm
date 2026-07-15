@@ -7,12 +7,17 @@ use std::sync::Arc;
 use log::{debug, info, warn};
 use opendal::{Entry, Metadata, Operator};
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinSet;
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 use crate::core::error::{Error, Result};
 
 /// 上传分块大小（1MB），用于分块读取并上报进度
 const UPLOAD_CHUNK_SIZE: usize = 1024 * 1024;
+
+/// 本地文件系统的 list 操作不包含大小和修改时间，需要额外 stat。
+/// 限制并发数，避免大目录瞬间产生过多文件系统访问。
+const METADATA_STAT_CONCURRENCY: usize = 16;
 
 /// 检查取消标志是否已被置位；flag 为 None 时视为不可取消
 fn is_cancelled(flag: &Option<Arc<AtomicBool>>) -> bool {
@@ -68,10 +73,46 @@ impl FileManager {
         let path = normalize_path(path);
 
         // 获取目录列表
-        let result = self.operator.list(&path).await?;
+        let mut result = self.operator.list(&path).await?;
+        result.retain(|entry| !is_current_directory_entry(entry, &path));
 
         info!("已列出 {} 个文件/目录", result.len());
         Ok(result)
+    }
+
+    /// 通过 stat 补齐列表条目的大小和修改时间。
+    ///
+    /// OpenDAL 的 FS 后端在 list 时只提供基础条目类型；Windows、macOS 和
+    /// Linux 都需要通过 stat 获取完整元数据。单个条目 stat 失败时保留 list
+    /// 返回的基础信息，避免文件被并发删除或权限变化导致整个目录加载失败。
+    pub async fn enrich_entries_metadata(&self, entries: Vec<Entry>) -> Vec<FileInfo> {
+        let mut results: Vec<FileInfo> = entries
+            .iter()
+            .map(|entry| file_info_from_entry(entry, entry.metadata()))
+            .collect();
+        let mut pending = entries.into_iter().enumerate();
+        let mut tasks = JoinSet::new();
+
+        for _ in 0..METADATA_STAT_CONCURRENCY {
+            let Some((index, entry)) = pending.next() else {
+                break;
+            };
+            spawn_metadata_stat(&mut tasks, self.operator.clone(), index, entry);
+        }
+
+        while let Some(task_result) = tasks.join_next().await {
+            match task_result {
+                Ok((index, Some(file_info))) => results[index] = file_info,
+                Ok((_index, None)) => {}
+                Err(error) => warn!("获取列表条目元数据的任务失败: {}", error),
+            }
+
+            if let Some((index, entry)) = pending.next() {
+                spawn_metadata_stat(&mut tasks, self.operator.clone(), index, entry);
+            }
+        }
+
+        results
     }
 
     /// 分页列出给定路径下的文件和目录
@@ -90,6 +131,7 @@ impl FileManager {
 
         // 获取完整目录列表
         let mut all_entries = self.operator.list(&path).await?;
+        all_entries.retain(|entry| !is_current_directory_entry(entry, &path));
 
         // 按名称排序，目录在前
         all_entries.sort_by(
@@ -509,7 +551,8 @@ impl FileManager {
         let path = normalize_path(path);
 
         // 获取完整目录列表
-        let all_entries = self.operator.list(&path).await?;
+        let mut all_entries = self.operator.list(&path).await?;
+        all_entries.retain(|entry| !is_current_directory_entry(entry, &path));
 
         // 过滤匹配查询的文件
         let query_lower = query.to_lowercase();
@@ -748,6 +791,9 @@ impl FileManager {
                     debug!("目录 {} 包含 {} 个条目", list_path, entries.len());
 
                     for entry in entries {
+                        if is_current_directory_entry(&entry, &list_path) {
+                            continue;
+                        }
                         let entry_name = entry.name();
                         let entry_path = entry.path();
 
@@ -945,6 +991,34 @@ where
     }
 }
 
+fn spawn_metadata_stat(
+    tasks: &mut JoinSet<(usize, Option<FileInfo>)>,
+    operator: Operator,
+    index: usize,
+    entry: Entry,
+) {
+    tasks.spawn(async move {
+        let path = entry.path().to_string();
+        match operator.stat(&path).await {
+            Ok(metadata) => (index, Some(file_info_from_entry(&entry, &metadata))),
+            Err(error) => {
+                warn!("无法补齐列表条目 {} 的元数据: {}", path, error);
+                (index, None)
+            }
+        }
+    });
+}
+
+fn file_info_from_entry(entry: &Entry, metadata: &Metadata) -> FileInfo {
+    FileInfo {
+        name: entry.name().to_string(),
+        path: entry.path().to_string(),
+        is_dir: metadata.is_dir(),
+        size: metadata.is_file().then(|| metadata.content_length()),
+        modified: metadata.last_modified().map(|dt| dt.to_rfc3339()),
+    }
+}
+
 /// 收集目录中所有待上传文件的本地路径与远程路径
 fn collect_directory_upload_items(
     local_dir_path: &Path,
@@ -1069,12 +1143,33 @@ fn normalize_path(path: &str) -> String {
     path
 }
 
+fn is_current_directory_entry(entry: &Entry, listed_path: &str) -> bool {
+    if !entry.metadata().is_dir() {
+        return false;
+    }
+
+    paths_refer_to_same_directory(entry.path(), listed_path)
+}
+
+fn paths_refer_to_same_directory(left: &str, right: &str) -> bool {
+    let left = left.trim_matches('/');
+    let right = right.trim_matches('/');
+    !left.is_empty() && left == right
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use opendal::{services, Operator};
     use tempfile::TempDir;
     use tokio;
+
+    #[test]
+    fn directory_identity_ignores_outer_slashes() {
+        assert!(paths_refer_to_same_directory("/docs/", "docs/"));
+        assert!(!paths_refer_to_same_directory("docs/child/", "docs/"));
+        assert!(!paths_refer_to_same_directory("/", ""));
+    }
 
     /// 创建一个测试用的内存文件系统
     async fn create_test_operator() -> (Operator, tempfile::TempDir) {
@@ -1124,6 +1219,40 @@ mod tests {
         operator.write("dir2/file5.txt", "content of file5").await?;
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn enriches_fs_list_entries_with_size_and_modified_time() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        setup_test_files(&file_manager.operator).await.unwrap();
+        file_manager.operator.write("empty.txt", "").await.unwrap();
+
+        let entries = file_manager.list("/").await.unwrap();
+        let files = file_manager.enrich_entries_metadata(entries).await;
+
+        let regular_file = files
+            .iter()
+            .find(|file| file.name == "file1.txt")
+            .expect("file1.txt should be listed");
+        assert_eq!(regular_file.size, Some(16));
+        assert!(regular_file.modified.is_some());
+
+        let empty_file = files
+            .iter()
+            .find(|file| file.name == "empty.txt")
+            .expect("empty.txt should be listed");
+        assert_eq!(empty_file.size, Some(0));
+        assert!(empty_file.modified.is_some());
+
+        let directory = files
+            .iter()
+            .find(|file| file.name.trim_end_matches('/') == "dir1")
+            .expect("dir1 should be listed");
+        assert!(directory.is_dir);
+        assert_eq!(directory.size, None);
+        assert!(directory.modified.is_some());
     }
 
     #[tokio::test]

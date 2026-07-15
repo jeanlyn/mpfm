@@ -16,11 +16,14 @@ const FILE_TYPE_MAP: Record<string, FileType> = {
   '.log': 'text',
   '.xml': 'text',
   '.readme': 'text',
+  '.ftl': 'text',
   
   // JSON文件
   '.json': 'json',
   '.jsonl': 'json',
   '.geojson': 'json',
+  // JSONC 允许注释，不能交给基于 JSON.parse 的 JSON 预览器。
+  '.jsonc': 'code',
   
   // 代码文件
   '.js': 'code',
@@ -111,6 +114,22 @@ export function getFileExtension(fileName: string): string {
  */
 export function isPreviewable(fileName: string): boolean {
   return getFileType(fileName) !== 'unknown';
+}
+
+/** 检查文件是否适合交给本地文本编辑器。 */
+export function isTextEditable(fileName: string): boolean {
+  const type = getFileType(fileName);
+  const extension = getFileExtension(fileName).toLowerCase();
+  const lowerName = fileName.toLowerCase();
+  return type === 'text'
+    || type === 'json'
+    || type === 'code'
+    || extension === '.csv'
+    || extension === '.tsv'
+    || extension === '.env'
+    || extension === '.cfg'
+    || extension === '.properties'
+    || ['readme', 'license', 'dockerfile', 'makefile'].includes(lowerName);
 }
 
 /**

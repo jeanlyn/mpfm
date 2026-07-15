@@ -6,10 +6,12 @@ import {
   EyeOutlined,
   CopyOutlined,
   DownOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import { FileInfo } from '../../../types';
+import { DetectedEditor } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
-import { isPreviewable } from '../../FilePreview/utils/fileTypeDetector';
+import { isPreviewable, isTextEditable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { formatFileSize, formatModifiedTime } from '../utils';
 import { COLUMN_WIDTHS, ACTIONS_COLUMN_MIN_WIDTH } from '../constants';
@@ -22,10 +24,13 @@ interface TableColumnsProps {
   isSearchMode: boolean;
   fileSelection: ReturnType<typeof useFileSelection>;
   isAllCurrentPageSelected: boolean;
-  onFileDoubleClick: (file: FileInfo) => void;
   onDownload: (file: FileInfo) => void;
   onCopyDownloadCommand: (file: FileInfo, targetShell: 'bash' | 'powershell') => void;
   onCopyDownloadCurlCommand: (file: FileInfo) => void;
+  onEdit: (file: FileInfo, editorPath?: string) => void;
+  editingPaths: Set<string>;
+  detectedEditors: DetectedEditor[];
+  detectingEditors: boolean;
   onDelete: (file: FileInfo) => void;
   onPreview: (file: FileInfo) => void;
 }
@@ -40,10 +45,13 @@ export const useTableColumns = ({
   isSearchMode,
   fileSelection,
   isAllCurrentPageSelected,
-  onFileDoubleClick,
   onDownload,
   onCopyDownloadCommand,
   onCopyDownloadCurlCommand,
+  onEdit,
+  editingPaths,
+  detectedEditors,
+  detectingEditors,
   onDelete,
   onPreview,
 }: TableColumnsProps) => {
@@ -83,7 +91,6 @@ export const useTableColumns = ({
           connectionId={connectionId}
           text={text}
           record={record}
-          onDoubleClick={onFileDoubleClick}
         />
       ),
     },
@@ -111,6 +118,49 @@ export const useTableColumns = ({
       align: 'right' as const,
       render: (_: any, record: FileInfo) => (
         <div className="file-manager-actions">
+          {!record.is_dir && isTextEditable(record.name) && (
+            <Space.Compact>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                loading={editingPaths.has(record.path)}
+                disabled={editingPaths.has(record.path)}
+                onClick={() => onEdit(record)}
+                title={fileManager.table.editButton}
+              >
+                {fileManager.table.editButton}
+              </Button>
+              <Dropdown
+                trigger={['click']}
+                placement="bottomRight"
+                menu={{
+                  items: detectedEditors.length > 0
+                    ? detectedEditors.map((editor) => ({
+                        key: editor.path,
+                        label: fileManager.actions.openWith.replace('{editor}', editor.name),
+                        title: editor.path,
+                        onClick: () => onEdit(record, editor.path),
+                      }))
+                    : [{
+                        key: 'no-editors',
+                        label: detectingEditors
+                          ? fileManager.messages.detectingEditors
+                          : fileManager.messages.noEditorsDetected,
+                        disabled: true,
+                      }],
+                }}
+              >
+                <Button
+                  size="small"
+                  icon={<DownOutlined />}
+                  loading={detectingEditors}
+                  disabled={editingPaths.has(record.path)}
+                  title={fileManager.actions.chooseEditor}
+                />
+              </Dropdown>
+            </Space.Compact>
+          )}
+
           {!record.is_dir && isPreviewable(record.name) && (
             <Button
               size="small"
@@ -198,10 +248,13 @@ export const useTableColumns = ({
     searchResults,
     isSearchMode,
     fileManager,
-    onFileDoubleClick,
     onDownload,
     onCopyDownloadCommand,
     onCopyDownloadCurlCommand,
+    onEdit,
+    editingPaths,
+    detectedEditors,
+    detectingEditors,
     onDelete,
     onPreview,
   ]);

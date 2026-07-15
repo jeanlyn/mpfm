@@ -44,6 +44,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, fileName }) => {
       '.toml': 'toml',
       '.ini': 'ini',
       '.conf': 'ini',
+      '.jsonc': 'json',
       '.dockerfile': 'dockerfile',
       '.vue': 'vue',
     };
