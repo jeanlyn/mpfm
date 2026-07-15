@@ -150,6 +150,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   // 表格列定义
   const columns = useTableColumns({
     connectionId: connection?.id ?? '',
+    currentPath: state.currentPath,
     files: state.files,
     searchResults: state.searchResults,
     isSearchMode: state.isSearchMode,

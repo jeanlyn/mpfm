@@ -307,6 +307,7 @@ export const useAppI18n = () => {
       },
       table: {
         confirmDelete: t('fileManager.table.confirmDelete'),
+        confirmDeleteDirectory: t('fileManager.table.confirmDeleteDirectory'),
         deleteButton: t('fileManager.table.deleteButton'),
         downloadButton: t('fileManager.table.downloadButton'),
         previewButton: t('fileManager.table.previewButton'),

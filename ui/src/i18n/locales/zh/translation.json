@@ -224,6 +224,7 @@
     },
     "table": {
       "confirmDelete": "确定要删除吗？",
+      "confirmDeleteDirectory": "确定要删除此文件夹吗？文件夹内的所有文件将被永久删除，此操作无法撤销。",
       "deleteButton": "删除",
       "downloadButton": "下载",
       "copyCommandButton": "复制命令",

@@ -227,6 +227,7 @@
     },
     "table": {
       "confirmDelete": "Are you sure you want to delete?",
+      "confirmDeleteDirectory": "Are you sure you want to delete this folder? All files inside will be permanently deleted. This action cannot be undone.",
       "deleteButton": "Delete",
       "downloadButton": "Download",
       "copyCommandButton": "Copy Command",
