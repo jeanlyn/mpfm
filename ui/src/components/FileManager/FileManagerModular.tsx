@@ -89,8 +89,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     state.currentPath,
     state.pageSize,
     state.searchQuery,
-    updateMultipleState,
-    fileOperations.chooseLoadingMode
+    updateMultipleState
   );
 
   // 预览和批量操作

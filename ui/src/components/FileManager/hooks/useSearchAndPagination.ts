@@ -4,6 +4,7 @@ import { Connection } from '../../../types';
 import { ApiService } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { PaginatedFileList } from '../types';
+import { loadDirectoryFiles } from '../utils/loadDirectoryFiles';
 
 /**
  * 搜索和分页相关的 Hook
@@ -13,8 +14,7 @@ export const useSearchAndPagination = (
   currentPath: string,
   pageSize: number,
   searchQuery: string,
-  onStateUpdate: (updates: any) => void,
-  chooseLoadingMode: (path: string) => Promise<'pagination' | 'all'>
+  onStateUpdate: (updates: any) => void
 ) => {
   const { fileManager } = useAppI18n();
 
@@ -66,40 +66,20 @@ export const useSearchAndPagination = (
     onStateUpdate({ loading: true });
     
     try {
-      const mode = await chooseLoadingMode(path);
-      
-      if (mode === 'pagination') {
-        // 分页模式，使用新的pageSize
-        const result: PaginatedFileList = await ApiService.listFilesPaginated(
-          connection.id, 
-          path, 
-          page, 
-          newPageSize
-        );
-        
-        onStateUpdate({
-          files: result.files,
-          totalFiles: result.total,
-          currentPage: result.page,
-          currentPath: path,
-        });
-      } else {
-        // 全量加载模式（适用于小目录）
-        const fileList = await ApiService.listFiles(connection.id, path);
-        onStateUpdate({
-          files: fileList,
-          totalFiles: fileList.length,
-          currentPage: 0,
-          currentPath: path,
-        });
-      }
-      
+      const result = await loadDirectoryFiles(connection.id, path, page, newPageSize);
+      onStateUpdate({
+        loadingMode: result.mode,
+        files: result.files,
+        totalFiles: result.total,
+        currentPage: result.page,
+        currentPath: path,
+      });
     } catch (error) {
       message.error(`${fileManager.messages.loadFilesFailed}: ${error}`);
     } finally {
       onStateUpdate({ loading: false });
     }
-  }, [connection, chooseLoadingMode, onStateUpdate, fileManager.messages.loadFilesFailed]);
+  }, [connection, onStateUpdate, fileManager.messages.loadFilesFailed]);
 
   // 普通分页加载
   const loadFilesWithPageSize = useCallback(async (path: string, page: number = 0, size: number) => {
@@ -108,36 +88,20 @@ export const useSearchAndPagination = (
     onStateUpdate({ loading: true });
     
     try {
-      const mode = await chooseLoadingMode(path);
-      
-      if (mode === 'pagination') {
-        const result: PaginatedFileList = await ApiService.listFilesPaginated(
-          connection.id, 
-          path, 
-          page, 
-          size
-        );
-        
-        onStateUpdate({
-          files: result.files,
-          totalFiles: result.total,
-          currentPage: result.page,
-        });
-      } else {
-        const fileList = await ApiService.listFiles(connection.id, path);
-        onStateUpdate({
-          files: fileList,
-          totalFiles: fileList.length,
-          currentPage: 0,
-        });
-      }
-      
+      const result = await loadDirectoryFiles(connection.id, path, page, size);
+      onStateUpdate({
+        loadingMode: result.mode,
+        files: result.files,
+        totalFiles: result.total,
+        currentPage: result.page,
+        ...(page === 0 ? { currentPath: path } : {}),
+      });
     } catch (error) {
       message.error(`${fileManager.messages.loadFilesFailed}: ${error}`);
     } finally {
       onStateUpdate({ loading: false });
     }
-  }, [connection, chooseLoadingMode, onStateUpdate, fileManager.messages.loadFilesFailed]);
+  }, [connection, onStateUpdate, fileManager.messages.loadFilesFailed]);
 
   // 处理搜索结果分页
   const handleSearchPageChange = useCallback(async (page: number, size?: number) => {

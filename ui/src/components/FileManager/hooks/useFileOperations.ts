@@ -4,10 +4,9 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo } from '../../../types';
 import { ApiService } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
-import { PaginatedFileList, LoadingMode } from '../types';
 import { UploadProgress } from '../../../utils/uploadProgress';
-import { PAGINATION_MODE_THRESHOLD } from '../constants';
 import { extractLocalFileName } from '../utils';
+import { loadDirectoryFiles } from '../utils/loadDirectoryFiles';
 import { isLocalDirectory } from '../utils/isLocalDirectory';
 
 /**
@@ -22,25 +21,6 @@ export const useFileOperations = (
 ) => {
   const { fileManager, app } = useAppI18n();
 
-  // 智能选择加载模式
-  const chooseLoadingMode = useCallback(async (path: string): Promise<LoadingMode> => {
-    if (!connection) return 'pagination';
-    
-    try {
-      const count = await ApiService.getDirectoryCount(connection.id, path);
-      
-      // 如果文件数量超过100个，使用分页模式
-      if (count > PAGINATION_MODE_THRESHOLD) {
-        return 'pagination';
-      } else {
-        return 'all';
-      }
-    } catch (error) {
-      console.warn(fileManager.messages.directoryCountWarning, error);
-      return 'pagination';
-    }
-  }, [connection, fileManager.messages.directoryCountWarning]);
-
   // 加载文件列表
   const loadFiles = useCallback(async (path: string, page: number = 0) => {
     if (!connection) return;
@@ -48,41 +28,20 @@ export const useFileOperations = (
     onStateUpdate({ loading: true });
     
     try {
-      const mode = await chooseLoadingMode(path);
-      onStateUpdate({ loadingMode: mode });
-      
-      if (mode === 'pagination') {
-        // 分页模式
-        const result: PaginatedFileList = await ApiService.listFilesPaginated(
-          connection.id, 
-          path, 
-          page, 
-          pageSize
-        );
-        
-        onStateUpdate({
-          files: result.files,
-          totalFiles: result.total,
-          currentPage: result.page,
-          currentPath: path,
-        });
-      } else {
-        // 全量加载模式（适用于小目录）
-        const fileList = await ApiService.listFiles(connection.id, path);
-        onStateUpdate({
-          files: fileList,
-          totalFiles: fileList.length,
-          currentPage: 0,
-          currentPath: path,
-        });
-      }
-      
+      const result = await loadDirectoryFiles(connection.id, path, page, pageSize);
+      onStateUpdate({
+        loadingMode: result.mode,
+        files: result.files,
+        totalFiles: result.total,
+        currentPage: result.page,
+        currentPath: path,
+      });
     } catch (error) {
       message.error(`${fileManager.messages.loadFilesFailed}: ${error}`);
     } finally {
       onStateUpdate({ loading: false });
     }
-  }, [connection, pageSize, chooseLoadingMode, onStateUpdate, fileManager.messages.loadFilesFailed]);
+  }, [connection, pageSize, onStateUpdate, fileManager.messages.loadFilesFailed]);
 
   // 文件双击处理
   const handleFileDoubleClick = useCallback((file: FileInfo) => {
@@ -427,6 +386,5 @@ export const useFileOperations = (
     handleDelete,
     handleCreateDirectory,
     navigateUp,
-    chooseLoadingMode,
   };
 };
