@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Input, Button, Upload, List, Typography } from 'antd';
+import { Modal, Button, Upload, List, Typography } from 'antd';
+import { AppInput } from '../../common';
 import { UploadOutlined } from '@ant-design/icons';
 import { ConnectionExportItem } from '../utils/connectionExport';
 import { getConnectionIcon } from '../utils.tsx';
@@ -56,7 +57,7 @@ export const ConnectionImportModal: React.FC<ConnectionImportModalProps> = ({
     >
       <p style={{ marginBottom: 12, color: '#666' }}>{i18n.import.modalDescription}</p>
 
-      <Input.TextArea
+      <AppInput.TextArea
         placeholder={i18n.import.pastePlaceholder}
         autoSize={{ minRows: 6, maxRows: 12 }}
         onChange={(event) => onParseText(event.target.value)}

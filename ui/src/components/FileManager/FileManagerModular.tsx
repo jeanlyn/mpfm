@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Layout, Table, Modal, Input, Typography, Spin } from 'antd';
+import { Layout, Table, Modal, Typography, Spin } from 'antd';
+import { AppInput } from '../common';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
 import UploadProgressModal from './UploadProgressModal';
@@ -314,7 +315,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           });
         }}
       >
-        <Input
+        <AppInput
           placeholder={fileManager.modal.directoryNamePlaceholder}
           value={state.newDirName}
           onChange={(e) => updateState('newDirName', e.target.value)}

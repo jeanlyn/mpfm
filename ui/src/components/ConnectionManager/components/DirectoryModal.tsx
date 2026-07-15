@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Form, Input, Select, Button } from 'antd';
+import { Modal, Form, Select, Button } from 'antd';
+import { AppInput } from '../../common';
 import { DirectoryItem } from '../types';
 import { Connection } from '../../../types';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
@@ -39,7 +40,7 @@ export const DirectoryModal: React.FC<DirectoryModalProps> = ({
           label={directory.modal.directoryNameLabel}
           rules={[{ required: true, message: directory.modal.directoryNameRequired }]}
         >
-          <Input placeholder={directory.modal.directoryNamePlaceholder} />
+          <AppInput placeholder={directory.modal.directoryNamePlaceholder} />
         </Form.Item>
 
         <Form.Item

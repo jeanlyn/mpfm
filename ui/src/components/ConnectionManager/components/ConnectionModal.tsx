@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Modal, Form, Input, Select, Button } from 'antd';
+import { Modal, Form, Select, Button } from 'antd';
+import { AppInput } from '../../common';
 import { ModalConfig, MODAL_TYPES } from '../types';
 import { DirectoryItem } from '../types';
 import { ProtocolFields } from './ProtocolFields';
@@ -66,7 +67,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
           label={connection.modal.nameLabel}
           rules={[{ required: true, message: connection.modal.nameRequired }]}
         >
-          <Input 
+          <AppInput 
             placeholder={connection.modal.namePlaceholder}
             style={{ width: '100%' }}
             autoComplete="off"
