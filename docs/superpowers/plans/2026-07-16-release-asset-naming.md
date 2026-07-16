@@ -41,7 +41,7 @@ assert_contains "$release_workflow" "asset_os: linux"
 assert_contains "$release_workflow" "asset_os: windows"
 assert_contains "$release_workflow" "asset_arch: x86_64"
 assert_contains "$release_workflow" "asset_arch: aarch64"
-assert_contains "$release_workflow" 'releaseAssetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]'
+assert_contains "$release_workflow" 'assetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]'
 assert_contains "$release_workflow" 'mpfm-v${VERSION}-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.tar.gz'
 assert_contains "$release_workflow" 'mpfm-v$version-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.zip'
 assert_contains "$release_workflow" 'path: dist/*.tar.gz'
@@ -96,7 +96,7 @@ asset_arch: aarch64
 Use `macos/x86_64`, `linux/x86_64`, and `windows/x86_64` for the other standard desktop entries. Add this input to the Tauri Action step:
 
 ```yaml
-releaseAssetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]
+assetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]
 ```
 
 For all six `build-cli` matrix entries, add canonical `asset_os` and `asset_arch` labels. Change Unix archive creation to:

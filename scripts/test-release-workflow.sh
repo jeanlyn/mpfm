@@ -54,7 +54,8 @@ assert_contains "$release_workflow" "asset_os: linux"
 assert_contains "$release_workflow" "asset_os: windows"
 assert_contains "$release_workflow" "asset_arch: x86_64"
 assert_contains "$release_workflow" "asset_arch: aarch64"
-assert_contains "$release_workflow" 'releaseAssetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]'
+assert_contains "$release_workflow" 'assetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]'
+assert_not_contains "$release_workflow" 'releaseAssetNamePattern:'
 assert_contains "$release_workflow" 'mpfm-v${VERSION}-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.tar.gz'
 assert_contains "$release_workflow" 'mpfm-v$version-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.zip'
 assert_contains "$release_workflow" 'path: dist/*.tar.gz'

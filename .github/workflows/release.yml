@@ -165,7 +165,7 @@ jobs:
           releaseBody: ${{ needs.release-notes.outputs.body }}
           releaseDraft: true
           prerelease: false
-          releaseAssetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]
+          assetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]
           args: ${{ matrix.bundle_args }}
 
   build-cli:

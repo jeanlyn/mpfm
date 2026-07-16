@@ -46,7 +46,7 @@ When an installer filename needs a locale to distinguish otherwise identical ass
 
 ### Standard desktop bundles
 
-The desktop build matrix will carry explicit `asset_os` and `asset_arch` values. `tauri-apps/tauri-action` will use `releaseAssetNamePattern` to rename uploaded Release assets while leaving the locally built bundle and its internal application metadata unchanged.
+The desktop build matrix will carry explicit `asset_os` and `asset_arch` values. `tauri-apps/tauri-action@v0` will use `assetNamePattern` to rename uploaded Release assets while leaving the locally built bundle and its internal application metadata unchanged.
 
 ### CLI archives
 
