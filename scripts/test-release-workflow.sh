@@ -46,6 +46,73 @@ assert_not_line() {
   fi
 }
 
+ruby - "$release_workflow" <<'RUBY'
+require "yaml"
+
+workflow = YAML.load_file(ARGV.fetch(0))
+jobs = workflow.fetch("jobs")
+
+desktop_rows = jobs.fetch("publish-desktop").fetch("strategy").fetch("matrix").fetch("include")
+desktop_actual = desktop_rows.map do |row|
+  row.values_at("name", "os", "asset_os", "asset_arch", "rust_target", "bundle_args")
+end
+desktop_expected = [
+  ["macOS Apple Silicon", "macos-latest", "macos", "aarch64", "aarch64-apple-darwin", "--target aarch64-apple-darwin --bundles dmg"],
+  ["macOS Intel", "macos-latest", "macos", "x86_64", "x86_64-apple-darwin", "--target x86_64-apple-darwin --bundles dmg"],
+  ["Linux", "ubuntu-22.04", "linux", "x86_64", "", ""],
+  ["Windows", "windows-2022", "windows", "x86_64", "", ""]
+]
+abort "Desktop release matrix does not match canonical OS/architecture mapping" unless desktop_actual == desktop_expected
+
+desktop_step = jobs.fetch("publish-desktop").fetch("steps").find do |step|
+  step["name"] == "Build and publish desktop bundle"
+end
+expected_pattern = 'mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]'
+abort "Desktop release asset pattern is not canonical" unless desktop_step&.fetch("with", {})&.fetch("assetNamePattern", nil) == expected_pattern
+
+cli_job = jobs.fetch("build-cli")
+cli_rows = cli_job.fetch("strategy").fetch("matrix").fetch("include")
+cli_actual = cli_rows.map do |row|
+  row.values_at("target", "asset_os", "asset_arch", "archive", "binary_name")
+end
+cli_expected = [
+  ["x86_64-unknown-linux-musl", "linux", "x86_64", "tar.gz", "main_cli"],
+  ["aarch64-unknown-linux-musl", "linux", "aarch64", "tar.gz", "main_cli"],
+  ["x86_64-apple-darwin", "macos", "x86_64", "tar.gz", "main_cli"],
+  ["aarch64-apple-darwin", "macos", "aarch64", "tar.gz", "main_cli"],
+  ["x86_64-pc-windows-msvc", "windows", "x86_64", "zip", "main_cli.exe"],
+  ["aarch64-pc-windows-msvc", "windows", "aarch64", "zip", "main_cli.exe"]
+]
+abort "CLI release matrix does not match canonical OS/architecture mapping" unless cli_actual == cli_expected
+
+unix_upload = cli_job.fetch("steps").find { |step| step["name"] == "Upload CLI artifact (Unix)" }
+windows_upload = cli_job.fetch("steps").find { |step| step["name"] == "Upload CLI artifact (Windows)" }
+abort "Unix CLI upload must only include tar.gz archives" unless unix_upload&.fetch("if", nil) == "runner.os != 'Windows'" && unix_upload.dig("with", "path") == "dist/*.tar.gz"
+abort "Windows CLI upload must only include zip archives" unless windows_upload&.fetch("if", nil) == "runner.os == 'Windows'" && windows_upload.dig("with", "path") == "dist/*.zip"
+RUBY
+
+ruby - "$publish_fixed_webview2" <<'RUBY'
+script = File.read(ARGV.fetch(0))
+pattern_text = script[/\$Tag -match '([^']+)'/, 1]
+abort "Could not find fixed WebView2 release tag pattern" unless pattern_text
+
+pattern = Regexp.new(pattern_text)
+valid_tags = [
+  "v1.2.3",
+  "v1.2.3-rc.1",
+  "v1.2.3+build.4",
+  "v1.2.3-rc.1+build.4"
+]
+invalid_tags = ["1.2.3", "v1.2", "v1.2.3_rc.1"]
+
+valid_tags.each do |tag|
+  abort "Expected release tag pattern to accept #{tag}" unless pattern.match?(tag)
+end
+invalid_tags.each do |tag|
+  abort "Expected release tag pattern to reject #{tag}" if pattern.match?(tag)
+end
+RUBY
+
 assert_contains "$release_workflow" "bundle_args: --target aarch64-apple-darwin --bundles dmg"
 assert_contains "$release_workflow" "bundle_args: --target x86_64-apple-darwin --bundles dmg"
 assert_not_contains "$release_workflow" "--bundles app"
@@ -73,6 +140,7 @@ assert_contains "$workflow_readme" "xattr -dr com.apple.quarantine"
 assert_contains "$workflow_readme" 'mpfm-v{version}-{type}-{os}-{arch}'
 assert_contains "$workflow_readme" 'mpfm-v0.3.1-desktop-macos-aarch64.dmg'
 assert_contains "$workflow_readme" 'mpfm-v0.3.1-cli-windows-x86_64.zip'
+assert_contains "$workflow_readme" 'Tauri updater 元数据 `latest.json` 保留固定名称'
 
 assert_contains "$rename_fixed_webview2" '"x86_64-pc-windows-msvc" { "x86_64" }'
 assert_contains "$rename_fixed_webview2" '"aarch64-pc-windows-msvc" { "aarch64" }'

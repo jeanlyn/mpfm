@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give every future GitHub Release asset a canonical filename that identifies mpfm, version, artifact type, operating system, and CPU architecture.
+**Goal:** Give every future downloadable application asset in GitHub Releases a canonical filename that identifies mpfm, version, artifact type, operating system, and CPU architecture.
 
 **Architecture:** Keep the existing build matrix and release jobs. Use `tauri-action`'s upload-only naming pattern for standard desktop bundles, explicit matrix labels for CLI archive names, and the existing PowerShell post-build step for fixed WebView2 installers.
 
@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- Release assets use `mpfm-v{version}-{type}-{os}-{arch}[-{variant}].{extension}`.
+- Downloadable application assets use `mpfm-v{version}-{type}-{os}-{arch}[-{variant}].{extension}`.
+- Tauri updater metadata such as `latest.json` keeps its protocol-defined filename.
 - `type` is exactly `desktop` or `cli`.
 - `os` is exactly `macos`, `linux`, or `windows`.
 - `arch` is exactly `x86_64` or `aarch64`.

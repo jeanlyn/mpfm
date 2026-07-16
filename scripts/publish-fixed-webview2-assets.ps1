@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-if ($Tag -match '^v(?<version>\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$') {
+if ($Tag -match '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$') {
     $version = $matches.version
 }
 else {

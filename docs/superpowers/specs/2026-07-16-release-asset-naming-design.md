@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make every future GitHub Release asset identify its application type, operating system, and CPU architecture directly from its filename.
+Make every future downloadable application asset in GitHub Releases identify its application type, operating system, and CPU architecture directly from its filename.
 
 ## Scope
 
@@ -15,7 +15,7 @@ This change only affects filenames shown and downloaded from GitHub Releases. It
 
 ## Naming Convention
 
-Release asset names use this structure:
+Downloadable application asset names use this structure:
 
 ```text
 mpfm-v{version}-{type}-{os}-{arch}[-{variant}].{extension}
@@ -41,6 +41,8 @@ mpfm-v0.3.1-cli-windows-x86_64.zip
 ```
 
 When an installer filename needs a locale to distinguish otherwise identical assets, the locale remains an additional variant segment.
+
+Tauri updater metadata such as `latest.json` keeps its protocol-defined filename and is outside this application asset convention.
 
 ## Implementation Design
 
