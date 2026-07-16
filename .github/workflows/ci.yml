@@ -117,3 +117,15 @@ jobs:
 
       - name: Run all tests
         run: cargo test --verbose
+
+  windows-release-script-tests:
+    name: Windows Release Script Tests
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test fixed WebView2 release scripts
+        shell: pwsh
+        run: ./scripts/test-fixed-webview2-assets.ps1

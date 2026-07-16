@@ -8,6 +8,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 release_workflow="$repo_root/.github/workflows/release.yml"
+ci_workflow="$repo_root/.github/workflows/ci.yml"
 workflow_readme="$repo_root/.github/workflows/README.md"
 build_release="$repo_root/scripts/build-release.sh"
 rename_fixed_webview2="$repo_root/scripts/rename-fixed-webview2-artifacts.ps1"
@@ -150,5 +151,7 @@ assert_contains "$rename_fixed_webview2" '$newName = "$assetBase-setup.exe"'
 assert_contains "$publish_fixed_webview2" '$assetBase = "mpfm-v$version-desktop-windows-$assetArch-fixed-webview2"'
 assert_contains "$publish_fixed_webview2" '"$bundleRoot/msi/$assetBase-*.msi"'
 assert_contains "$publish_fixed_webview2" '"$bundleRoot/nsis/$assetBase-setup.exe"'
+assert_contains "$ci_workflow" "windows-release-script-tests:"
+assert_contains "$ci_workflow" "run: ./scripts/test-fixed-webview2-assets.ps1"
 
 echo "[test-release-workflow] OK"
