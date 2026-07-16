@@ -520,8 +520,7 @@ impl FileManager {
         let path = normalize_path(path);
 
         // 获取完整目录列表，过滤自引用的 folder marker
-        let all_entries =
-            filter_self_referential_entries(&path, self.operator.list(&path).await?);
+        let all_entries = filter_self_referential_entries(&path, self.operator.list(&path).await?);
 
         // 过滤匹配查询的文件
         let query_lower = query.to_lowercase();
