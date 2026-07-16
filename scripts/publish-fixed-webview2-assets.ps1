@@ -8,11 +8,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($Tag -match '^v(?<version>\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$') {
+    $version = $matches.version
+}
+else {
+    throw "Release tag must use v<semver> format, got: $Tag"
+}
+
+$assetArch = switch ($Target) {
+    "x86_64-pc-windows-msvc" { "x86_64" }
+    "aarch64-pc-windows-msvc" { "aarch64" }
+    default { throw "Unsupported Windows target for release asset publishing: $Target" }
+}
+$assetBase = "mpfm-v$version-desktop-windows-$assetArch-fixed-webview2"
+
 $bundleRoot = "target/$Target/release/bundle"
 $patterns = @(
-    "$bundleRoot/msi/*-fixed-webview2.msi",
-    "$bundleRoot/nsis/*-fixed-webview2.exe",
-    "$bundleRoot/msi/*-fixed-webview2.msi.zip"
+    "$bundleRoot/msi/$assetBase-*.msi",
+    "$bundleRoot/nsis/$assetBase-setup.exe",
+    "$bundleRoot/msi/$assetBase-*.msi.zip"
 )
 
 $files = @()

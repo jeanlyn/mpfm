@@ -10,6 +10,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 release_workflow="$repo_root/.github/workflows/release.yml"
 workflow_readme="$repo_root/.github/workflows/README.md"
 build_release="$repo_root/scripts/build-release.sh"
+rename_fixed_webview2="$repo_root/scripts/rename-fixed-webview2-artifacts.ps1"
+publish_fixed_webview2="$repo_root/scripts/publish-fixed-webview2-assets.ps1"
 
 assert_contains() {
   local file="$1"
@@ -70,5 +72,14 @@ assert_contains "$workflow_readme" "xattr -dr com.apple.quarantine"
 assert_contains "$workflow_readme" 'mpfm-v{version}-{type}-{os}-{arch}'
 assert_contains "$workflow_readme" 'mpfm-v0.3.1-desktop-macos-aarch64.dmg'
 assert_contains "$workflow_readme" 'mpfm-v0.3.1-cli-windows-x86_64.zip'
+
+assert_contains "$rename_fixed_webview2" '"x86_64-pc-windows-msvc" { "x86_64" }'
+assert_contains "$rename_fixed_webview2" '"aarch64-pc-windows-msvc" { "aarch64" }'
+assert_contains "$rename_fixed_webview2" '$assetBase = "mpfm-v$version-desktop-windows-$assetArch-fixed-webview2"'
+assert_contains "$rename_fixed_webview2" '$newName = "$assetBase-$wixLanguage.msi"'
+assert_contains "$rename_fixed_webview2" '$newName = "$assetBase-setup.exe"'
+assert_contains "$publish_fixed_webview2" '$assetBase = "mpfm-v$version-desktop-windows-$assetArch-fixed-webview2"'
+assert_contains "$publish_fixed_webview2" '"$bundleRoot/msi/$assetBase-*.msi"'
+assert_contains "$publish_fixed_webview2" '"$bundleRoot/nsis/$assetBase-setup.exe"'
 
 echo "[test-release-workflow] OK"
