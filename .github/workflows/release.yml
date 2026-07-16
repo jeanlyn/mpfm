@@ -81,18 +81,26 @@ jobs:
         include:
           - name: macOS Apple Silicon
             os: macos-latest
+            asset_os: macos
+            asset_arch: aarch64
             rust_target: aarch64-apple-darwin
             bundle_args: --target aarch64-apple-darwin --bundles dmg
           - name: macOS Intel
             os: macos-latest
+            asset_os: macos
+            asset_arch: x86_64
             rust_target: x86_64-apple-darwin
             bundle_args: --target x86_64-apple-darwin --bundles dmg
           - name: Linux
             os: ubuntu-22.04
+            asset_os: linux
+            asset_arch: x86_64
             rust_target: ""
             bundle_args: ""
           - name: Windows
             os: windows-2022
+            asset_os: windows
+            asset_arch: x86_64
             rust_target: ""
             bundle_args: ""
 
@@ -157,6 +165,7 @@ jobs:
           releaseBody: ${{ needs.release-notes.outputs.body }}
           releaseDraft: true
           prerelease: false
+          releaseAssetNamePattern: mpfm-v[version]-desktop-${{ matrix.asset_os }}-${{ matrix.asset_arch }}[setup][ext]
           args: ${{ matrix.bundle_args }}
 
   build-cli:
@@ -169,32 +178,44 @@ jobs:
         include:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-musl
+            asset_os: linux
+            asset_arch: x86_64
             archive: tar.gz
             binary_name: main_cli
             use_zig: true
           - os: ubuntu-22.04
             target: aarch64-unknown-linux-musl
+            asset_os: linux
+            asset_arch: aarch64
             archive: tar.gz
             binary_name: main_cli
             use_zig: true
           - os: macos-latest
             target: x86_64-apple-darwin
+            asset_os: macos
+            asset_arch: x86_64
             archive: tar.gz
             binary_name: main_cli
             use_zig: false
           - os: macos-latest
             target: aarch64-apple-darwin
+            asset_os: macos
+            asset_arch: aarch64
             archive: tar.gz
             binary_name: main_cli
             use_zig: false
           - os: windows-2022
             target: x86_64-pc-windows-msvc
+            asset_os: windows
+            asset_arch: x86_64
             archive: zip
             binary_name: main_cli.exe
             use_zig: false
             msvc_arch: amd64
           - os: windows-2022
             target: aarch64-pc-windows-msvc
+            asset_os: windows
+            asset_arch: aarch64
             archive: zip
             binary_name: main_cli.exe
             use_zig: false
@@ -270,7 +291,7 @@ jobs:
           OUT_DIR="dist"
           mkdir -p "$OUT_DIR"
           cp "target/$TARGET/release/${{ matrix.binary_name }}" "$OUT_DIR/main_cli"
-          tar -C "$OUT_DIR" -czf "$OUT_DIR/main_cli-v${VERSION}-${TARGET}.tar.gz" main_cli
+          tar -C "$OUT_DIR" -czf "$OUT_DIR/mpfm-v${VERSION}-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.tar.gz" main_cli
 
       - name: Package CLI archive (Windows)
         if: runner.os == 'Windows'
@@ -281,13 +302,22 @@ jobs:
           $outDir = "dist"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
           Copy-Item "target/$target/release/${{ matrix.binary_name }}" "$outDir/main_cli.exe"
-          Compress-Archive -Path "$outDir/main_cli.exe" -DestinationPath "$outDir/main_cli-v$version-$target.zip" -Force
+          Compress-Archive -Path "$outDir/main_cli.exe" -DestinationPath "$outDir/mpfm-v$version-cli-${{ matrix.asset_os }}-${{ matrix.asset_arch }}.zip" -Force
 
-      - name: Upload CLI artifact
+      - name: Upload CLI artifact (Unix)
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.target }}
-          path: dist/*
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - name: Upload CLI artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/*.zip
           if-no-files-found: error
 
   publish-cli-release:

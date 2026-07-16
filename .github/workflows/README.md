@@ -44,6 +44,16 @@
   - `x86_64-pc-windows-msvc`
   - `aarch64-pc-windows-msvc`
 
+**制品命名：**
+
+所有 GitHub Release 制品统一使用 `mpfm-v{version}-{type}-{os}-{arch}[-{variant}].{extension}`。其中操作系统固定为 `macos`、`linux`、`windows`，架构固定为 `x86_64`、`aarch64`。例如：
+
+- `mpfm-v0.3.1-desktop-macos-aarch64.dmg`
+- `mpfm-v0.3.1-desktop-linux-x86_64.AppImage`
+- `mpfm-v0.3.1-cli-windows-x86_64.zip`
+
+该规则只改变 GitHub Release 的下载文件名，不改变安装后的应用名称或 CLI 压缩包内的可执行文件名。
+
 **保护措施：**
 - 发布前执行 `bash ./scripts/release-version.sh --expect-tag <tag>`
 - 校验 `Cargo.toml`、`package.json`、`ui/package.json`、`tauri.conf.json`、`tauri.win.conf.json` 的版本完全一致
