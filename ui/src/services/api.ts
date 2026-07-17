@@ -508,6 +508,38 @@ export class ApiService {
     }
   }
 
+  static async listLocalApplications(): Promise<DetectedEditor[]> {
+    try {
+      const response: ApiResponse<DetectedEditor[]> = await invoke('list_local_applications');
+      if (response.success) {
+        return response.data || [];
+      }
+      throw new Error(response.error || '读取本机应用失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
+  static async inspectLocalEditor(path: string): Promise<DetectedEditor> {
+    try {
+      const response: ApiResponse<DetectedEditor> = await invoke('inspect_local_editor', {
+        path,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '选择的编辑器不可用');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
   static async buildDownloadCommand(
     connectionId: string,
     remotePath: string,

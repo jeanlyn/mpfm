@@ -84,6 +84,22 @@ impl EditorKind {
     }
 }
 
+fn is_native_default_editor(kind: EditorKind) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        kind == EditorKind::Notepad
+    }
+    #[cfg(target_os = "macos")]
+    {
+        kind == EditorKind::TextEdit
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = kind;
+        false
+    }
+}
+
 fn editor_kind_from_name(value: &str) -> Option<EditorKind> {
     let value = value.to_ascii_lowercase();
     if value.contains("visual studio code insiders") || value.contains("code - insiders") {
@@ -399,7 +415,7 @@ fn editor_command_from_path(path: PathBuf) -> Result<EditorCommand, String> {
 
     let display_name = editor_kind_from_path(&path)
         .map(EditorKind::display_name)
-        .or_else(|| path.file_name().and_then(|value| value.to_str()))
+        .or_else(|| path.file_stem().and_then(|value| value.to_str()))
         .unwrap_or("editor")
         .to_string();
     Ok(EditorCommand {
@@ -522,6 +538,186 @@ fn registry_editor_candidates() -> Vec<(EditorKind, PathBuf)> {
     candidates
 }
 
+#[cfg(target_os = "windows")]
+fn windows_installed_application_paths() -> Vec<PathBuf> {
+    use winreg::enums::{
+        HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_32KEY,
+        KEY_WOW64_64KEY,
+    };
+    use winreg::RegKey;
+
+    let mut paths = Vec::new();
+    let roots = [
+        RegKey::predef(HKEY_CURRENT_USER),
+        RegKey::predef(HKEY_LOCAL_MACHINE),
+    ];
+    let views = [KEY_READ | KEY_WOW64_64KEY, KEY_READ | KEY_WOW64_32KEY];
+
+    for root in &roots {
+        for flags in views {
+            let Ok(app_paths) = root.open_subkey_with_flags(
+                "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+                flags,
+            ) else {
+                continue;
+            };
+
+            for subkey_name in app_paths.enum_keys().flatten() {
+                let Ok(application) = app_paths.open_subkey_with_flags(&subkey_name, flags) else {
+                    continue;
+                };
+                if let Ok(value) = application.get_value::<String, _>("") {
+                    if let Some(path) = registry_value_executable_path(&value) {
+                        paths.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    // HKCR\Applications is the source Windows uses for many "Open with" entries.
+    let classes_root = RegKey::predef(HKEY_CLASSES_ROOT);
+    if let Ok(applications) = classes_root.open_subkey_with_flags("Applications", KEY_READ) {
+        for executable_name in applications.enum_keys().flatten() {
+            let command_path = format!("{}\\shell\\open\\command", executable_name);
+            let Ok(command) = applications.open_subkey_with_flags(command_path, KEY_READ) else {
+                continue;
+            };
+            if let Ok(value) = command.get_value::<String, _>("") {
+                if let Some(path) = registry_value_executable_path(&value) {
+                    paths.push(path);
+                }
+            }
+        }
+    }
+
+    paths
+}
+
+#[cfg(target_os = "macos")]
+fn collect_macos_applications(directory: &Path, depth: usize, paths: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if is_macos_app_bundle(&path) {
+            paths.push(path);
+        } else if depth > 0 && path.is_dir() {
+            collect_macos_applications(&path, depth - 1, paths);
+        }
+    }
+}
+
+fn is_likely_text_editor_application(path: &Path) -> bool {
+    if editor_kind_from_path(path).is_some() {
+        return true;
+    }
+
+    let compact_name: String = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect();
+
+    matches!(
+        compact_name.as_str(),
+        "atom"
+            | "bbedit"
+            | "code"
+            | "codeinsiders"
+            | "codium"
+            | "coteditor"
+            | "editplus"
+            | "emacs"
+            | "emeditor"
+            | "emeditor64"
+            | "gedit"
+            | "geany"
+            | "gvim"
+            | "helix"
+            | "hx"
+            | "kate"
+            | "lapce"
+            | "litexl"
+            | "macvim"
+            | "micro"
+            | "neovim"
+            | "nova"
+            | "nvim"
+            | "pspad"
+            | "pulsar"
+            | "scite"
+            | "sublimetext"
+            | "textmate"
+            | "textpad"
+            | "typora"
+            | "uedit32"
+            | "uedit64"
+            | "ultraedit"
+            | "vim"
+            | "visualstudiocode"
+            | "vscodium"
+            | "windsurf"
+            | "xed"
+            | "zed"
+    ) || compact_name.starts_with("cursor")
+        || compact_name.starts_with("notepad")
+        || compact_name.starts_with("sublimetext")
+        || compact_name.starts_with("zedpreview")
+}
+
+fn discover_local_applications() -> Vec<DetectedEditor> {
+    let mut paths: Vec<PathBuf> = discover_local_editors()
+        .into_iter()
+        .map(|editor| PathBuf::from(editor.path))
+        .collect();
+
+    #[cfg(target_os = "windows")]
+    paths.extend(windows_installed_application_paths());
+
+    #[cfg(target_os = "macos")]
+    {
+        collect_macos_applications(Path::new("/Applications"), 1, &mut paths);
+        collect_macos_applications(Path::new("/System/Applications"), 1, &mut paths);
+        if let Some(home) = dirs::home_dir() {
+            collect_macos_applications(&home.join("Applications"), 1, &mut paths);
+        }
+    }
+
+    let mut seen = HashSet::new();
+    let mut applications: Vec<DetectedEditor> = paths
+        .into_iter()
+        .filter_map(|path| {
+            if !editor_candidate_exists(&path) || !is_likely_text_editor_application(&path) {
+                return None;
+            }
+            let path = fs::canonicalize(&path).unwrap_or(path);
+            let key = path.to_string_lossy().to_ascii_lowercase();
+            if !seen.insert(key) {
+                return None;
+            }
+            let command = editor_command_from_path(path.clone()).ok()?;
+            Some(DetectedEditor {
+                name: command.display_name,
+                path: path.to_string_lossy().to_string(),
+            })
+        })
+        .collect();
+
+    applications.sort_by(|left, right| {
+        left.name
+            .to_ascii_lowercase()
+            .cmp(&right.name.to_ascii_lowercase())
+    });
+    applications.truncate(100);
+    applications
+}
+
 fn discover_local_editors() -> Vec<DetectedEditor> {
     let mut candidates: Vec<(EditorKind, PathBuf)> = automatic_editor_candidates()
         .into_iter()
@@ -537,6 +733,8 @@ fn discover_local_editors() -> Vec<DetectedEditor> {
 
     #[cfg(target_os = "windows")]
     candidates.extend(registry_editor_candidates());
+
+    candidates.retain(|(kind, _)| is_native_default_editor(*kind));
 
     let mut seen = HashSet::new();
     let mut editors: Vec<(EditorKind, DetectedEditor)> = candidates
@@ -584,15 +782,10 @@ fn resolve_editor(configured_path: Option<String>) -> Result<EditorCommand, Stri
                 .ok_or_else(|| format!("配置的文本编辑器不存在或无法执行: {}", path.display()))?
         }
     } else {
-        automatic_editor_candidates()
+        discover_local_editors()
             .into_iter()
-            .find_map(|path| {
-                if editor_candidate_exists(&path) {
-                    Some(path)
-                } else {
-                    path.to_str().and_then(executable_on_path)
-                }
-            })
+            .next()
+            .map(|editor| PathBuf::from(editor.path))
             .ok_or_else(|| {
                 "未找到可用的本地文本编辑器，请在设置中选择编辑器应用或可执行文件".to_string()
             })?
@@ -740,6 +933,37 @@ pub fn detect_local_editors() -> ApiResponse<Vec<DetectedEditor>> {
 }
 
 #[command]
+pub fn list_local_applications() -> ApiResponse<Vec<DetectedEditor>> {
+    ApiResponse::success(discover_local_applications())
+}
+
+#[command]
+pub fn inspect_local_editor(path: String) -> ApiResponse<DetectedEditor> {
+    let configured = PathBuf::from(path.trim());
+    let resolved = if editor_candidate_exists(&configured) {
+        configured
+    } else if let Some(path) = executable_on_path(configured.to_string_lossy().as_ref()) {
+        path
+    } else {
+        return ApiResponse::error(format!(
+            "选择的文本编辑器不存在或无法执行: {}",
+            configured.display()
+        ));
+    };
+
+    match editor_command_from_path(resolved.clone()) {
+        Ok(command) => {
+            let resolved = fs::canonicalize(&resolved).unwrap_or(resolved);
+            ApiResponse::success(DetectedEditor {
+                name: command.display_name,
+                path: resolved.to_string_lossy().to_string(),
+            })
+        }
+        Err(error) => ApiResponse::error(error),
+    }
+}
+
+#[command]
 pub async fn edit_file_with_local_editor(
     connection_id: String,
     remote_path: String,
@@ -754,8 +978,9 @@ pub async fn edit_file_with_local_editor(
 #[cfg(test)]
 mod tests {
     use super::{
-        discover_local_editors, editor_kind_from_name, editor_prefix_args, sanitize_file_name,
-        EditorKind,
+        discover_local_applications, discover_local_editors, editor_candidate_exists,
+        editor_kind_from_name, editor_prefix_args, is_likely_text_editor_application,
+        is_native_default_editor, sanitize_file_name, EditorKind,
     };
     use std::path::Path;
 
@@ -789,9 +1014,67 @@ mod tests {
     }
 
     #[test]
+    fn only_operating_system_native_editor_is_added_by_default() {
+        #[cfg(target_os = "windows")]
+        {
+            assert!(is_native_default_editor(EditorKind::Notepad));
+            assert!(!is_native_default_editor(EditorKind::Notepad3));
+            assert!(!is_native_default_editor(EditorKind::VisualStudioCode));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            assert!(is_native_default_editor(EditorKind::TextEdit));
+            assert!(!is_native_default_editor(EditorKind::VisualStudioCode));
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            assert!(!is_native_default_editor(EditorKind::VisualStudioCode));
+        }
+    }
+
+    #[test]
+    fn filters_installed_applications_to_text_editors() {
+        for editor in [
+            "Code.exe",
+            "Notepad++.exe",
+            "Cursor.exe",
+            "Sublime Text.app",
+            "CotEditor.app",
+            "BBEdit.app",
+        ] {
+            assert!(
+                is_likely_text_editor_application(Path::new(editor)),
+                "{editor}"
+            );
+        }
+        for unrelated_application in ["chrome.exe", "Spotify.exe", "Microsoft Word.app", "VLC.app"]
+        {
+            assert!(
+                !is_likely_text_editor_application(Path::new(unrelated_application)),
+                "{unrelated_application}"
+            );
+        }
+    }
+
+    #[test]
     fn discovered_editor_paths_exist() {
         for editor in discover_local_editors() {
-            assert!(Path::new(&editor.path).is_file(), "{}", editor.path);
+            assert!(
+                editor_candidate_exists(Path::new(&editor.path)),
+                "{}",
+                editor.path
+            );
+        }
+    }
+
+    #[test]
+    fn discovered_application_paths_exist() {
+        for application in discover_local_applications() {
+            assert!(
+                editor_candidate_exists(Path::new(&application.path)),
+                "{}",
+                application.path
+            );
         }
     }
 

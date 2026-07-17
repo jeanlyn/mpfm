@@ -1,16 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Button, Dropdown, Divider, Input, message, Space, Typography } from 'antd';
-import {
-  EditOutlined,
-  FolderOpenOutlined,
-  SaveOutlined,
-  SettingOutlined,
-} from '@ant-design/icons';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import React, { useState } from 'react';
+import { Button, Dropdown, Divider, Typography } from 'antd';
+import { SettingOutlined } from '@ant-design/icons';
 import LanguageSwitcher from './LanguageSwitcher';
 import DiagnosticsSection from './DiagnosticsSection';
+import EditorSelector from './EditorSelector';
 import { useAppI18n } from '../hooks/useI18n';
-import { loadEditorSettings, saveEditorSettings } from '../../utils/editorSettings';
 
 const { Text, Title } = Typography;
 
@@ -19,7 +13,7 @@ interface FloatingSettingsButtonProps {
 }
 
 const panelStyle: React.CSSProperties = {
-  width: 340,
+  width: 370,
   background: '#fff',
   borderRadius: 12,
   boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12)',
@@ -37,38 +31,6 @@ const sectionLabelStyle: React.CSSProperties = {
 const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ className }) => {
   const { settings } = useAppI18n();
   const [open, setOpen] = useState(false);
-  const [editorPath, setEditorPath] = useState('');
-  const [savingEditor, setSavingEditor] = useState(false);
-
-  useEffect(() => {
-    loadEditorSettings()
-      .then((value) => setEditorPath(value.executablePath))
-      .catch((error) => console.warn('加载文本编辑器设置失败:', error));
-  }, []);
-
-  const persistEditorPath = async (path: string) => {
-    setSavingEditor(true);
-    try {
-      await saveEditorSettings({ executablePath: path.trim() });
-      message.success(settings.editorSaved);
-    } catch (error) {
-      message.error(`${settings.editorSaveFailed}: ${error}`);
-    } finally {
-      setSavingEditor(false);
-    }
-  };
-
-  const selectEditor = async () => {
-    const selected = await openDialog({
-      multiple: false,
-      directory: false,
-      title: settings.editorSelect,
-    });
-    if (selected && typeof selected === 'string') {
-      setEditorPath(selected);
-      await persistEditorPath(selected);
-    }
-  };
 
   const settingsPanel = (
     <div style={panelStyle}>
@@ -87,34 +49,8 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
       <Divider style={{ margin: '12px 0' }} />
 
       <div style={{ padding: '2px 16px 4px' }}>
-        <Text style={sectionLabelStyle}>
-          <EditOutlined style={{ marginRight: 6 }} />
-          {settings.localEditor}
-        </Text>
-        <Space.Compact style={{ width: '100%' }}>
-          <Input
-            value={editorPath}
-            placeholder={settings.editorAutoDetect}
-            onChange={(event) => setEditorPath(event.target.value)}
-            onPressEnter={() => persistEditorPath(editorPath)}
-            disabled={savingEditor}
-          />
-          <Button
-            icon={<FolderOpenOutlined />}
-            onClick={selectEditor}
-            loading={savingEditor}
-            title={settings.editorBrowse}
-          />
-          <Button
-            icon={<SaveOutlined />}
-            onClick={() => persistEditorPath(editorPath)}
-            loading={savingEditor}
-            title={settings.editorSave}
-          />
-        </Space.Compact>
-        <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 6 }}>
-          {settings.editorHint}
-        </Text>
+        <Text style={sectionLabelStyle}>{settings.localEditor}</Text>
+        <EditorSelector />
       </div>
 
       <Divider style={{ margin: '12px 0' }} />

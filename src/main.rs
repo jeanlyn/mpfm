@@ -46,6 +46,8 @@ fn main() {
             file::search_files,
             file::get_file_content,
             editor::detect_local_editors,
+            editor::list_local_applications,
+            editor::inspect_local_editor,
             editor::edit_file_with_local_editor,
             config::save_app_config,
             config::load_app_config,

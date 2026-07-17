@@ -10,8 +10,8 @@ import { loadDirectoryFiles } from '../utils/loadDirectoryFiles';
 import { isLocalDirectory } from '../utils/isLocalDirectory';
 import {
   EDITOR_SETTINGS_CHANGED_EVENT,
-  getEditorDisplayName,
   loadEditorSettings,
+  mergeEditorCandidates,
 } from '../../../utils/editorSettings';
 
 const EDITOR_STATUS_MESSAGE_KEY = 'local-editor-status';
@@ -147,23 +147,8 @@ export const useFileOperations = (
         console.warn('检测本地文本编辑器失败:', systemEditorsResult.reason);
       }
 
-      const configuredPath = settingsResult.status === 'fulfilled'
-        ? settingsResult.value.executablePath.trim()
-        : '';
-      const configuredEditor: DetectedEditor | null = configuredPath
-        ? { name: getEditorDisplayName(configuredPath), path: configuredPath }
-        : null;
-
-      // 手工配置优先：便携版不会出现在注册表里，但应与安装版拥有相同的下拉体验。
-      const editors = configuredEditor
-        ? [
-            configuredEditor,
-            ...systemEditors.filter((editor) =>
-              editor.name.toLowerCase() !== configuredEditor.name.toLowerCase()
-              && editor.path.replace(/\\/g, '/').toLowerCase()
-                !== configuredEditor.path.replace(/\\/g, '/').toLowerCase()
-            ),
-          ]
+      const editors = settingsResult.status === 'fulfilled'
+        ? mergeEditorCandidates(settingsResult.value, systemEditors)
         : systemEditors;
 
       setDetectedEditors(editors);
@@ -511,7 +496,9 @@ export const useFileOperations = (
       if (!editorPath) {
         try {
           const editorSettings = await loadEditorSettings();
-          editorPath = editorSettings.executablePath || undefined;
+          editorPath = editorSettings.defaultEditorPath
+            || editorSettings.executablePath
+            || undefined;
         } catch (error) {
           console.warn('读取文本编辑器设置失败，将尝试自动检测编辑器:', error);
         }
