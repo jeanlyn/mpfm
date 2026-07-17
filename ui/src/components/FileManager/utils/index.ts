@@ -59,6 +59,22 @@ export const extractRemoteFileName = (path: string): string => {
   return name || path;
 };
 
+/** 将远程路径规范化为带尾部斜杠的目录前缀 */
+export const normalizeRemoteDirPrefix = (path: string): string => {
+  let normalized = path.startsWith('/') ? path.slice(1) : path;
+  if (!normalized) return '';
+  if (!normalized.endsWith('/')) normalized += '/';
+  return normalized;
+};
+
+/** 判断目录条目是否为当前路径的自引用 folder marker */
+export const isSelfReferentialDirEntry = (file: { path: string; is_dir: boolean }, currentPath: string): boolean => {
+  if (!file.is_dir) return false;
+  const currentPrefix = normalizeRemoteDirPrefix(currentPath);
+  if (!currentPrefix) return false;
+  return normalizeRemoteDirPrefix(file.path) === currentPrefix;
+};
+
 /** @deprecated 请使用 extractLocalFileName 或 extractRemoteFileName */
 export const extractFileName = extractRemoteFileName;
 

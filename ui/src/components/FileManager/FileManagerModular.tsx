@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Layout, Table, Modal, Input, Typography, Spin } from 'antd';
+import { Layout, Table, Modal, Typography, Spin } from 'antd';
+import { AppInput } from '../common';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
 import UploadProgressModal from './UploadProgressModal';
@@ -88,8 +89,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     state.currentPath,
     state.pageSize,
     state.searchQuery,
-    updateMultipleState,
-    fileOperations.chooseLoadingMode
+    updateMultipleState
   );
 
   // 预览和批量操作
@@ -150,6 +150,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   // 表格列定义
   const columns = useTableColumns({
     connectionId: connection?.id ?? '',
+    currentPath: state.currentPath,
     files: state.files,
     searchResults: state.searchResults,
     isSearchMode: state.isSearchMode,
@@ -328,7 +329,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
           });
         }}
       >
-        <Input
+        <AppInput
           placeholder={fileManager.modal.directoryNamePlaceholder}
           value={state.newDirName}
           onChange={(e) => updateState('newDirName', e.target.value)}

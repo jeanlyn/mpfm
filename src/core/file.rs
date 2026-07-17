@@ -72,12 +72,12 @@ impl FileManager {
 
         let path = normalize_path(path);
 
-        // 获取目录列表
-        let mut result = self.operator.list(&path).await?;
-        result.retain(|entry| !is_current_directory_entry(entry, &path));
+        // 获取目录列表，过滤 S3 等存储返回的当前目录 folder marker
+        let result = self.operator.list(&path).await?;
+        let filtered = filter_self_referential_entries(&path, result);
 
-        info!("已列出 {} 个文件/目录", result.len());
-        Ok(result)
+        info!("已列出 {} 个文件/目录", filtered.len());
+        Ok(filtered)
     }
 
     /// 通过 stat 补齐列表条目的大小和修改时间。
@@ -129,9 +129,9 @@ impl FileManager {
 
         let path = normalize_path(path);
 
-        // 获取完整目录列表
-        let mut all_entries = self.operator.list(&path).await?;
-        all_entries.retain(|entry| !is_current_directory_entry(entry, &path));
+        // 获取完整目录列表，过滤自引用的 folder marker
+        let mut all_entries =
+            filter_self_referential_entries(&path, self.operator.list(&path).await?);
 
         // 按名称排序，目录在前
         all_entries.sort_by(
@@ -491,9 +491,18 @@ impl FileManager {
         let metadata = self.operator.stat(&path).await?;
 
         if metadata.is_dir() {
-            // 如果是目录，使用 remove_all 递归删除
-            debug!("递归删除目录: {}", path);
-            self.operator.remove_all(&path).await?;
+            let list_path = normalize_dir_prefix(&path);
+            let children =
+                filter_self_referential_entries(&path, self.operator.list(&list_path).await?);
+
+            if children.is_empty() {
+                // 空目录仅删除 folder marker，避免 remove_all 误删同前缀对象
+                debug!("删除空目录 marker: {}", path);
+                self.operator.delete(&path).await?;
+            } else {
+                debug!("递归删除非空目录: {}", path);
+                self.operator.remove_all(&path).await?;
+            }
             info!("目录删除成功: {}", path);
         } else {
             // 如果是文件，直接删除
@@ -550,9 +559,8 @@ impl FileManager {
 
         let path = normalize_path(path);
 
-        // 获取完整目录列表
-        let mut all_entries = self.operator.list(&path).await?;
-        all_entries.retain(|entry| !is_current_directory_entry(entry, &path));
+        // 获取完整目录列表，过滤自引用的 folder marker
+        let all_entries = filter_self_referential_entries(&path, self.operator.list(&path).await?);
 
         // 过滤匹配查询的文件
         let query_lower = query.to_lowercase();
@@ -791,9 +799,6 @@ impl FileManager {
                     debug!("目录 {} 包含 {} 个条目", list_path, entries.len());
 
                     for entry in entries {
-                        if is_current_directory_entry(&entry, &list_path) {
-                            continue;
-                        }
                         let entry_name = entry.name();
                         let entry_path = entry.path();
 
@@ -803,6 +808,10 @@ impl FileManager {
                         }
 
                         if entry.metadata().is_dir() {
+                            if is_self_referential_dir_entry(&list_path, &entry) {
+                                continue;
+                            }
+
                             // 如果是目录，添加到待访问列表
                             let sub_dir_path = if entry_path.starts_with('/') {
                                 entry_path.to_string()
@@ -1143,18 +1152,41 @@ fn normalize_path(path: &str) -> String {
     path
 }
 
-fn is_current_directory_entry(entry: &Entry, listed_path: &str) -> bool {
+/// 将路径规范化为带尾部斜杠的目录前缀
+fn normalize_dir_prefix(path: &str) -> String {
+    let path = normalize_path(path);
+    if path.is_empty() {
+        String::new()
+    } else if path.ends_with('/') {
+        path
+    } else {
+        format!("{}/", path)
+    }
+}
+
+/// 判断目录条目是否为当前列表路径的自引用 folder marker
+///
+/// S3 等对象存储在列出目录时可能返回当前目录自身的 marker 对象，
+/// 例如进入 `myfolder/` 后仍能看到名为 `myfolder` 的文件夹条目。
+fn is_self_referential_dir_entry(list_prefix: &str, entry: &Entry) -> bool {
     if !entry.metadata().is_dir() {
         return false;
     }
 
-    paths_refer_to_same_directory(entry.path(), listed_path)
+    let prefix = normalize_dir_prefix(list_prefix);
+    if prefix.is_empty() {
+        return false;
+    }
+
+    normalize_dir_prefix(entry.path()) == prefix
 }
 
-fn paths_refer_to_same_directory(left: &str, right: &str) -> bool {
-    let left = left.trim_matches('/');
-    let right = right.trim_matches('/');
-    !left.is_empty() && left == right
+/// 过滤目录列表中的自引用 folder marker 条目
+fn filter_self_referential_entries(list_prefix: &str, entries: Vec<Entry>) -> Vec<Entry> {
+    entries
+        .into_iter()
+        .filter(|entry| !is_self_referential_dir_entry(list_prefix, entry))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1163,13 +1195,6 @@ mod tests {
     use opendal::{services, Operator};
     use tempfile::TempDir;
     use tokio;
-
-    #[test]
-    fn directory_identity_ignores_outer_slashes() {
-        assert!(paths_refer_to_same_directory("/docs/", "docs/"));
-        assert!(!paths_refer_to_same_directory("docs/child/", "docs/"));
-        assert!(!paths_refer_to_same_directory("/", ""));
-    }
 
     /// 创建一个测试用的内存文件系统
     async fn create_test_operator() -> (Operator, tempfile::TempDir) {
@@ -1601,5 +1626,22 @@ mod tests {
             dsts,
             vec!["/target/dir1/file3.txt", "/target/dir1/subdir1/file4.txt"]
         );
+    }
+
+    #[test]
+    fn test_normalize_dir_prefix() {
+        assert_eq!(normalize_dir_prefix("/"), "");
+        assert_eq!(normalize_dir_prefix(""), "");
+        assert_eq!(normalize_dir_prefix("/parent/child"), "parent/child/");
+        assert_eq!(normalize_dir_prefix("parent/child/"), "parent/child/");
+    }
+
+    #[test]
+    fn test_self_referential_dir_prefix_comparison() {
+        let prefix = normalize_dir_prefix("parent/child/");
+        assert_eq!(prefix, "parent/child/");
+        assert_eq!(normalize_dir_prefix("parent/child"), prefix);
+        assert_ne!(normalize_dir_prefix("parent/child/grandchild/"), prefix);
+        assert_ne!(normalize_dir_prefix("parent/child/file.txt"), prefix);
     }
 }

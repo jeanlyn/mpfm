@@ -13,12 +13,13 @@ import { DetectedEditor } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { isPreviewable, isTextEditable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
-import { formatFileSize, formatModifiedTime } from '../utils';
+import { formatFileSize, formatModifiedTime, isSelfReferentialDirEntry } from '../utils';
 import { COLUMN_WIDTHS, ACTIONS_COLUMN_MIN_WIDTH } from '../constants';
 import { FileNameCell } from './FileNameCell';
 
 interface TableColumnsProps {
   connectionId: string;
+  currentPath: string;
   files: FileInfo[];
   searchResults: FileInfo[];
   isSearchMode: boolean;
@@ -40,6 +41,7 @@ interface TableColumnsProps {
  */
 export const useTableColumns = ({
   connectionId,
+  currentPath,
   files,
   searchResults,
   isSearchMode,
@@ -223,7 +225,7 @@ export const useTableColumns = ({
           )}
 
           <Popconfirm
-            title={fileManager.table.confirmDelete}
+            title={record.is_dir ? fileManager.table.confirmDeleteDirectory : fileManager.table.confirmDelete}
             onConfirm={() => onDelete(record)}
             placement="topRight"
           >
@@ -232,6 +234,7 @@ export const useTableColumns = ({
               icon={<DeleteOutlined />}
               danger
               title={fileManager.table.deleteButton}
+              disabled={isSelfReferentialDirEntry(record, currentPath)}
             >
               {fileManager.table.deleteButton}
             </Button>
@@ -241,6 +244,7 @@ export const useTableColumns = ({
     },
   ], [
     connectionId,
+    currentPath,
     fileSelection.hasSelection,
     fileSelection.selectedFiles,
     isAllCurrentPageSelected,

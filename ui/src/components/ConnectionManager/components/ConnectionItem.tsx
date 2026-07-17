@@ -6,8 +6,8 @@ import {
   Modal,
   Spin,
   Popover,
-  Input,
 } from 'antd';
+import { AppInput } from '../../common';
 import type { MenuProps } from 'antd';
 import {
   EditOutlined,
@@ -158,7 +158,7 @@ export const ConnectionItem: React.FC<ConnectionItemProps> = ({
 
   const createPopoverContent = (
     <div className="connection-item__manage-popover" onClick={(e) => e.stopPropagation()}>
-      <Input
+      <AppInput
         size="small"
         placeholder={bucketI18n.createPlaceholder}
         value={bucketInput}

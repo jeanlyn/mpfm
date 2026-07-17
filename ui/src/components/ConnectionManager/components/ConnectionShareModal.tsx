@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Input, Button, Space } from 'antd';
+import { Modal, Button, Space } from 'antd';
+import { AppInput } from '../../common';
 import { CopyOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
@@ -39,7 +40,7 @@ export const ConnectionShareModal: React.FC<ConnectionShareModalProps> = ({
       width={640}
     >
       <p style={{ marginBottom: 12, color: '#666' }}>{i18n.share.modalDescription}</p>
-      <Input.TextArea
+      <AppInput.TextArea
         value={content}
         readOnly
         autoSize={{ minRows: 12, maxRows: 20 }}

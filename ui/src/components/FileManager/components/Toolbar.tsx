@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button, Space, Input, Dropdown, Tooltip } from 'antd';
+import { Button, Space, Dropdown, Tooltip } from 'antd';
+import { AppInput } from '../../common';
 import {
   HomeOutlined,
   ReloadOutlined,
@@ -77,7 +78,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       </Space.Compact>
 
       {/* 中间：搜索框（自适应填满剩余空间，消除中部空隙） */}
-      <Input.Search
+      <AppInput.Search
         style={{ flex: '1 1 auto', minWidth: 0 }}
         placeholder={fileManager.toolbar.search}
         value={searchQuery}

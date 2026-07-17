@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Breadcrumb, Input, Space, Tooltip, message } from 'antd';
+import { Breadcrumb, Space, Tooltip, message } from 'antd';
+import { AppInput } from '../../common';
 import { EditOutlined, FolderOutlined } from '@ant-design/icons';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 
@@ -65,7 +66,7 @@ const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   if (isInputMode) {
     return (
       <div style={{ marginBottom: '16px' }}>
-        <Input
+        <AppInput
           value={inputPath}
           onChange={(e) => setInputPath(e.target.value)}
           onPressEnter={handlePathSubmit}
