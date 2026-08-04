@@ -302,23 +302,10 @@ fn editor_prefix_args(executable: &Path) -> Vec<String> {
         .unwrap_or_default()
         .to_ascii_lowercase();
 
-    if matches!(
-        editor_kind_from_path(executable),
-        Some(
-            EditorKind::VisualStudioCode
-                | EditorKind::VisualStudioCodeInsiders
-                | EditorKind::Vscodium
-        )
-    ) || name == "gedit"
-        || name == "xed"
-    {
-        Vec::new()
-    } else if name == "notepad3" {
+    if name == "notepad3" {
         // Notepad3 can be configured to reuse an existing window. /n forces a
         // dedicated process so the process lifetime reliably bounds this edit session.
         vec!["/n".to_string()]
-    } else if name == "kate" {
-        Vec::new()
     } else {
         Vec::new()
     }
@@ -1501,7 +1488,7 @@ async fn finish_session(
                 .lock()
                 .map_err(|_| "编辑会话锁已损坏".to_string())?
                 .insert(session_id.to_string(), record.clone());
-            return Ok(session_result(&record, &current_digest, false));
+            return Ok(session_result(&record, current_digest, false));
         }
     } else if mode != "overwrite" {
         return Err("不支持的编辑完成模式".to_string());

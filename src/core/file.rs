@@ -270,7 +270,6 @@ impl FileManager {
         let remote_path = normalize_path(remote_path);
         let (parent, file_name) = remote_path
             .rsplit_once('/')
-            .map(|(parent, name)| (parent, name))
             .unwrap_or(("", remote_path.as_str()));
         if file_name.is_empty() {
             return Err(Error::new_config("远端编辑目标必须是文件"));

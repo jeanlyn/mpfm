@@ -15,13 +15,11 @@ impl RemoteFingerprint {
     }
 
     pub fn matches(&self, other: &Self) -> bool {
-        match (&self.version, &other.version) {
-            (Some(left), Some(right)) => return left == right,
-            _ => {}
+        if let (Some(left), Some(right)) = (&self.version, &other.version) {
+            return left == right;
         }
-        match (&self.etag, &other.etag) {
-            (Some(left), Some(right)) => return left == right,
-            _ => {}
+        if let (Some(left), Some(right)) = (&self.etag, &other.etag) {
+            return left == right;
         }
         self.modified == other.modified && self.size == other.size
     }
