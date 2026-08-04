@@ -7,6 +7,8 @@ import {
   CopyOutlined,
   DownOutlined,
   EditOutlined,
+  CheckOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import { FileInfo } from '../../../types';
 import { DetectedEditor } from '../../../services/api';
@@ -28,8 +30,12 @@ interface TableColumnsProps {
   onDownload: (file: FileInfo) => void;
   onCopyDownloadCommand: (file: FileInfo, targetShell: 'bash' | 'powershell') => void;
   onCopyDownloadCurlCommand: (file: FileInfo) => void;
-  onEdit: (file: FileInfo, editorPath?: string) => void;
+  onEdit: (file: FileInfo, editorId?: string) => void;
+  onFinishEdit: (file: FileInfo) => void;
+  onReopenEdit: (file: FileInfo, editorId?: string) => void;
+  onAbandonEdit: (file: FileInfo) => void;
   editingPaths: Set<string>;
+  finishingPaths: Set<string>;
   detectedEditors: DetectedEditor[];
   detectingEditors: boolean;
   onDelete: (file: FileInfo) => void;
@@ -51,7 +57,11 @@ export const useTableColumns = ({
   onCopyDownloadCommand,
   onCopyDownloadCurlCommand,
   onEdit,
+  onFinishEdit,
+  onReopenEdit,
+  onAbandonEdit,
   editingPaths,
+  finishingPaths,
   detectedEditors,
   detectingEditors,
   onDelete,
@@ -124,24 +134,45 @@ export const useTableColumns = ({
             <Space.Compact>
               <Button
                 size="small"
-                icon={<EditOutlined />}
-                loading={editingPaths.has(record.path)}
-                disabled={editingPaths.has(record.path)}
-                onClick={() => onEdit(record)}
-                title={fileManager.table.editButton}
+                type={editingPaths.has(record.path) ? 'primary' : 'default'}
+                icon={editingPaths.has(record.path) ? <CheckOutlined /> : <EditOutlined />}
+                loading={finishingPaths.has(record.path)}
+                onClick={() => editingPaths.has(record.path) ? onFinishEdit(record) : onEdit(record)}
+                title={editingPaths.has(record.path) ? fileManager.table.finishEditButton : fileManager.table.editButton}
               >
-                {fileManager.table.editButton}
+                {editingPaths.has(record.path) ? fileManager.table.finishEditButton : fileManager.table.editButton}
               </Button>
               <Dropdown
                 trigger={['click']}
                 placement="bottomRight"
                 menu={{
-                  items: detectedEditors.length > 0
+                  items: editingPaths.has(record.path)
+                    ? [
+                        {
+                          key: 'reopen-edit',
+                          icon: <EditOutlined />,
+                          label: fileManager.table.reopenEditButton,
+                          onClick: () => onReopenEdit(record),
+                        },
+                        ...detectedEditors.map((editor) => ({
+                          key: `reopen-${editor.id}`,
+                          label: fileManager.actions.openWith.replace('{editor}', editor.name),
+                          onClick: () => onReopenEdit(record, editor.id),
+                        })),
+                        { type: 'divider' as const },
+                        {
+                          key: 'abandon-edit',
+                          icon: <StopOutlined />,
+                          danger: true,
+                          label: fileManager.table.abandonEditButton,
+                          onClick: () => onAbandonEdit(record),
+                        },
+                      ]
+                    : detectedEditors.length > 0
                     ? detectedEditors.map((editor) => ({
-                        key: editor.path,
+                        key: editor.id,
                         label: fileManager.actions.openWith.replace('{editor}', editor.name),
-                        title: editor.path,
-                        onClick: () => onEdit(record, editor.path),
+                        onClick: () => onEdit(record, editor.id),
                       }))
                     : [{
                         key: 'no-editors',
@@ -156,7 +187,7 @@ export const useTableColumns = ({
                   size="small"
                   icon={<DownOutlined />}
                   loading={detectingEditors}
-                  disabled={editingPaths.has(record.path)}
+                  disabled={finishingPaths.has(record.path)}
                   title={fileManager.actions.chooseEditor}
                 />
               </Dropdown>
@@ -256,7 +287,11 @@ export const useTableColumns = ({
     onCopyDownloadCommand,
     onCopyDownloadCurlCommand,
     onEdit,
+    onFinishEdit,
+    onReopenEdit,
+    onAbandonEdit,
     editingPaths,
+    finishingPaths,
     detectedEditors,
     detectingEditors,
     onDelete,

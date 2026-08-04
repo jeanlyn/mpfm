@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Layout, Table, Modal, Typography, Spin } from 'antd';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
+import { Layout, Table, Modal, Typography, Spin, Button, Space, Alert } from 'antd';
 import { AppInput } from '../common';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
@@ -49,6 +49,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
   // 状态管理
   const { state, updateState, updateMultipleState, resetState } = useFileManagerState();
   const fileSelection = useFileSelection();
+  const [saveAsPath, setSaveAsPath] = useState('');
 
   // 表格高度：按容器实际高度计算，填满 flex 剩余区域
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +148,12 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     return currentFiles.length > 0 && currentFiles.every(file => fileSelection.selectedFiles.has(file.path));
   }, [state.files, state.searchResults, state.isSearchMode, fileSelection.selectedFiles]);
 
+  const recoveredSessions = useMemo(() => {
+    const visiblePaths = new Set([...state.files, ...state.searchResults].map((file) => file.path));
+    return Array.from(fileOperations.editSessions.values())
+      .filter((session) => !visiblePaths.has(session.remotePath));
+  }, [fileOperations.editSessions, state.files, state.searchResults]);
+
   // 表格列定义
   const columns = useTableColumns({
     connectionId: connection?.id ?? '',
@@ -160,7 +167,20 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
     onCopyDownloadCommand: fileOperations.handleCopyDownloadCommand,
     onCopyDownloadCurlCommand: fileOperations.handleCopyDownloadCurlCommand,
     onEdit: fileOperations.handleEdit,
+    onFinishEdit: (file) => void fileOperations.finishEdit(file),
+    onReopenEdit: (file, editorId) => void fileOperations.reopenEdit(file, editorId),
+    onAbandonEdit: (file) => {
+      Modal.confirm({
+        title: fileManager.messages.editorAbandonTitle,
+        content: fileManager.messages.editorAbandonDescription,
+        okText: fileManager.table.abandonEditButton,
+        okButtonProps: { danger: true },
+        cancelText: fileManager.messages.editorKeepEditing,
+        onOk: () => fileOperations.abandonEdit(file),
+      });
+    },
     editingPaths: fileOperations.editingPaths,
+    finishingPaths: fileOperations.finishingPaths,
     detectedEditors: fileOperations.detectedEditors,
     detectingEditors: fileOperations.detectingEditors,
     onDelete: fileOperations.handleDelete,
@@ -264,6 +284,48 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         onNavigate={handleBreadcrumbNavigate}
       />
 
+      {recoveredSessions.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={fileManager.messages.editorRecoveredTitle}
+          description={(
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <span>{fileManager.messages.editorRecoveredDescription}</span>
+              {recoveredSessions.map((session) => {
+                const file = { name: session.fileName, path: session.remotePath, is_dir: false };
+                return (
+                  <Space key={session.sessionId} wrap>
+                    <Typography.Text code>{session.remotePath}</Typography.Text>
+                    <Button size="small" onClick={() => void fileOperations.reopenEdit(file)}>
+                      {fileManager.table.reopenEditButton}
+                    </Button>
+                    <Button size="small" type="primary" onClick={() => void fileOperations.finishEdit(file)}>
+                      {fileManager.table.finishEditButton}
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() => Modal.confirm({
+                        title: fileManager.messages.editorAbandonTitle,
+                        content: fileManager.messages.editorAbandonDescription,
+                        okText: fileManager.table.abandonEditButton,
+                        okButtonProps: { danger: true },
+                        cancelText: fileManager.messages.editorKeepEditing,
+                        onOk: () => fileOperations.abandonEdit(file),
+                      })}
+                    >
+                      {fileManager.table.abandonEditButton}
+                    </Button>
+                  </Space>
+                );
+              })}
+            </Space>
+          )}
+          style={{ marginBottom: 12 }}
+        />
+      )}
+
       {/* 批量操作工具栏 */}
       <BatchOperationToolbar
         selection={fileSelection}
@@ -359,6 +421,67 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         progress={state.uploadProgress}
         onClose={fileOperations.handleUploadClose}
       />
+
+      <Modal
+        title={fileManager.messages.editorConflictTitle}
+        open={Boolean(fileOperations.conflictSession)}
+        onCancel={fileOperations.closeConflict}
+        footer={null}
+        destroyOnClose
+      >
+        <p>
+          {fileManager.messages.editorConflictDescription}
+        </p>
+        {fileOperations.conflictSession?.error && (
+          <Alert
+            type="warning"
+            showIcon
+            message={fileOperations.conflictSession.error}
+            style={{ marginBottom: 12 }}
+          />
+        )}
+        <AppInput
+          value={saveAsPath}
+          placeholder={fileManager.messages.editorSaveAsPlaceholder}
+          onChange={(event) => setSaveAsPath(event.target.value)}
+        />
+        <Space style={{ marginTop: 16, width: '100%', justifyContent: 'flex-end' }}>
+          <Button onClick={fileOperations.closeConflict}>{fileManager.messages.editorReturn}</Button>
+          <Button
+            disabled={!saveAsPath.trim()}
+            loading={Boolean(fileOperations.conflictSession && fileOperations.finishingPaths.has(fileOperations.conflictSession.remotePath))}
+            onClick={() => {
+              const session = fileOperations.conflictSession;
+              if (!session) return;
+              void fileOperations.finishEdit({
+                name: session.fileName,
+                path: session.remotePath,
+                is_dir: false,
+              }, 'saveAs', saveAsPath).then((completed) => {
+                if (completed) setSaveAsPath('');
+              });
+            }}
+          >
+            {fileManager.messages.editorSaveAs}
+          </Button>
+          <Button
+            danger
+            type="primary"
+            loading={Boolean(fileOperations.conflictSession && fileOperations.finishingPaths.has(fileOperations.conflictSession.remotePath))}
+            onClick={() => {
+              const session = fileOperations.conflictSession;
+              if (!session) return;
+              void fileOperations.finishEdit({
+                name: session.fileName,
+                path: session.remotePath,
+                is_dir: false,
+              }, 'overwrite');
+            }}
+          >
+            {fileManager.messages.editorOverwrite}
+          </Button>
+        </Space>
+      </Modal>
       </div>
     </Content>
   );

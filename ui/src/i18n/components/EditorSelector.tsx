@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Divider, Empty, message, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -26,31 +26,18 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { ApiService, DetectedEditor } from '../../services/api';
 import {
   createEditorSettings,
   EditorCandidate,
   loadEditorSettings,
   mergeEditorCandidates,
-  resolveDefaultEditorPath,
+  resolveDefaultEditorId,
   saveEditorSettings,
 } from '../../utils/editorSettings';
 import { useAppI18n } from '../hooks/useI18n';
 
 const { Text } = Typography;
-
-type DesktopPlatform = 'windows' | 'macos' | 'linux';
-
-const detectDesktopPlatform = (): DesktopPlatform => {
-  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
-  if (value.includes('mac')) return 'macos';
-  if (value.includes('win')) return 'windows';
-  return 'linux';
-};
-
-const editorPathKey = (path: string): string =>
-  path.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
 
 const editorNameKey = (name: string): string =>
   name.normalize('NFKC').toLocaleLowerCase().replace(/[\s._()-]+/g, '');
@@ -60,7 +47,7 @@ const isSameEditor = (
   right: DetectedEditor,
   compareName: boolean
 ): boolean =>
-  editorPathKey(left.path) === editorPathKey(right.path)
+  left.id === right.id
   || (compareName && editorNameKey(left.name) === editorNameKey(right.name));
 
 const restrictEditorDragToList: Modifier = ({
@@ -108,7 +95,7 @@ const SortableEditorOption: React.FC<SortableEditorOptionProps> = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: editor.path });
+  } = useSortable({ id: editor.id });
   return (
     <div
       ref={setNodeRef}
@@ -153,16 +140,6 @@ const SortableEditorOption: React.FC<SortableEditorOptionProps> = ({
             </Tag>
           )}
         </Space>
-        {editor.source === 'custom' && (
-          <Text
-            type="secondary"
-            ellipsis
-            title={editor.path}
-            style={{ display: 'block', maxWidth: 230, fontSize: 11 }}
-          >
-            {editor.path}
-          </Text>
-        )}
       </div>
       {editor.source !== 'detected' && (
         <Tooltip title={removeLabel}>
@@ -202,9 +179,8 @@ const SortableEditorOption: React.FC<SortableEditorOptionProps> = ({
 
 const EditorSelector: React.FC = () => {
   const { settings } = useAppI18n();
-  const platform = useMemo(detectDesktopPlatform, []);
   const [candidates, setCandidates] = useState<EditorCandidate[]>([]);
-  const [defaultEditorPath, setDefaultEditorPath] = useState('');
+  const [defaultEditorId, setDefaultEditorId] = useState('');
   const [applications, setApplications] = useState<DetectedEditor[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingApplications, setLoadingApplications] = useState(false);
@@ -232,8 +208,12 @@ const EditorSelector: React.FC = () => {
         : createEditorSettings([], '');
       const detected = detectedResult.status === 'fulfilled' ? detectedResult.value : [];
       const merged = mergeEditorCandidates(stored, detected);
+      const resolvedDefaultId = resolveDefaultEditorId(stored, merged);
       setCandidates(merged);
-      setDefaultEditorPath(resolveDefaultEditorPath(stored, merged));
+      setDefaultEditorId(resolvedDefaultId);
+      if (resolvedDefaultId && resolvedDefaultId !== stored.defaultEditorId) {
+        void saveEditorSettings(createEditorSettings(merged, resolvedDefaultId));
+      }
       setLoading(false);
     };
 
@@ -243,11 +223,11 @@ const EditorSelector: React.FC = () => {
     };
   }, []);
 
-  const persist = (nextCandidates: EditorCandidate[], nextDefaultEditorPath: string) => {
+  const persist = (nextCandidates: EditorCandidate[], nextDefaultEditorId: string) => {
     setSaving(true);
     const operation = saveQueue.current
       .catch(() => undefined)
-      .then(() => saveEditorSettings(createEditorSettings(nextCandidates, nextDefaultEditorPath)));
+      .then(() => saveEditorSettings(createEditorSettings(nextCandidates, nextDefaultEditorId)));
     saveQueue.current = operation;
     void operation
       .catch((error) => message.error(`${settings.editorSaveFailed}: ${error}`))
@@ -258,23 +238,23 @@ const EditorSelector: React.FC = () => {
 
   const applyCandidates = (
     nextCandidates: EditorCandidate[],
-    nextDefaultEditorPath = defaultEditorPath
+    nextDefaultEditorId = defaultEditorId
   ) => {
     setCandidates(nextCandidates);
-    setDefaultEditorPath(nextDefaultEditorPath);
-    persist(nextCandidates, nextDefaultEditorPath);
+    setDefaultEditorId(nextDefaultEditorId);
+    persist(nextCandidates, nextDefaultEditorId);
   };
 
-  const selectEditor = (path: string) => {
-    setDefaultEditorPath(path);
-    persist(candidates, path);
+  const selectEditor = (id: string) => {
+    setDefaultEditorId(id);
+    persist(candidates, id);
     setSelectOpen(false);
   };
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
-    const oldIndex = candidates.findIndex((editor) => editor.path === active.id);
-    const newIndex = candidates.findIndex((editor) => editor.path === over.id);
+    const oldIndex = candidates.findIndex((editor) => editor.id === active.id);
+    const newIndex = candidates.findIndex((editor) => editor.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     applyCandidates(arrayMove(candidates, oldIndex, newIndex));
   };
@@ -290,24 +270,14 @@ const EditorSelector: React.FC = () => {
     }
 
     const nextCandidates: EditorCandidate[] = [...candidates, { ...editor, source }];
-    applyCandidates(nextCandidates, editor.path);
+    applyCandidates(nextCandidates, editor.id);
     setShowOtherApplications(false);
     setSelectOpen(false);
   };
 
   const browseForApplication = async () => {
     try {
-      const selected = await openDialog({
-        multiple: false,
-        directory: false,
-        defaultPath: platform === 'macos' ? '/Applications' : undefined,
-        filters: platform === 'windows'
-          ? [{ name: settings.editorApplications, extensions: ['exe'] }]
-          : undefined,
-        title: settings.editorSelect,
-      });
-      if (!selected || typeof selected !== 'string') return;
-      addCandidate(await ApiService.inspectLocalEditor(selected), 'custom');
+      addCandidate(await ApiService.chooseAndRegisterLocalEditor(), 'custom');
     } catch (error) {
       message.error(`${settings.editorAddFailed}: ${error}`);
     }
@@ -326,12 +296,17 @@ const EditorSelector: React.FC = () => {
     }
   };
 
-  const removeEditor = (path: string) => {
-    const nextCandidates = candidates.filter((editor) => editor.path !== path);
-    const nextDefaultEditorPath = path === defaultEditorPath
-      ? (nextCandidates[0]?.path ?? '')
-      : defaultEditorPath;
-    applyCandidates(nextCandidates, nextDefaultEditorPath);
+  const removeEditor = async (id: string) => {
+    try {
+      await ApiService.removeRegisteredEditor(id);
+      const nextCandidates = candidates.filter((editor) => editor.id !== id);
+      const nextDefaultEditorId = id === defaultEditorId
+        ? (nextCandidates[0]?.id ?? '')
+        : defaultEditorId;
+      applyCandidates(nextCandidates, nextDefaultEditorId);
+    } catch (error) {
+      message.error(`${settings.editorAddFailed}: ${error}`);
+    }
   };
 
   const availableApplications = applications.filter((application, index) =>
@@ -365,10 +340,12 @@ const EditorSelector: React.FC = () => {
             />
           ) : availableApplications.map((application) => (
             <Button
-              key={application.path}
+              key={application.id}
               type="text"
               block
-              onClick={() => addCandidate(application, 'installed')}
+              onClick={() => void ApiService.registerDetectedEditor(application.id)
+                .then((editor) => addCandidate(editor, 'installed'))
+                .catch((error) => message.error(`${settings.editorAddFailed}: ${error}`))}
               style={{ height: 36, textAlign: 'left', paddingInline: 10 }}
             >
               <Text ellipsis title={application.name}>{application.name}</Text>
@@ -399,7 +376,7 @@ const EditorSelector: React.FC = () => {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={candidates.map((editor) => editor.path)}
+            items={candidates.map((editor) => editor.id)}
             strategy={verticalListSortingStrategy}
           >
             <div
@@ -412,14 +389,14 @@ const EditorSelector: React.FC = () => {
             >
               {candidates.map((editor) => (
                 <SortableEditorOption
-                  key={editor.path}
+                  key={editor.id}
                   editor={editor}
-                  selected={editor.path === defaultEditorPath}
+                  selected={editor.id === defaultEditorId}
                   customLabel={settings.editorCustom}
                   defaultLabel={settings.editorSetDefault}
                   removeLabel={settings.editorRemove}
-                  onSelect={() => selectEditor(editor.path)}
-                  onRemove={() => removeEditor(editor.path)}
+                  onSelect={() => selectEditor(editor.id)}
+                  onRemove={() => void removeEditor(editor.id)}
                 />
               ))}
             </div>
@@ -448,7 +425,7 @@ const EditorSelector: React.FC = () => {
   return (
     <Spin spinning={loading} size="small">
       <Select
-        value={defaultEditorPath || undefined}
+        value={defaultEditorId || undefined}
         placeholder={settings.editorNoCandidates}
         style={{ width: '100%' }}
         suffixIcon={null}
@@ -458,7 +435,7 @@ const EditorSelector: React.FC = () => {
           setSelectOpen(open);
           if (!open) setShowOtherApplications(false);
         }}
-        options={candidates.map((editor) => ({ value: editor.path, label: editor.name }))}
+        options={candidates.map((editor) => ({ value: editor.id, label: editor.name }))}
         onChange={selectEditor}
         dropdownRender={() => (
           <div

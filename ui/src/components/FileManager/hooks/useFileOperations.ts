@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { message, Modal } from 'antd';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo } from '../../../types';
-import { ApiService, DetectedEditor } from '../../../services/api';
+import { ApiService, DetectedEditor, EditSessionResult } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { UploadProgress } from '../../../utils/uploadProgress';
 import { extractLocalFileName } from '../utils';
@@ -12,107 +12,8 @@ import {
   EDITOR_SETTINGS_CHANGED_EVENT,
   loadEditorSettings,
   mergeEditorCandidates,
+  resolveDefaultEditorId,
 } from '../../../utils/editorSettings';
-
-const EDITOR_STATUS_MESSAGE_KEY = 'local-editor-status';
-const MAX_EDITOR_NAMES_IN_STATUS = 3;
-
-interface EditorStatusMessages {
-  editingSingle: string;
-  editingMultiple: string;
-  synced: string;
-  noChanges: string;
-  failed: string;
-}
-
-type EditorCompletion =
-  | { type: 'uploaded'; syncCount: number }
-  | { type: 'unchanged' }
-  | { type: 'failed'; error: string };
-
-const activeEditorFiles = new Map<string, string>();
-let editorBatchResult = {
-  syncCount: 0,
-  uploaded: false,
-  failures: [] as string[],
-};
-
-const resetEditorBatchResult = () => {
-  editorBatchResult = {
-    syncCount: 0,
-    uploaded: false,
-    failures: [],
-  };
-};
-
-const showEditorLoadingStatus = (messages: EditorStatusMessages) => {
-  const names = Array.from(activeEditorFiles.values());
-  if (names.length === 0) return;
-
-  const content = names.length === 1
-    ? messages.editingSingle.replace('{name}', names[0])
-    : messages.editingMultiple
-        .replace('{names}', names.slice(0, MAX_EDITOR_NAMES_IN_STATUS).join(', '))
-        .replace('{ellipsis}', names.length > MAX_EDITOR_NAMES_IN_STATUS ? '…' : '')
-        .replace('{count}', String(names.length));
-
-  message.loading({
-    key: EDITOR_STATUS_MESSAGE_KEY,
-    content,
-    duration: 0,
-  });
-};
-
-const beginEditorActivity = (
-  activityId: string,
-  fileName: string,
-  messages: EditorStatusMessages
-): boolean => {
-  if (activeEditorFiles.has(activityId)) return false;
-  if (activeEditorFiles.size === 0) resetEditorBatchResult();
-
-  activeEditorFiles.set(activityId, fileName);
-  showEditorLoadingStatus(messages);
-  return true;
-};
-
-const finishEditorActivity = (
-  activityId: string,
-  completion: EditorCompletion,
-  messages: EditorStatusMessages
-) => {
-  if (completion.type === 'uploaded') {
-    editorBatchResult.uploaded = true;
-    editorBatchResult.syncCount += completion.syncCount;
-  } else if (completion.type === 'failed') {
-    editorBatchResult.failures.push(completion.error);
-  }
-
-  activeEditorFiles.delete(activityId);
-  if (activeEditorFiles.size > 0) {
-    showEditorLoadingStatus(messages);
-    return;
-  }
-
-  if (editorBatchResult.failures.length > 0) {
-    message.error({
-      key: EDITOR_STATUS_MESSAGE_KEY,
-      content: `${messages.failed}: ${editorBatchResult.failures[0]}`,
-    });
-  } else if (editorBatchResult.uploaded) {
-    message.success({
-      key: EDITOR_STATUS_MESSAGE_KEY,
-      content: messages.synced.replace('{count}', String(editorBatchResult.syncCount)),
-    });
-  } else {
-    message.info({
-      key: EDITOR_STATUS_MESSAGE_KEY,
-      content: messages.noChanges,
-    });
-  }
-
-  resetEditorBatchResult();
-};
 
 /**
  * 文件操作相关的 Hook
@@ -125,7 +26,11 @@ export const useFileOperations = (
   onStateUpdate: (updates: any) => void
 ) => {
   const { fileManager, app } = useAppI18n();
-  const [editingPaths, setEditingPaths] = useState<Set<string>>(() => new Set());
+  const [editSessions, setEditSessions] = useState<Map<string, EditSessionResult>>(
+    () => new Map()
+  );
+  const [finishingPaths, setFinishingPaths] = useState<Set<string>>(() => new Set());
+  const [conflictSession, setConflictSession] = useState<EditSessionResult | null>(null);
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
   const [detectingEditors, setDetectingEditors] = useState(true);
 
@@ -165,6 +70,21 @@ export const useFileOperations = (
       window.removeEventListener(EDITOR_SETTINGS_CHANGED_EVENT, handleSettingsChanged);
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setEditSessions(new Map());
+    setConflictSession(null);
+    if (!connection) return () => { active = false; };
+
+    void ApiService.listEditSessions(connection.id)
+      .then((sessions) => {
+        if (!active) return;
+        setEditSessions(new Map(sessions.map((session) => [session.remotePath, session])));
+      })
+      .catch((error) => console.warn('恢复编辑会话失败:', error));
+    return () => { active = false; };
+  }, [connection?.id]);
 
   // 加载文件列表
   const loadFiles = useCallback(async (path: string, page: number = 0) => {
@@ -475,66 +395,127 @@ export const useFileOperations = (
     }
   }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
 
-  // 调用本地文本编辑器。命令在编辑器打开期间保持运行，后端会监测保存并覆盖上传。
-  const handleEdit = useCallback(async (file: FileInfo, selectedEditorPath?: string) => {
+  // 启动显式编辑会话；编辑器进程退出不会自动提交远端文件。
+  const handleEdit = useCallback(async (file: FileInfo, selectedEditorId?: string) => {
     if (!connection || file.is_dir) return;
-
-    const statusMessages: EditorStatusMessages = {
-      editingSingle: fileManager.messages.editorEditingSingle,
-      editingMultiple: fileManager.messages.editorEditingMultiple,
-      synced: fileManager.messages.editorSynced,
-      noChanges: fileManager.messages.editorNoChanges,
-      failed: fileManager.messages.editorFailed,
-    };
-    const activityId = `${connection.id}:${file.path}`;
-    if (!beginEditorActivity(activityId, file.name, statusMessages)) return;
-
-    setEditingPaths((current) => new Set(current).add(file.path));
-    let completion: EditorCompletion = { type: 'unchanged' };
+    if (editSessions.has(file.path)) return;
     try {
-      let editorPath = selectedEditorPath;
-      if (!editorPath) {
+      let editorId = selectedEditorId;
+      if (!editorId) {
         try {
           const editorSettings = await loadEditorSettings();
-          editorPath = editorSettings.defaultEditorPath
-            || editorSettings.executablePath
-            || undefined;
+          editorId = resolveDefaultEditorId(editorSettings, detectedEditors);
         } catch (error) {
           console.warn('读取文本编辑器设置失败，将尝试自动检测编辑器:', error);
         }
       }
-
-      const result = await ApiService.editFileWithLocalEditor(
+      if (!editorId) throw new Error(fileManager.messages.noEditorsDetected);
+      const result = await ApiService.startEditSession(
         connection.id,
         file.path,
-        editorPath
+        editorId
       );
-
-      if (result.uploaded) {
-        completion = { type: 'uploaded', syncCount: result.syncCount };
-        loadFiles(currentPath, currentPage);
-      }
+      setEditSessions((current) => new Map(current).set(file.path, result));
+      message.info(fileManager.messages.editorEditingSingle.replace('{name}', file.name));
     } catch (error) {
-      completion = { type: 'failed', error: String(error) };
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    }
+  }, [
+    connection,
+    detectedEditors,
+    editSessions,
+    fileManager.messages.editorEditingSingle,
+    fileManager.messages.editorFailed,
+    fileManager.messages.noEditorsDetected,
+  ]);
+
+  const finishEdit = useCallback(async (
+    file: FileInfo,
+    mode: 'normal' | 'overwrite' | 'saveAs' = 'normal',
+    saveAsPath?: string
+  ) => {
+    const session = editSessions.get(file.path);
+    if (!session) return false;
+    setFinishingPaths((current) => new Set(current).add(file.path));
+    try {
+      const result = await ApiService.finishEditSession(session.sessionId, mode, saveAsPath);
+      if (result.status === 'conflict') {
+        setEditSessions((current) => new Map(current).set(file.path, result));
+        setConflictSession(result);
+        return false;
+      }
+      if (result.status === 'uploadFailed') {
+        throw new Error(result.error || fileManager.messages.editorFailed);
+      }
+      setConflictSession(null);
+      setEditSessions((current) => {
+        const next = new Map(current);
+        next.delete(file.path);
+        return next;
+      });
+      if (result.uploaded) {
+        message.success(fileManager.messages.editorSynced);
+        loadFiles(currentPath, currentPage);
+      } else {
+        message.info(fileManager.messages.editorNoChanges);
+      }
+      return true;
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+      return false;
     } finally {
-      setEditingPaths((current) => {
+      setFinishingPaths((current) => {
         const next = new Set(current);
         next.delete(file.path);
         return next;
       });
-      finishEditorActivity(activityId, completion, statusMessages);
     }
   }, [
-    connection,
-    currentPath,
     currentPage,
-    fileManager.messages.editorEditingMultiple,
-    fileManager.messages.editorEditingSingle,
+    currentPath,
+    editSessions,
     fileManager.messages.editorFailed,
     fileManager.messages.editorNoChanges,
     fileManager.messages.editorSynced,
     loadFiles,
   ]);
+
+  const abandonEdit = useCallback(async (file: FileInfo) => {
+    const session = editSessions.get(file.path);
+    if (!session) return;
+    try {
+      await ApiService.abandonEditSession(session.sessionId);
+      setConflictSession(null);
+      setEditSessions((current) => {
+        const next = new Map(current);
+        next.delete(file.path);
+        return next;
+      });
+      message.info(fileManager.messages.editorAbandoned);
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    }
+  }, [editSessions, fileManager.messages.editorAbandoned, fileManager.messages.editorFailed]);
+
+  const reopenEdit = useCallback(async (file: FileInfo, editorId?: string) => {
+    const session = editSessions.get(file.path);
+    if (!session) return;
+    setFinishingPaths((current) => new Set(current).add(file.path));
+    try {
+      const result = await ApiService.reopenEditSession(session.sessionId, editorId);
+      setEditSessions((current) => new Map(current).set(file.path, result));
+      setConflictSession(null);
+      message.info(fileManager.messages.editorEditingSingle.replace('{name}', file.name));
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    } finally {
+      setFinishingPaths((current) => {
+        const next = new Set(current);
+        next.delete(file.path);
+        return next;
+      });
+    }
+  }, [editSessions, fileManager.messages.editorEditingSingle, fileManager.messages.editorFailed]);
 
   // 删除文件
   const handleDelete = useCallback(async (file: FileInfo) => {
@@ -590,7 +571,14 @@ export const useFileOperations = (
     handleCopyDownloadCommand,
     handleCopyDownloadCurlCommand,
     handleEdit,
-    editingPaths,
+    finishEdit,
+    abandonEdit,
+    reopenEdit,
+    editSessions,
+    editingPaths: new Set(editSessions.keys()),
+    finishingPaths,
+    conflictSession,
+    closeConflict: () => setConflictSession(null),
     detectedEditors,
     detectingEditors,
     handleDelete,

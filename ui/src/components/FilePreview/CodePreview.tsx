@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { getFileExtension } from './utils/fileTypeDetector';
 
 interface CodePreviewProps {
@@ -126,7 +127,16 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, fileName }) => {
       '<span style="color: #032f62;">$&</span>'
     );
 
-    return <span dangerouslySetInnerHTML={{ __html: highlightedLine }} />;
+    return (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: DOMPurify.sanitize(highlightedLine, {
+            ALLOWED_TAGS: ['span'],
+            ALLOWED_ATTR: ['style'],
+          }),
+        }}
+      />
+    );
   };
 
   return (

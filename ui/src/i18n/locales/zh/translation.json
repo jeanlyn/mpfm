@@ -233,6 +233,9 @@
       "copyCommandButton": "复制命令",
       "previewButton": "预览",
       "editButton": "编辑",
+      "finishEditButton": "完成编辑",
+      "reopenEditButton": "重新打开编辑器",
+      "abandonEditButton": "放弃编辑",
       "selectFile": "选择文件"
     },
     "breadcrumb": {
@@ -318,9 +321,21 @@
       "downloadingFromDirectories": "正在从文件夹中下载文件...",
       "editorEditingSingle": "正在编辑 {name}",
       "editorEditingMultiple": "正在编辑 {names}{ellipsis} 等 {count} 个文件",
-      "editorSynced": "编辑完成，已自动同步 {count} 次",
-      "editorNoChanges": "编辑器已关闭，文件内容没有变化",
+      "editorSynced": "编辑成功，已上传远端文件",
+      "editorNoChanges": "编辑完成，文件内容没有变化",
       "editorFailed": "本地编辑失败",
+      "editorAbandoned": "已放弃本次编辑，远端文件未修改",
+      "editorAbandonTitle": "放弃本次编辑？",
+      "editorAbandonDescription": "本地修改不会上传，远端文件保持不变。",
+      "editorKeepEditing": "继续编辑",
+      "editorConflictTitle": "编辑结果尚未上传",
+      "editorConflictDescription": "为避免意外覆盖，当前编辑结果仍安全保留在本地。你可以明确覆盖远端文件、另存为新路径，或返回继续处理。",
+      "editorSaveAsPlaceholder": "另存为远端路径",
+      "editorReturn": "返回编辑",
+      "editorSaveAs": "另存为",
+      "editorOverwrite": "覆盖远端",
+      "editorRecoveredTitle": "发现可恢复的编辑会话",
+      "editorRecoveredDescription": "远端列表中已找不到这些文件，但本地编辑副本仍安全保留。你可以重新打开、完成编辑并另存为，或放弃。",
       "detectingEditors": "正在检测系统编辑器...",
       "noEditorsDetected": "未检测到可用编辑器，请在设置中选择"
     }

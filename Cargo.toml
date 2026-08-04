@@ -58,9 +58,6 @@ hmac = "0.12"
 zip = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
-[target.'cfg(windows)'.dependencies]
-winreg = "0.56"
-
 # Tauri dependencies
 tauri = { version = "=2.5.1", features = [], optional = true }
 tauri-plugin-clipboard-manager = { version = "=2.2.2", optional = true }
@@ -68,6 +65,9 @@ tauri-plugin-notification = { version = "2.0.0", features = [ "windows7-compat" 
 tauri-plugin-dialog = { version = "=2.2.2", optional = true }
 tauri-plugin-shell = { version = "=2.2.1", optional = true }
 tauri-plugin-fs = { version = "=2.3.0", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
 
 [build-dependencies]
 tauri-build = { version = "=2.2.0", features = [] }

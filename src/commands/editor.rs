@@ -1,42 +1,166 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::sync::{Mutex, OnceLock};
 
 use log::{info, warn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::command;
+use tauri::{command, AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
 use tokio::process::Command;
-use tokio::time::{interval, MissedTickBehavior};
 use uuid::Uuid;
 
+use crate::core::edit_session::RemoteFingerprint;
+use crate::core::editor_registry::{editor_id_for_path, EditorRegistry};
 use crate::core::file::FileManager;
 use crate::protocols::create_protocol;
 
 use super::types::ApiResponse;
 use super::utils::get_connection_config;
 
-const EDIT_POLL_INTERVAL: Duration = Duration::from_millis(500);
-const EDIT_SAVE_DEBOUNCE: Duration = Duration::from_millis(750);
-const FAILED_UPLOAD_RETRY: Duration = Duration::from_secs(2);
+const SESSION_MANIFEST_FILE: &str = "session.json";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EditFileResult {
+pub struct EditSessionResult {
+    pub session_id: String,
+    pub connection_id: String,
+    pub remote_path: String,
+    pub file_name: String,
+    pub editor_name: String,
+    pub status: EditSessionStatus,
     pub changed: bool,
     pub uploaded: bool,
-    pub sync_count: usize,
-    pub editor_name: String,
+    pub dirty: bool,
+    pub error: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectedEditor {
+    pub id: String,
     pub name: String,
-    pub path: String,
+    pub removable: bool,
+    pub legacy_default: bool,
+}
+
+#[derive(Clone, Debug)]
+struct EditorDescriptor {
+    editor: DetectedEditor,
+    path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditSessionStatus {
+    Editing,
+    Conflict,
+    UploadFailed,
+    Completed,
+    Abandoned,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EditSessionRecord {
+    session_id: String,
+    connection_id: String,
+    remote_path: String,
+    file_name: String,
+    #[serde(default)]
+    editor_id: String,
+    editor_name: String,
+    local_path: PathBuf,
+    baseline_digest: Vec<u8>,
+    baseline_remote: RemoteFingerprint,
+    status: EditSessionStatus,
+    error: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredEditor {
+    id: String,
+    name: String,
+    path: PathBuf,
+}
+
+static EDITOR_REGISTRY: OnceLock<Mutex<EditorRegistry>> = OnceLock::new();
+static EDIT_SESSIONS: OnceLock<Mutex<HashMap<String, EditSessionRecord>>> = OnceLock::new();
+static SESSION_OPERATIONS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+fn editor_registry() -> &'static Mutex<EditorRegistry> {
+    EDITOR_REGISTRY.get_or_init(|| Mutex::new(EditorRegistry::default()))
+}
+
+fn edit_sessions() -> &'static Mutex<HashMap<String, EditSessionRecord>> {
+    EDIT_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+struct SessionOperationGuard {
+    session_id: String,
+}
+
+impl Drop for SessionOperationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut operations) = SESSION_OPERATIONS
+            .get_or_init(|| Mutex::new(HashSet::new()))
+            .lock()
+        {
+            operations.remove(&self.session_id);
+        }
+    }
+}
+
+fn claim_session_operation(session_id: &str) -> Result<SessionOperationGuard, String> {
+    let mut operations = SESSION_OPERATIONS
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+        .map_err(|_| "编辑会话操作锁已损坏".to_string())?;
+    if !operations.insert(session_id.to_string()) {
+        return Err("该编辑会话正在处理，请稍候".to_string());
+    }
+    Ok(SessionOperationGuard {
+        session_id: session_id.to_string(),
+    })
+}
+
+struct ProvisionalSessionDirectory {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl ProvisionalSessionDirectory {
+    fn new(path: PathBuf) -> Self {
+        Self { path, keep: false }
+    }
+
+    fn keep(&mut self) {
+        self.keep = true;
+    }
+}
+
+impl Drop for ProvisionalSessionDirectory {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+fn editor_descriptor(name: String, path: PathBuf, removable: bool) -> EditorDescriptor {
+    EditorDescriptor {
+        editor: DetectedEditor {
+            id: editor_id_for_path(&path),
+            name,
+            removable,
+            legacy_default: false,
+        },
+        path,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -61,6 +185,7 @@ impl EditorKind {
         }
     }
 
+    #[cfg(target_os = "windows")]
     fn executable_names(self) -> &'static [&'static str] {
         match self {
             Self::VisualStudioCode => &["Code.exe"],
@@ -125,32 +250,6 @@ fn editor_kind_from_path(path: &Path) -> Option<EditorKind> {
         .and_then(editor_kind_from_name)
 }
 
-struct TemporaryEditDirectory {
-    path: PathBuf,
-}
-
-impl TemporaryEditDirectory {
-    fn create() -> std::io::Result<Self> {
-        let path = env::temp_dir()
-            .join("mpfm-edits")
-            .join(Uuid::new_v4().to_string());
-        fs::create_dir_all(&path)?;
-        Ok(Self { path })
-    }
-}
-
-impl Drop for TemporaryEditDirectory {
-    fn drop(&mut self) {
-        if let Err(error) = fs::remove_dir_all(&self.path) {
-            warn!(
-                "清理在线编辑临时目录失败 {}: {}",
-                self.path.display(),
-                error
-            );
-        }
-    }
-}
-
 #[derive(Debug)]
 struct EditorCommand {
     executable: PathBuf,
@@ -213,13 +312,13 @@ fn editor_prefix_args(executable: &Path) -> Vec<String> {
     ) || name == "gedit"
         || name == "xed"
     {
-        vec!["--wait".to_string()]
+        Vec::new()
     } else if name == "notepad3" {
         // Notepad3 can be configured to reuse an existing window. /n forces a
         // dedicated process so the process lifetime reliably bounds this edit session.
         vec!["/n".to_string()]
     } else if name == "kate" {
-        vec!["--block".to_string()]
+        Vec::new()
     } else {
         Vec::new()
     }
@@ -389,7 +488,7 @@ fn editor_command_from_path(path: PathBuf) -> Result<EditorCommand, String> {
             if cli_path.is_file() {
                 return Ok(EditorCommand {
                     executable: cli_path,
-                    prefix_args: vec!["--wait".to_string()],
+                    prefix_args: Vec::new(),
                     display_name: kind
                         .map(EditorKind::display_name)
                         .unwrap_or("Editor")
@@ -400,11 +499,7 @@ fn editor_command_from_path(path: PathBuf) -> Result<EditorCommand, String> {
 
         return Ok(EditorCommand {
             executable: PathBuf::from("/usr/bin/open"),
-            prefix_args: vec![
-                "-W".to_string(),
-                "-a".to_string(),
-                path.to_string_lossy().to_string(),
-            ],
+            prefix_args: vec!["-a".to_string(), path.to_string_lossy().to_string()],
             display_name: kind
                 .map(EditorKind::display_name)
                 .or_else(|| path.file_stem().and_then(|value| value.to_str()))
@@ -671,10 +766,10 @@ fn is_likely_text_editor_application(path: &Path) -> bool {
         || compact_name.starts_with("zedpreview")
 }
 
-fn discover_local_applications() -> Vec<DetectedEditor> {
+fn discover_local_applications() -> Vec<EditorDescriptor> {
     let mut paths: Vec<PathBuf> = discover_local_editors()
         .into_iter()
-        .map(|editor| PathBuf::from(editor.path))
+        .map(|editor| editor.path)
         .collect();
 
     #[cfg(target_os = "windows")]
@@ -690,7 +785,7 @@ fn discover_local_applications() -> Vec<DetectedEditor> {
     }
 
     let mut seen = HashSet::new();
-    let mut applications: Vec<DetectedEditor> = paths
+    let mut applications: Vec<EditorDescriptor> = paths
         .into_iter()
         .filter_map(|path| {
             if !editor_candidate_exists(&path) || !is_likely_text_editor_application(&path) {
@@ -702,23 +797,21 @@ fn discover_local_applications() -> Vec<DetectedEditor> {
                 return None;
             }
             let command = editor_command_from_path(path.clone()).ok()?;
-            Some(DetectedEditor {
-                name: command.display_name,
-                path: path.to_string_lossy().to_string(),
-            })
+            Some(editor_descriptor(command.display_name, path, true))
         })
         .collect();
 
     applications.sort_by(|left, right| {
-        left.name
+        left.editor
+            .name
             .to_ascii_lowercase()
-            .cmp(&right.name.to_ascii_lowercase())
+            .cmp(&right.editor.name.to_ascii_lowercase())
     });
     applications.truncate(100);
     applications
 }
 
-fn discover_local_editors() -> Vec<DetectedEditor> {
+fn discover_local_editors() -> Vec<EditorDescriptor> {
     let mut candidates: Vec<(EditorKind, PathBuf)> = automatic_editor_candidates()
         .into_iter()
         .filter_map(|path| {
@@ -737,7 +830,7 @@ fn discover_local_editors() -> Vec<DetectedEditor> {
     candidates.retain(|(kind, _)| is_native_default_editor(*kind));
 
     let mut seen = HashSet::new();
-    let mut editors: Vec<(EditorKind, DetectedEditor)> = candidates
+    let mut editors: Vec<(EditorKind, EditorDescriptor)> = candidates
         .into_iter()
         .filter_map(|(kind, path)| {
             if !editor_candidate_exists(&path) {
@@ -750,10 +843,7 @@ fn discover_local_editors() -> Vec<DetectedEditor> {
             }
             Some((
                 kind,
-                DetectedEditor {
-                    name: kind.display_name().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                },
+                editor_descriptor(kind.display_name().to_string(), path, false),
             ))
         })
         .collect();
@@ -768,219 +858,953 @@ fn discover_local_editors() -> Vec<DetectedEditor> {
         .collect()
 }
 
-fn resolve_editor(configured_path: Option<String>) -> Result<EditorCommand, String> {
-    let configured_path = configured_path
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-
-    let editor_path = if let Some(path) = configured_path {
-        let path = PathBuf::from(&path);
-        if editor_candidate_exists(&path) {
-            path
-        } else {
-            executable_on_path(path.to_string_lossy().as_ref())
-                .ok_or_else(|| format!("配置的文本编辑器不存在或无法执行: {}", path.display()))?
-        }
-    } else {
-        discover_local_editors()
-            .into_iter()
-            .next()
-            .map(|editor| PathBuf::from(editor.path))
-            .ok_or_else(|| {
-                "未找到可用的本地文本编辑器，请在设置中选择编辑器应用或可执行文件".to_string()
-            })?
-    };
-    editor_command_from_path(editor_path)
+fn stored_editors_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_local_data_dir()
+        .map(|directory| directory.join("editor-registry.json"))
+        .map_err(|error| format!("获取编辑器配置目录失败: {}", error))
 }
 
-async fn sync_if_changed(
-    file_manager: &FileManager,
-    local_path: &Path,
-    remote_path: &str,
-    digest: &[u8],
-) -> Result<(), String> {
-    file_manager
-        .upload(local_path, remote_path)
-        .await
-        .map_err(|error| format!("保存后覆盖上传失败: {}", error))?;
-    info!(
-        "在线编辑内容已同步: {} (sha256 前缀 {:02x?})",
-        remote_path,
-        &digest[..digest.len().min(4)]
-    );
+fn write_private_file_atomically(path: &Path, content: &[u8]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| format!("创建配置目录失败: {}", error))?;
+    }
+    let temporary = path.with_extension(format!("tmp-{}", Uuid::new_v4()));
+    #[cfg(windows)]
+    let backup = path.with_extension(format!("bak-{}", Uuid::new_v4()));
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let write_result = (|| -> std::io::Result<()> {
+        let mut file = options.open(&temporary)?;
+        file.write_all(content)?;
+        file.sync_all()?;
+        #[cfg(windows)]
+        {
+            let had_destination = path.exists();
+            if had_destination {
+                fs::rename(path, &backup)?;
+            }
+            if let Err(error) = fs::rename(&temporary, path) {
+                if had_destination {
+                    let _ = fs::rename(&backup, path);
+                }
+                return Err(error);
+            }
+            if had_destination {
+                let _ = fs::remove_file(&backup);
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            fs::rename(&temporary, path)?;
+            if let Some(parent) = path.parent() {
+                File::open(parent)?.sync_all()?;
+            }
+        }
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("原子写入配置失败: {}", error));
+    }
     Ok(())
 }
 
-async fn edit_remote_file(
-    connection_id: &str,
-    remote_path: &str,
-    configured_editor_path: Option<String>,
-) -> Result<EditFileResult, String> {
+fn load_stored_editors(app: &AppHandle) -> Vec<StoredEditor> {
+    let Ok(path) = stored_editors_path(app) else {
+        return Vec::new();
+    };
+    let Ok(content) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    serde_json::from_str(&content).unwrap_or_else(|error| {
+        warn!("读取编辑器注册表失败: {}", error);
+        Vec::new()
+    })
+}
+
+fn save_stored_editors(app: &AppHandle, editors: &[StoredEditor]) -> Result<(), String> {
+    let path = stored_editors_path(app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| format!("创建编辑器配置目录失败: {}", error))?;
+    }
+    let content = serde_json::to_vec_pretty(editors)
+        .map_err(|error| format!("序列化编辑器配置失败: {}", error))?;
+    write_private_file_atomically(&path, &content)
+        .map_err(|error| format!("保存编辑器配置失败: {}", error))
+}
+
+fn register_editor_descriptor(editor: &EditorDescriptor) {
+    if let Ok(mut registry) = editor_registry().lock() {
+        registry.register(&editor.editor.name, editor.path.clone());
+    }
+}
+
+fn legacy_editor_paths(app: &AppHandle) -> (Option<PathBuf>, Vec<PathBuf>) {
+    let path = app
+        .path()
+        .app_config_dir()
+        .ok()
+        .map(|directory| directory.join("editor-settings.json"));
+    let Some(path) = path else {
+        return (None, Vec::new());
+    };
+    let Ok(content) = fs::read(path) else {
+        return (None, Vec::new());
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&content) else {
+        return (None, Vec::new());
+    };
+    let default = value
+        .get("defaultEditorPath")
+        .or_else(|| value.get("executablePath"))
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from);
+    let custom = value
+        .get("customEditors")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|editor| editor.get("path").and_then(|path| path.as_str()))
+        .filter(|path| !path.trim().is_empty())
+        .map(PathBuf::from)
+        .collect();
+    (default, custom)
+}
+
+fn configured_editors(app: &AppHandle) -> Vec<DetectedEditor> {
+    let mut editors = discover_local_editors();
+    editors.extend(load_stored_editors(app).into_iter().filter_map(|stored| {
+        editor_candidate_exists(&stored.path)
+            .then(|| editor_descriptor(stored.name, stored.path, true))
+    }));
+    let (legacy_default, mut legacy_custom) = legacy_editor_paths(app);
+    if let Some(default) = legacy_default.clone() {
+        legacy_custom.push(default);
+    }
+    if !legacy_custom.is_empty() {
+        let known_applications = discover_local_applications();
+        for legacy_path in legacy_custom {
+            let legacy_path = fs::canonicalize(&legacy_path).unwrap_or(legacy_path);
+            if let Some(descriptor) = known_applications
+                .iter()
+                .find(|descriptor| descriptor.path == legacy_path)
+            {
+                if !editors
+                    .iter()
+                    .any(|editor| editor.editor.id == descriptor.editor.id)
+                {
+                    let _ = persist_registered_editor(app, descriptor);
+                    editors.push(descriptor.clone());
+                }
+            }
+        }
+    }
+    let legacy_default = legacy_default.map(|path| fs::canonicalize(&path).unwrap_or(path));
+    let mut seen = HashSet::new();
+    editors.retain(|editor| seen.insert(editor.editor.id.clone()));
+    for descriptor in &mut editors {
+        descriptor.editor.legacy_default = legacy_default
+            .as_ref()
+            .is_some_and(|path| descriptor.path == *path);
+    }
+    for editor in &editors {
+        register_editor_descriptor(editor);
+    }
+    editors
+        .into_iter()
+        .map(|descriptor| descriptor.editor)
+        .collect()
+}
+
+fn resolve_editor(app: &AppHandle, editor_id: &str) -> Result<EditorCommand, String> {
+    let _ = configured_editors(app);
+    let path = editor_registry()
+        .lock()
+        .map_err(|_| "编辑器注册表锁已损坏".to_string())?
+        .resolve(editor_id)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "编辑器未由后端登记，请重新选择编辑器".to_string())?;
+    editor_command_from_path(path)
+}
+
+fn persist_registered_editor(app: &AppHandle, editor: &EditorDescriptor) -> Result<(), String> {
+    let mut stored = load_stored_editors(app);
+    stored.retain(|item| item.id != editor.editor.id);
+    stored.push(StoredEditor {
+        id: editor.editor.id.clone(),
+        name: editor.editor.name.clone(),
+        path: editor.path.clone(),
+    });
+    save_stored_editors(app, &stored)
+}
+
+fn session_root(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_local_data_dir()
+        .map(|directory| directory.join("edit-sessions"))
+        .map_err(|error| format!("获取编辑会话目录失败: {}", error))
+}
+
+fn create_secure_session_directory(app: &AppHandle, session_id: &str) -> Result<PathBuf, String> {
+    let directory = session_root(app)?.join(session_id);
+    fs::create_dir_all(&directory).map_err(|error| format!("创建编辑会话目录失败: {}", error))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("限制编辑会话目录权限失败: {}", error))?;
+    }
+    Ok(directory)
+}
+
+fn persist_session(record: &EditSessionRecord) -> Result<(), String> {
+    let manifest = record
+        .local_path
+        .parent()
+        .ok_or_else(|| "编辑会话路径无效".to_string())?
+        .join(SESSION_MANIFEST_FILE);
+    let content = serde_json::to_vec_pretty(record)
+        .map_err(|error| format!("序列化编辑会话失败: {}", error))?;
+    write_private_file_atomically(&manifest, &content)
+        .map_err(|error| format!("保存编辑会话失败: {}", error))
+}
+
+fn restore_sessions(app: &AppHandle) {
+    let Ok(root) = session_root(app) else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    let mut restored = Vec::new();
+    for entry in entries.flatten() {
+        let directory = entry.path();
+        let manifest = directory.join(SESSION_MANIFEST_FILE);
+        let Ok(content) = fs::read_to_string(&manifest) else {
+            warn!("清理缺少有效清单的编辑会话目录: {}", directory.display());
+            let _ = fs::remove_dir_all(&directory);
+            continue;
+        };
+        let Ok(record) = serde_json::from_str::<EditSessionRecord>(&content) else {
+            warn!("清理清单损坏的编辑会话目录: {}", directory.display());
+            let _ = fs::remove_dir_all(&directory);
+            continue;
+        };
+        let directory_name_matches = directory
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == record.session_id);
+        let local_parent_matches = directory
+            .canonicalize()
+            .ok()
+            .zip(
+                record
+                    .local_path
+                    .parent()
+                    .and_then(|parent| parent.canonicalize().ok()),
+            )
+            .is_some_and(|(expected, actual)| expected == actual);
+        if !directory_name_matches || !local_parent_matches {
+            warn!("忽略路径不可信的编辑会话清单: {}", manifest.display());
+            let _ = fs::remove_dir_all(&directory);
+            continue;
+        }
+        if matches!(
+            record.status,
+            EditSessionStatus::Completed | EditSessionStatus::Abandoned
+        ) {
+            let _ = fs::remove_dir_all(&directory);
+        } else if record.local_path.is_file() {
+            restored.push(record);
+        }
+    }
+    if let Ok(mut sessions) = edit_sessions().lock() {
+        for record in restored {
+            sessions.entry(record.session_id.clone()).or_insert(record);
+        }
+    }
+}
+
+fn cleanup_session(record: &EditSessionRecord) {
+    if let Ok(mut sessions) = edit_sessions().lock() {
+        sessions.insert(record.session_id.clone(), record.clone());
+    }
+    if let Err(error) = persist_session(record) {
+        warn!(
+            "写入编辑会话终态 {} 失败，保留内存终态以避免重复提交: {}",
+            record.session_id, error
+        );
+        return;
+    }
+    if let Some(directory) = record.local_path.parent() {
+        if let Err(error) = fs::remove_dir_all(directory) {
+            warn!("清理编辑会话 {} 失败: {}", record.session_id, error);
+        }
+    }
+    if let Ok(mut sessions) = edit_sessions().lock() {
+        sessions.remove(&record.session_id);
+    }
+}
+
+async fn digest_async(path: PathBuf) -> Result<Vec<u8>, String> {
+    tokio::task::spawn_blocking(move || file_digest(&path))
+        .await
+        .map_err(|error| format!("读取编辑文件任务失败: {}", error))?
+        .map_err(|error| format!("读取编辑文件失败: {}", error))
+}
+
+struct EditSnapshot {
+    path: PathBuf,
+    digest: Vec<u8>,
+}
+
+impl Drop for EditSnapshot {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn copy_and_digest_stable(source: &Path, destination: &Path) -> std::io::Result<Option<Vec<u8>>> {
+    let before = fs::metadata(source)?;
+    let mut input = File::open(source)?;
+    let mut output = File::create(destination)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(destination, fs::Permissions::from_mode(0o600))?;
+    }
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = input.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        output.write_all(&buffer[..read])?;
+        hasher.update(&buffer[..read]);
+    }
+    output.flush()?;
+    let after = fs::metadata(source)?;
+    if before.len() != after.len()
+        || before.modified().ok() != after.modified().ok()
+        || fs::metadata(destination)?.len() != after.len()
+    {
+        return Ok(None);
+    }
+    Ok(Some(hasher.finalize().to_vec()))
+}
+
+async fn create_stable_snapshot(path: PathBuf) -> Result<EditSnapshot, String> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| "编辑会话路径无效".to_string())?
+        .to_path_buf();
+    let first_path = directory.join(".commit-check.snapshot");
+    let final_path = directory.join(".commit.snapshot");
+    for _ in 0..5 {
+        let source = path.clone();
+        let first = first_path.clone();
+        let first_digest =
+            tokio::task::spawn_blocking(move || copy_and_digest_stable(&source, &first))
+                .await
+                .map_err(|error| format!("创建编辑快照任务失败: {}", error))?
+                .map_err(|error| format!("创建编辑快照失败: {}", error))?;
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let source = path.clone();
+        let final_candidate = final_path.clone();
+        let final_digest =
+            tokio::task::spawn_blocking(move || copy_and_digest_stable(&source, &final_candidate))
+                .await
+                .map_err(|error| format!("创建编辑快照任务失败: {}", error))?
+                .map_err(|error| format!("创建编辑快照失败: {}", error))?;
+        if let (Some(first_digest), Some(final_digest)) = (first_digest, final_digest) {
+            if first_digest == final_digest {
+                let _ = fs::remove_file(&first_path);
+                return Ok(EditSnapshot {
+                    path: final_path,
+                    digest: final_digest,
+                });
+            }
+        }
+        let _ = fs::remove_file(&first_path);
+        let _ = fs::remove_file(&final_path);
+    }
+    Err("编辑文件仍在写入，请稍后重试完成编辑".to_string())
+}
+
+fn create_file_manager(connection_id: &str) -> Result<FileManager, String> {
     let (protocol_type, config) = get_connection_config(connection_id)?;
     let protocol = create_protocol(&protocol_type, &config)
         .map_err(|error| format!("创建协议失败: {}", error))?;
     let operator = protocol
         .create_operator()
         .map_err(|error| format!("创建操作符失败: {}", error))?;
-    let file_manager = FileManager::new(operator);
-    let editor = resolve_editor(configured_editor_path)?;
+    Ok(FileManager::new(operator))
+}
 
-    let temporary_directory = TemporaryEditDirectory::create()
-        .map_err(|error| format!("创建在线编辑临时目录失败: {}", error))?;
-    let local_path = temporary_directory
-        .path
-        .join(sanitize_file_name(remote_path));
+fn session_result(
+    record: &EditSessionRecord,
+    current_digest: &[u8],
+    uploaded: bool,
+) -> EditSessionResult {
+    EditSessionResult {
+        session_id: record.session_id.clone(),
+        connection_id: record.connection_id.clone(),
+        remote_path: record.remote_path.clone(),
+        file_name: record.file_name.clone(),
+        editor_name: record.editor_name.clone(),
+        status: record.status,
+        changed: current_digest != record.baseline_digest,
+        uploaded,
+        dirty: current_digest != record.baseline_digest,
+        error: record.error.clone(),
+    }
+}
 
+async fn start_session(
+    app: &AppHandle,
+    connection_id: &str,
+    remote_path: &str,
+    editor_id: &str,
+) -> Result<EditSessionResult, String> {
+    restore_sessions(app);
+    if edit_sessions()
+        .lock()
+        .map_err(|_| "编辑会话锁已损坏".to_string())?
+        .values()
+        .any(|session| {
+            session.connection_id == connection_id
+                && session.remote_path == remote_path
+                && matches!(
+                    session.status,
+                    EditSessionStatus::Editing
+                        | EditSessionStatus::Conflict
+                        | EditSessionStatus::UploadFailed
+                )
+        })
+    {
+        return Err("该远端文件已有活动编辑会话".to_string());
+    }
+
+    let editor = resolve_editor(app, editor_id)?;
+    let file_manager = create_file_manager(connection_id)?;
+    let baseline_before = file_manager
+        .remote_fingerprint(remote_path)
+        .await
+        .map_err(|error| format!("获取远端文件版本失败: {}", error))?;
+    let session_id = Uuid::new_v4().to_string();
+    let directory = create_secure_session_directory(app, &session_id)?;
+    let mut directory_guard = ProvisionalSessionDirectory::new(directory.clone());
+    let local_path = directory.join(sanitize_file_name(remote_path));
     file_manager
         .download(remote_path, &local_path)
         .await
         .map_err(|error| format!("下载待编辑文件失败: {}", error))?;
-
-    let original_digest =
-        file_digest(&local_path).map_err(|error| format!("读取待编辑文件失败: {}", error))?;
-    let mut last_synced_digest = original_digest.clone();
-    let mut observed_digest = original_digest;
-    let mut observed_at = Instant::now();
-    let mut last_upload_attempt: Option<Instant> = None;
-    let mut last_upload_error: Option<String> = None;
-    let mut sync_count = 0usize;
-
-    let mut child = Command::new(&editor.executable)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&local_path, fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("限制编辑文件权限失败: {}", error))?;
+    }
+    let baseline_after = file_manager
+        .remote_fingerprint(remote_path)
+        .await
+        .map_err(|error| format!("重新检查远端文件版本失败: {}", error))?;
+    if !baseline_before.matches(&baseline_after) {
+        return Err("下载期间远端文件发生变化，请重试".to_string());
+    }
+    let baseline_digest = digest_async(local_path.clone()).await?;
+    if !baseline_after.has_strong_identity() {
+        let remote_digest = file_manager
+            .remote_digest(remote_path)
+            .await
+            .map_err(|error| format!("校验远端文件内容失败: {}", error))?;
+        if remote_digest != baseline_digest {
+            return Err("下载期间远端文件内容发生变化，请重试".to_string());
+        }
+    }
+    let record = EditSessionRecord {
+        session_id: session_id.clone(),
+        connection_id: connection_id.to_string(),
+        remote_path: remote_path.to_string(),
+        file_name: sanitize_file_name(remote_path),
+        editor_id: editor_id.to_string(),
+        editor_name: editor.display_name.clone(),
+        local_path: local_path.clone(),
+        baseline_digest: baseline_digest.clone(),
+        baseline_remote: baseline_after,
+        status: EditSessionStatus::Editing,
+        error: None,
+    };
+    persist_session(&record)?;
+    {
+        let mut sessions = edit_sessions()
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?;
+        if sessions.values().any(|session| {
+            session.connection_id == connection_id
+                && session.remote_path == remote_path
+                && matches!(
+                    session.status,
+                    EditSessionStatus::Editing
+                        | EditSessionStatus::Conflict
+                        | EditSessionStatus::UploadFailed
+                )
+        }) {
+            return Err("该远端文件已有活动编辑会话".to_string());
+        }
+        sessions.insert(session_id.clone(), record.clone());
+    }
+    if let Err(error) = Command::new(&editor.executable)
         .args(&editor.prefix_args)
         .arg(&local_path)
         .spawn()
-        .map_err(|error| {
-            format!(
-                "启动文本编辑器 {} 失败: {}",
-                editor.executable.display(),
-                error
-            )
-        })?;
+    {
+        if let Ok(mut sessions) = edit_sessions().lock() {
+            sessions.remove(&session_id);
+        }
+        return Err(format!("启动文本编辑器失败: {}", error));
+    }
 
-    let mut process_wait = Box::pin(child.wait());
-    let mut poll = interval(EDIT_POLL_INTERVAL);
-    poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    directory_guard.keep();
 
-    loop {
-        tokio::select! {
-            status = &mut process_wait => {
-                let status = status.map_err(|error| format!("等待文本编辑器退出失败: {}", error))?;
-                if !status.success() {
-                    return Err(format!("文本编辑器异常退出，状态码: {}", status));
-                }
-                break;
+    Ok(session_result(&record, &baseline_digest, false))
+}
+
+async fn finish_session(
+    app: &AppHandle,
+    session_id: &str,
+    mode: &str,
+    save_as_path: Option<String>,
+) -> Result<EditSessionResult, String> {
+    restore_sessions(app);
+    let _operation = claim_session_operation(session_id)?;
+    let mut record = edit_sessions()
+        .lock()
+        .map_err(|_| "编辑会话锁已损坏".to_string())?
+        .get(session_id)
+        .cloned()
+        .ok_or_else(|| "编辑会话不存在或已结束".to_string())?;
+    let snapshot = create_stable_snapshot(record.local_path.clone()).await?;
+    let current_digest = &snapshot.digest;
+    if *current_digest == record.baseline_digest {
+        record.status = EditSessionStatus::Completed;
+        record.error = None;
+        let result = session_result(&record, current_digest, false);
+        cleanup_session(&record);
+        return Ok(result);
+    }
+
+    let file_manager = create_file_manager(&record.connection_id)?;
+    let target_path = save_as_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .unwrap_or(&record.remote_path)
+        .to_string();
+    if mode == "normal" {
+        let remote_exists = file_manager
+            .path_exists(&record.remote_path)
+            .await
+            .map_err(|error| format!("检查远端文件失败，请检查连接后重试: {}", error))?
+            .0;
+        if !remote_exists {
+            record.status = EditSessionStatus::Conflict;
+            record.error = Some("远端文件已被删除或移动".to_string());
+            persist_session(&record)?;
+            edit_sessions()
+                .lock()
+                .map_err(|_| "编辑会话锁已损坏".to_string())?
+                .insert(session_id.to_string(), record.clone());
+            return Ok(session_result(&record, current_digest, false));
+        }
+        let current_remote = match file_manager.remote_fingerprint(&record.remote_path).await {
+            Ok(fingerprint) => fingerprint,
+            Err(error) => {
+                record.status = EditSessionStatus::UploadFailed;
+                record.error = Some(format!("无法确认远端版本，请检查连接后重试: {}", error));
+                persist_session(&record)?;
+                edit_sessions()
+                    .lock()
+                    .map_err(|_| "编辑会话锁已损坏".to_string())?
+                    .insert(session_id.to_string(), record.clone());
+                return Ok(session_result(&record, current_digest, false));
             }
-            _ = poll.tick() => {
-                let current_digest = match file_digest(&local_path) {
-                    Ok(digest) => digest,
-                    Err(error) => {
-                        warn!("在线编辑期间读取临时文件失败，将重试: {}", error);
-                        continue;
-                    }
-                };
-
-                if current_digest != observed_digest {
-                    observed_digest = current_digest;
-                    observed_at = Instant::now();
-                    continue;
-                }
-
-                let retry_ready = last_upload_attempt
-                    .map(|attempt| attempt.elapsed() >= FAILED_UPLOAD_RETRY)
-                    .unwrap_or(true);
-                if observed_digest != last_synced_digest
-                    && observed_at.elapsed() >= EDIT_SAVE_DEBOUNCE
-                    && retry_ready
-                {
-                    last_upload_attempt = Some(Instant::now());
-                    match sync_if_changed(&file_manager, &local_path, remote_path, &observed_digest).await {
-                        Ok(()) => {
-                            last_synced_digest = observed_digest.clone();
-                            last_upload_error = None;
-                            sync_count += 1;
-                        }
-                        Err(error) => {
-                            warn!("{}", error);
-                            last_upload_error = Some(error);
-                        }
-                    }
+        };
+        let remote_unchanged = if record.baseline_remote.has_strong_identity() {
+            record.baseline_remote.matches(&current_remote)
+        } else {
+            match file_manager.remote_digest(&record.remote_path).await {
+                Ok(digest) => digest == record.baseline_digest,
+                Err(error) => {
+                    record.status = EditSessionStatus::UploadFailed;
+                    record.error =
+                        Some(format!("无法校验远端文件内容，请检查连接后重试: {}", error));
+                    persist_session(&record)?;
+                    edit_sessions()
+                        .lock()
+                        .map_err(|_| "编辑会话锁已损坏".to_string())?
+                        .insert(session_id.to_string(), record.clone());
+                    return Ok(session_result(&record, current_digest, false));
                 }
             }
+        };
+        if !remote_unchanged {
+            record.status = EditSessionStatus::Conflict;
+            record.error = Some("远端文件在编辑期间已发生变化".to_string());
+            persist_session(&record)?;
+            edit_sessions()
+                .lock()
+                .map_err(|_| "编辑会话锁已损坏".to_string())?
+                .insert(session_id.to_string(), record.clone());
+            return Ok(session_result(&record, current_digest, false));
+        }
+        if !file_manager.supports_safe_edit_commit(&record.baseline_remote, false) {
+            record.status = EditSessionStatus::Conflict;
+            record.error = Some(
+                "当前存储不支持条件写入；为避免静默覆盖远端更新，请明确选择覆盖远端或另存为"
+                    .to_string(),
+            );
+            persist_session(&record)?;
+            edit_sessions()
+                .lock()
+                .map_err(|_| "编辑会话锁已损坏".to_string())?
+                .insert(session_id.to_string(), record.clone());
+            return Ok(session_result(&record, current_digest, false));
+        }
+    } else if mode == "saveAs" {
+        if target_path == record.remote_path {
+            return Err("另存为路径必须与原文件不同".to_string());
+        }
+        if !file_manager.supports_safe_create() {
+            return Err(
+                "当前存储不支持原子另存为；编辑副本仍保留，请改用支持条件创建的存储或明确覆盖原文件"
+                    .to_string(),
+            );
+        }
+        let (exists, _) = file_manager
+            .path_exists(&target_path)
+            .await
+            .map_err(|error| format!("检查另存为路径失败: {}", error))?;
+        if exists {
+            record.status = EditSessionStatus::Conflict;
+            record.error = Some("另存为目标已存在".to_string());
+            persist_session(&record)?;
+            edit_sessions()
+                .lock()
+                .map_err(|_| "编辑会话锁已损坏".to_string())?
+                .insert(session_id.to_string(), record.clone());
+            return Ok(session_result(&record, &current_digest, false));
+        }
+    } else if mode != "overwrite" {
+        return Err("不支持的编辑完成模式".to_string());
+    }
+
+    let expected_remote = (mode == "normal").then_some(&record.baseline_remote);
+    match file_manager
+        .replace_from_local_if_unchanged(
+            &snapshot.path,
+            &target_path,
+            &record.session_id,
+            expected_remote,
+            Some(&record.baseline_digest),
+            mode == "saveAs",
+        )
+        .await
+    {
+        Ok(true) => {
+            record.status = EditSessionStatus::Completed;
+            record.error = None;
+            info!("编辑会话已提交: {} -> {}", session_id, target_path);
+        }
+        Ok(false) => {
+            record.status = EditSessionStatus::Conflict;
+            record.error = Some(if mode == "saveAs" {
+                "另存为目标已存在".to_string()
+            } else {
+                "远端文件在提交前再次发生变化".to_string()
+            });
+        }
+        Err(error) => {
+            record.status = EditSessionStatus::UploadFailed;
+            record.error = Some(format!("上传编辑结果失败: {}", error));
         }
     }
-
-    // 编辑器退出和最后一次轮询之间可能又保存过，退出时做最终同步。
-    let final_digest =
-        file_digest(&local_path).map_err(|error| format!("读取编辑后的文件失败: {}", error))?;
-    if final_digest != last_synced_digest {
-        sync_if_changed(&file_manager, &local_path, remote_path, &final_digest)
-            .await
-            .map_err(|error| last_upload_error.unwrap_or(error))?;
-        sync_count += 1;
+    let result = session_result(
+        &record,
+        current_digest,
+        record.status == EditSessionStatus::Completed,
+    );
+    if record.status == EditSessionStatus::Completed {
+        cleanup_session(&record);
+    } else {
+        persist_session(&record)?;
+        edit_sessions()
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?
+            .insert(session_id.to_string(), record.clone());
     }
+    Ok(result)
+}
 
-    Ok(EditFileResult {
-        changed: sync_count > 0,
-        uploaded: sync_count > 0,
-        sync_count,
-        editor_name: editor.display_name,
-    })
+async fn reopen_session(
+    app: &AppHandle,
+    session_id: &str,
+    editor_id: Option<String>,
+) -> Result<EditSessionResult, String> {
+    restore_sessions(app);
+    let _operation = claim_session_operation(session_id)?;
+    let mut record = edit_sessions()
+        .lock()
+        .map_err(|_| "编辑会话锁已损坏".to_string())?
+        .get(session_id)
+        .cloned()
+        .ok_or_else(|| "编辑会话不存在或已结束".to_string())?;
+    if !matches!(
+        record.status,
+        EditSessionStatus::Editing | EditSessionStatus::Conflict | EditSessionStatus::UploadFailed
+    ) {
+        return Err("编辑会话已结束".to_string());
+    }
+    let editor_id = editor_id
+        .filter(|id| !id.trim().is_empty())
+        .or_else(|| (!record.editor_id.is_empty()).then(|| record.editor_id.clone()))
+        .ok_or_else(|| "原编辑器信息不可用，请重新选择编辑器".to_string())?;
+    let editor = resolve_editor(app, &editor_id)?;
+    Command::new(&editor.executable)
+        .args(&editor.prefix_args)
+        .arg(&record.local_path)
+        .spawn()
+        .map_err(|error| format!("重新打开文本编辑器失败: {}", error))?;
+    record.editor_id = editor_id;
+    record.editor_name = editor.display_name;
+    record.status = EditSessionStatus::Editing;
+    record.error = None;
+    persist_session(&record)?;
+    edit_sessions()
+        .lock()
+        .map_err(|_| "编辑会话锁已损坏".to_string())?
+        .insert(session_id.to_string(), record.clone());
+    let digest = digest_async(record.local_path.clone()).await?;
+    Ok(session_result(&record, &digest, false))
 }
 
 #[command]
-pub fn detect_local_editors() -> ApiResponse<Vec<DetectedEditor>> {
-    ApiResponse::success(discover_local_editors())
+pub fn detect_local_editors(app: AppHandle) -> ApiResponse<Vec<DetectedEditor>> {
+    ApiResponse::success(configured_editors(&app))
 }
 
 #[command]
 pub fn list_local_applications() -> ApiResponse<Vec<DetectedEditor>> {
-    ApiResponse::success(discover_local_applications())
+    let applications = discover_local_applications();
+    for application in &applications {
+        register_editor_descriptor(application);
+    }
+    ApiResponse::success(
+        applications
+            .into_iter()
+            .map(|descriptor| descriptor.editor)
+            .collect(),
+    )
 }
 
 #[command]
-pub fn inspect_local_editor(path: String) -> ApiResponse<DetectedEditor> {
-    let configured = PathBuf::from(path.trim());
-    let resolved = if editor_candidate_exists(&configured) {
-        configured
-    } else if let Some(path) = executable_on_path(configured.to_string_lossy().as_ref()) {
-        path
-    } else {
-        return ApiResponse::error(format!(
-            "选择的文本编辑器不存在或无法执行: {}",
-            configured.display()
-        ));
-    };
+pub fn register_detected_editor(app: AppHandle, editor_id: String) -> ApiResponse<DetectedEditor> {
+    let editor = discover_local_applications()
+        .into_iter()
+        .find(|editor| editor.editor.id == editor_id);
+    match editor {
+        Some(editor) => match persist_registered_editor(&app, &editor) {
+            Ok(()) => {
+                register_editor_descriptor(&editor);
+                ApiResponse::success(editor.editor)
+            }
+            Err(error) => ApiResponse::error(error),
+        },
+        None => ApiResponse::error("编辑器候选 ID 无效".to_string()),
+    }
+}
 
-    match editor_command_from_path(resolved.clone()) {
-        Ok(command) => {
-            let resolved = fs::canonicalize(&resolved).unwrap_or(resolved);
-            ApiResponse::success(DetectedEditor {
-                name: command.display_name,
-                path: resolved.to_string_lossy().to_string(),
-            })
+#[command]
+pub async fn choose_and_register_local_editor(app: AppHandle) -> ApiResponse<DetectedEditor> {
+    let dialog_app = app.clone();
+    let selected = tokio::task::spawn_blocking(move || {
+        let builder = dialog_app
+            .dialog()
+            .file()
+            .set_title("选择文本编辑器应用或可执行文件");
+        #[cfg(target_os = "windows")]
+        let builder = builder.add_filter("Applications", &["exe"]);
+        builder.blocking_pick_file()
+    })
+    .await;
+    let selected = match selected {
+        Ok(Some(path)) => match path.into_path() {
+            Ok(path) => path,
+            Err(error) => return ApiResponse::error(format!("读取编辑器路径失败: {}", error)),
+        },
+        Ok(None) => return ApiResponse::error("用户取消选择编辑器".to_string()),
+        Err(error) => return ApiResponse::error(format!("打开编辑器选择器失败: {}", error)),
+    };
+    if !editor_candidate_exists(&selected) {
+        return ApiResponse::error("选择的编辑器不存在".to_string());
+    }
+    let selected = fs::canonicalize(&selected).unwrap_or(selected);
+    let command = match editor_command_from_path(selected.clone()) {
+        Ok(command) => command,
+        Err(error) => return ApiResponse::error(error),
+    };
+    let editor = editor_descriptor(command.display_name, selected, true);
+    match persist_registered_editor(&app, &editor) {
+        Ok(()) => {
+            register_editor_descriptor(&editor);
+            ApiResponse::success(editor.editor)
         }
         Err(error) => ApiResponse::error(error),
     }
 }
 
 #[command]
-pub async fn edit_file_with_local_editor(
+pub fn remove_registered_editor(app: AppHandle, editor_id: String) -> ApiResponse<bool> {
+    let mut stored = load_stored_editors(&app);
+    let before = stored.len();
+    stored.retain(|editor| editor.id != editor_id);
+    if before == stored.len() {
+        return ApiResponse::error("只能移除用户添加的编辑器".to_string());
+    }
+    match save_stored_editors(&app, &stored) {
+        Ok(()) => {
+            if let Ok(mut registry) = editor_registry().lock() {
+                registry.remove(&editor_id);
+            }
+            ApiResponse::success(true)
+        }
+        Err(error) => ApiResponse::error(error),
+    }
+}
+
+#[command]
+pub async fn start_edit_session(
+    app: AppHandle,
     connection_id: String,
     remote_path: String,
-    editor_path: Option<String>,
-) -> ApiResponse<EditFileResult> {
-    match edit_remote_file(&connection_id, &remote_path, editor_path).await {
+    editor_id: String,
+) -> ApiResponse<EditSessionResult> {
+    match start_session(&app, &connection_id, &remote_path, &editor_id).await {
         Ok(result) => ApiResponse::success(result),
         Err(error) => ApiResponse::error(error),
     }
 }
 
+#[command]
+pub async fn list_edit_sessions(
+    app: AppHandle,
+    connection_id: Option<String>,
+) -> ApiResponse<Vec<EditSessionResult>> {
+    restore_sessions(&app);
+    let records: Vec<_> = match edit_sessions().lock() {
+        Ok(sessions) => sessions
+            .values()
+            .filter(|session| {
+                connection_id
+                    .as_deref()
+                    .map(|id| id == session.connection_id)
+                    .unwrap_or(true)
+                    && matches!(
+                        session.status,
+                        EditSessionStatus::Editing
+                            | EditSessionStatus::Conflict
+                            | EditSessionStatus::UploadFailed
+                    )
+            })
+            .cloned()
+            .collect(),
+        Err(_) => return ApiResponse::error("编辑会话锁已损坏".to_string()),
+    };
+    let mut results = Vec::new();
+    for record in records {
+        match digest_async(record.local_path.clone()).await {
+            Ok(digest) => results.push(session_result(&record, &digest, false)),
+            Err(error) => warn!("读取恢复编辑会话失败 {}: {}", record.session_id, error),
+        }
+    }
+    ApiResponse::success(results)
+}
+
+#[command]
+pub async fn finish_edit_session(
+    app: AppHandle,
+    session_id: String,
+    mode: Option<String>,
+    save_as_path: Option<String>,
+) -> ApiResponse<EditSessionResult> {
+    match finish_session(
+        &app,
+        &session_id,
+        mode.as_deref().unwrap_or("normal"),
+        save_as_path,
+    )
+    .await
+    {
+        Ok(result) => ApiResponse::success(result),
+        Err(error) => ApiResponse::error(error),
+    }
+}
+
+#[command]
+pub async fn reopen_edit_session(
+    app: AppHandle,
+    session_id: String,
+    editor_id: Option<String>,
+) -> ApiResponse<EditSessionResult> {
+    match reopen_session(&app, &session_id, editor_id).await {
+        Ok(result) => ApiResponse::success(result),
+        Err(error) => ApiResponse::error(error),
+    }
+}
+
+#[command]
+pub async fn abandon_edit_session(
+    app: AppHandle,
+    session_id: String,
+) -> ApiResponse<EditSessionResult> {
+    restore_sessions(&app);
+    let _operation = match claim_session_operation(&session_id) {
+        Ok(operation) => operation,
+        Err(error) => return ApiResponse::error(error),
+    };
+    let mut record = match edit_sessions().lock() {
+        Ok(sessions) => match sessions.get(&session_id).cloned() {
+            Some(record) => record,
+            None => return ApiResponse::error("编辑会话不存在或已结束".to_string()),
+        },
+        Err(_) => return ApiResponse::error("编辑会话锁已损坏".to_string()),
+    };
+    let digest = match digest_async(record.local_path.clone()).await {
+        Ok(digest) => digest,
+        Err(error) => return ApiResponse::error(error),
+    };
+    record.status = EditSessionStatus::Abandoned;
+    record.error = None;
+    let result = session_result(&record, &digest, false);
+    cleanup_session(&record);
+    ApiResponse::success(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        discover_local_applications, discover_local_editors, editor_candidate_exists,
-        editor_kind_from_name, editor_prefix_args, is_likely_text_editor_application,
-        is_native_default_editor, sanitize_file_name, EditorKind,
+        claim_session_operation, create_stable_snapshot, discover_local_applications,
+        discover_local_editors, editor_candidate_exists, editor_kind_from_name, editor_prefix_args,
+        file_digest, is_likely_text_editor_application, is_native_default_editor,
+        sanitize_file_name, EditorKind, ProvisionalSessionDirectory,
     };
     use std::path::Path;
 
@@ -990,10 +1814,46 @@ mod tests {
     }
 
     #[test]
-    fn vscode_is_started_in_wait_mode() {
-        assert_eq!(editor_prefix_args(Path::new("Code.exe")), vec!["--wait"]);
+    fn explicit_sessions_do_not_wait_for_editor_process_exit() {
+        assert!(editor_prefix_args(Path::new("Code.exe")).is_empty());
         assert_eq!(editor_prefix_args(Path::new("Notepad3.exe")), vec!["/n"]);
         assert!(editor_prefix_args(Path::new("notepad.exe")).is_empty());
+        assert!(editor_prefix_args(Path::new("kate")).is_empty());
+    }
+
+    #[test]
+    fn session_mutations_are_serialized() {
+        let first = claim_session_operation("serialized-session").unwrap();
+        assert!(claim_session_operation("serialized-session").is_err());
+        drop(first);
+        assert!(claim_session_operation("serialized-session").is_ok());
+    }
+
+    #[tokio::test]
+    async fn finish_uses_an_immutable_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("editing.txt");
+        std::fs::write(&source, "stable content").unwrap();
+
+        let snapshot = create_stable_snapshot(source.clone()).await.unwrap();
+
+        assert_ne!(snapshot.path, source);
+        assert_eq!(snapshot.digest, file_digest(&source).unwrap());
+        assert_eq!(std::fs::read(&snapshot.path).unwrap(), b"stable content");
+    }
+
+    #[test]
+    fn failed_session_setup_removes_the_provisional_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("provisional-session");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(directory.join("sensitive.txt"), "secret").unwrap();
+
+        {
+            let _guard = ProvisionalSessionDirectory::new(directory.clone());
+        }
+
+        assert!(!directory.exists());
     }
 
     #[test]
@@ -1060,9 +1920,9 @@ mod tests {
     fn discovered_editor_paths_exist() {
         for editor in discover_local_editors() {
             assert!(
-                editor_candidate_exists(Path::new(&editor.path)),
+                editor_candidate_exists(&editor.path),
                 "{}",
-                editor.path
+                editor.path.display()
             );
         }
     }
@@ -1071,9 +1931,9 @@ mod tests {
     fn discovered_application_paths_exist() {
         for application in discover_local_applications() {
             assert!(
-                editor_candidate_exists(Path::new(&application.path)),
+                editor_candidate_exists(&application.path),
                 "{}",
-                application.path
+                application.path.display()
             );
         }
     }

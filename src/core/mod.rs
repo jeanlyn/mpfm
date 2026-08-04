@@ -1,4 +1,6 @@
 pub mod config;
+pub mod edit_session;
+pub mod editor_registry;
 pub mod error;
 pub mod file;
 

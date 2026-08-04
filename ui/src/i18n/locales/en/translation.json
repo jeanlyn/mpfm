@@ -236,6 +236,9 @@
       "copyCommandButton": "Copy Command",
       "previewButton": "Preview",
       "editButton": "Edit",
+      "finishEditButton": "Finish Editing",
+      "reopenEditButton": "Reopen Editor",
+      "abandonEditButton": "Abandon Edit",
       "selectFile": "Select File"
     },
     "breadcrumb": {
@@ -321,9 +324,21 @@
       "downloadingFromDirectories": "Downloading files from directories...",
       "editorEditingSingle": "Editing {name}",
       "editorEditingMultiple": "Editing {names}{ellipsis} ({count} files)",
-      "editorSynced": "Editing finished; synchronized {count} time(s)",
-      "editorNoChanges": "The editor was closed without content changes",
+      "editorSynced": "Editing succeeded and the remote file was updated",
+      "editorNoChanges": "Editing finished with no content changes",
       "editorFailed": "Local editing failed",
+      "editorAbandoned": "Editing abandoned; the remote file was not changed",
+      "editorAbandonTitle": "Abandon this edit?",
+      "editorAbandonDescription": "Local changes will not be uploaded and the remote file will remain unchanged.",
+      "editorKeepEditing": "Keep Editing",
+      "editorConflictTitle": "Your edit has not been uploaded",
+      "editorConflictDescription": "Your edit remains safely stored locally to avoid an unintended overwrite. Explicitly overwrite the remote file, save to a new path, or return to editing.",
+      "editorSaveAsPlaceholder": "New remote path",
+      "editorReturn": "Return to Editing",
+      "editorSaveAs": "Save As",
+      "editorOverwrite": "Overwrite Remote",
+      "editorRecoveredTitle": "Recoverable edit sessions found",
+      "editorRecoveredDescription": "These files are no longer visible remotely, but their local edit copies are preserved. Reopen, finish and save as, or abandon them.",
       "detectingEditors": "Detecting installed editors...",
       "noEditorsDetected": "No editor detected; select one in Settings"
     }
