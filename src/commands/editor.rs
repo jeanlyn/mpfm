@@ -4,6 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ use super::types::ApiResponse;
 use super::utils::get_connection_config;
 
 const SESSION_MANIFEST_FILE: &str = "session.json";
+const MISSING_LOCAL_CONFIRMATION_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,6 +93,33 @@ struct StoredEditor {
 static EDITOR_REGISTRY: OnceLock<Mutex<EditorRegistry>> = OnceLock::new();
 static EDIT_SESSIONS: OnceLock<Mutex<HashMap<String, EditSessionRecord>>> = OnceLock::new();
 static SESSION_OPERATIONS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static SESSION_RESTORE_GATE: OnceLock<Mutex<SessionRestoreGate>> = OnceLock::new();
+
+#[derive(Default)]
+struct SessionRestoreGate {
+    restored: bool,
+}
+
+impl SessionRestoreGate {
+    fn complete(&mut self) {
+        self.restored = true;
+    }
+}
+
+fn restore_once(
+    gate: &Mutex<SessionRestoreGate>,
+    restore: impl FnOnce() -> Result<(), String>,
+) -> Result<bool, String> {
+    let mut guard = gate
+        .lock()
+        .map_err(|_| "编辑会话恢复锁已损坏".to_string())?;
+    if guard.restored {
+        return Ok(false);
+    }
+    restore()?;
+    guard.complete();
+    Ok(true)
+}
 
 fn editor_registry() -> &'static Mutex<EditorRegistry> {
     EDITOR_REGISTRY.get_or_init(|| Mutex::new(EditorRegistry::default()))
@@ -98,6 +127,103 @@ fn editor_registry() -> &'static Mutex<EditorRegistry> {
 
 fn edit_sessions() -> &'static Mutex<HashMap<String, EditSessionRecord>> {
     EDIT_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn is_active_session(status: EditSessionStatus) -> bool {
+    matches!(
+        status,
+        EditSessionStatus::Editing | EditSessionStatus::Conflict | EditSessionStatus::UploadFailed
+    )
+}
+
+fn local_copy_is_present(path: &Path) -> Result<bool, String> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "检查编辑会话本地副本失败 {}: {}",
+            path.display(),
+            error
+        )),
+    }
+}
+
+async fn retire_confirmed_missing_sessions(
+    sessions: &Mutex<HashMap<String, EditSessionRecord>>,
+    connection_id: Option<&str>,
+    remote_path: Option<&str>,
+    confirmation_delay: Duration,
+) -> Result<(), String> {
+    let candidates: Vec<_> = sessions
+        .lock()
+        .map_err(|_| "编辑会话锁已损坏".to_string())?
+        .values()
+        .filter(|session| {
+            is_active_session(session.status)
+                && connection_id
+                    .map(|id| id == session.connection_id)
+                    .unwrap_or(true)
+                && remote_path
+                    .map(|path| path == session.remote_path)
+                    .unwrap_or(true)
+        })
+        .cloned()
+        .collect();
+
+    retire_confirmed_missing_candidates(sessions, candidates, confirmation_delay).await
+}
+
+async fn retire_confirmed_missing_candidates(
+    sessions: &Mutex<HashMap<String, EditSessionRecord>>,
+    candidates: Vec<EditSessionRecord>,
+    confirmation_delay: Duration,
+) -> Result<(), String> {
+    for record in candidates {
+        if local_copy_is_present(&record.local_path)? {
+            continue;
+        }
+        let _operation = match claim_session_operation(&record.session_id) {
+            Ok(operation) => operation,
+            Err(_) => continue,
+        };
+        let still_active = sessions
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?
+            .get(&record.session_id)
+            .is_some_and(|current| {
+                is_active_session(current.status) && current.local_path == record.local_path
+            });
+        if !still_active {
+            continue;
+        }
+        tokio::time::sleep(confirmation_delay).await;
+        if local_copy_is_present(&record.local_path)? {
+            continue;
+        }
+        let still_active = sessions
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?
+            .get(&record.session_id)
+            .is_some_and(|current| {
+                is_active_session(current.status) && current.local_path == record.local_path
+            });
+        if !still_active {
+            continue;
+        }
+        let mut retired = record.clone();
+        retired.status = EditSessionStatus::Abandoned;
+        retired.error = Some("本地编辑副本已确认丢失，旧会话已结束".to_string());
+        persist_session(&retired)?;
+        let mut sessions = sessions
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?;
+        if sessions.get(&record.session_id).is_some_and(|current| {
+            is_active_session(current.status) && current.local_path == record.local_path
+        }) {
+            sessions.remove(&record.session_id);
+        }
+    }
+    Ok(())
 }
 
 struct SessionOperationGuard {
@@ -1063,25 +1189,52 @@ fn persist_session(record: &EditSessionRecord) -> Result<(), String> {
         .map_err(|error| format!("保存编辑会话失败: {}", error))
 }
 
-fn restore_sessions(app: &AppHandle) {
-    let Ok(root) = session_root(app) else {
-        return;
-    };
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
+fn remove_restored_session_directory(directory: &Path, reason: &str) {
+    if let Err(error) = fs::remove_dir_all(directory) {
+        warn!(
+            "{}，但清理目录失败 {}: {}",
+            reason,
+            directory.display(),
+            error
+        );
+    }
+}
+
+fn scan_session_records(root: &Path) -> Result<Vec<EditSessionRecord>, String> {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(format!(
+                "读取编辑会话目录失败 {}: {}",
+                root.display(),
+                error
+            ));
+        }
     };
     let mut restored = Vec::new();
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("读取编辑会话目录项失败: {}", error))?;
         let directory = entry.path();
         let manifest = directory.join(SESSION_MANIFEST_FILE);
-        let Ok(content) = fs::read_to_string(&manifest) else {
-            warn!("清理缺少有效清单的编辑会话目录: {}", directory.display());
-            let _ = fs::remove_dir_all(&directory);
-            continue;
+        let content = match fs::read_to_string(&manifest) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                warn!("清理缺少有效清单的编辑会话目录: {}", directory.display());
+                remove_restored_session_directory(&directory, "编辑会话缺少有效清单");
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "读取编辑会话清单失败 {}: {}",
+                    manifest.display(),
+                    error
+                ));
+            }
         };
         let Ok(record) = serde_json::from_str::<EditSessionRecord>(&content) else {
             warn!("清理清单损坏的编辑会话目录: {}", directory.display());
-            let _ = fs::remove_dir_all(&directory);
+            remove_restored_session_directory(&directory, "编辑会话清单损坏");
             continue;
         };
         let directory_name_matches = directory
@@ -1100,23 +1253,54 @@ fn restore_sessions(app: &AppHandle) {
             .is_some_and(|(expected, actual)| expected == actual);
         if !directory_name_matches || !local_parent_matches {
             warn!("忽略路径不可信的编辑会话清单: {}", manifest.display());
-            let _ = fs::remove_dir_all(&directory);
+            remove_restored_session_directory(&directory, "编辑会话清单路径不可信");
             continue;
         }
         if matches!(
             record.status,
             EditSessionStatus::Completed | EditSessionStatus::Abandoned
         ) {
-            let _ = fs::remove_dir_all(&directory);
-        } else if record.local_path.is_file() {
-            restored.push(record);
+            remove_restored_session_directory(&directory, "编辑会话已结束");
+            continue;
+        }
+        match fs::metadata(&record.local_path) {
+            Ok(metadata) if metadata.is_file() => restored.push(record),
+            Ok(_) => {
+                warn!("编辑会话本地副本暂不可用: {}", record.local_path.display());
+                restored.push(record);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                warn!("编辑会话本地副本暂时缺失: {}", record.local_path.display());
+                restored.push(record);
+            }
+            Err(error) => {
+                return Err(format!(
+                    "检查编辑会话本地副本失败 {}: {}",
+                    record.local_path.display(),
+                    error
+                ));
+            }
         }
     }
-    if let Ok(mut sessions) = edit_sessions().lock() {
-        for record in restored {
-            sessions.entry(record.session_id.clone()).or_insert(record);
-        }
-    }
+    Ok(restored)
+}
+
+fn restore_sessions(app: &AppHandle) -> Result<(), String> {
+    restore_once(
+        SESSION_RESTORE_GATE.get_or_init(|| Mutex::new(SessionRestoreGate::default())),
+        || {
+            let root = session_root(app)?;
+            let restored = scan_session_records(&root)?;
+            let mut sessions = edit_sessions()
+                .lock()
+                .map_err(|_| "编辑会话锁已损坏".to_string())?;
+            for record in restored {
+                sessions.entry(record.session_id.clone()).or_insert(record);
+            }
+            Ok(())
+        },
+    )?;
+    Ok(())
 }
 
 fn cleanup_session(record: &EditSessionRecord) {
@@ -1261,22 +1445,25 @@ async fn start_session(
     remote_path: &str,
     editor_id: &str,
 ) -> Result<EditSessionResult, String> {
-    restore_sessions(app);
-    if edit_sessions()
-        .lock()
-        .map_err(|_| "编辑会话锁已损坏".to_string())?
-        .values()
-        .any(|session| {
+    restore_sessions(app)?;
+    retire_confirmed_missing_sessions(
+        edit_sessions(),
+        Some(connection_id),
+        Some(remote_path),
+        MISSING_LOCAL_CONFIRMATION_DELAY,
+    )
+    .await?;
+    let has_active_session = {
+        let sessions = edit_sessions()
+            .lock()
+            .map_err(|_| "编辑会话锁已损坏".to_string())?;
+        sessions.values().any(|session| {
             session.connection_id == connection_id
                 && session.remote_path == remote_path
-                && matches!(
-                    session.status,
-                    EditSessionStatus::Editing
-                        | EditSessionStatus::Conflict
-                        | EditSessionStatus::UploadFailed
-                )
+                && is_active_session(session.status)
         })
-    {
+    };
+    if has_active_session {
         return Err("该远端文件已有活动编辑会话".to_string());
     }
 
@@ -1332,18 +1519,20 @@ async fn start_session(
     };
     persist_session(&record)?;
     {
+        retire_confirmed_missing_sessions(
+            edit_sessions(),
+            Some(connection_id),
+            Some(remote_path),
+            MISSING_LOCAL_CONFIRMATION_DELAY,
+        )
+        .await?;
         let mut sessions = edit_sessions()
             .lock()
             .map_err(|_| "编辑会话锁已损坏".to_string())?;
         if sessions.values().any(|session| {
             session.connection_id == connection_id
                 && session.remote_path == remote_path
-                && matches!(
-                    session.status,
-                    EditSessionStatus::Editing
-                        | EditSessionStatus::Conflict
-                        | EditSessionStatus::UploadFailed
-                )
+                && is_active_session(session.status)
         }) {
             return Err("该远端文件已有活动编辑会话".to_string());
         }
@@ -1371,7 +1560,7 @@ async fn finish_session(
     mode: &str,
     save_as_path: Option<String>,
 ) -> Result<EditSessionResult, String> {
-    restore_sessions(app);
+    restore_sessions(app)?;
     let _operation = claim_session_operation(session_id)?;
     let mut record = edit_sessions()
         .lock()
@@ -1546,7 +1735,7 @@ async fn reopen_session(
     session_id: &str,
     editor_id: Option<String>,
 ) -> Result<EditSessionResult, String> {
-    restore_sessions(app);
+    restore_sessions(app)?;
     let _operation = claim_session_operation(session_id)?;
     let mut record = edit_sessions()
         .lock()
@@ -1695,7 +1884,19 @@ pub async fn list_edit_sessions(
     app: AppHandle,
     connection_id: Option<String>,
 ) -> ApiResponse<Vec<EditSessionResult>> {
-    restore_sessions(&app);
+    if let Err(error) = restore_sessions(&app) {
+        return ApiResponse::error(error);
+    }
+    if let Err(error) = retire_confirmed_missing_sessions(
+        edit_sessions(),
+        connection_id.as_deref(),
+        None,
+        MISSING_LOCAL_CONFIRMATION_DELAY,
+    )
+    .await
+    {
+        return ApiResponse::error(error);
+    }
     let records: Vec<_> = match edit_sessions().lock() {
         Ok(sessions) => sessions
             .values()
@@ -1704,12 +1905,7 @@ pub async fn list_edit_sessions(
                     .as_deref()
                     .map(|id| id == session.connection_id)
                     .unwrap_or(true)
-                    && matches!(
-                        session.status,
-                        EditSessionStatus::Editing
-                            | EditSessionStatus::Conflict
-                            | EditSessionStatus::UploadFailed
-                    )
+                    && is_active_session(session.status)
             })
             .cloned()
             .collect(),
@@ -1762,7 +1958,9 @@ pub async fn abandon_edit_session(
     app: AppHandle,
     session_id: String,
 ) -> ApiResponse<EditSessionResult> {
-    restore_sessions(&app);
+    if let Err(error) = restore_sessions(&app) {
+        return ApiResponse::error(error);
+    }
     let _operation = match claim_session_operation(&session_id) {
         Ok(operation) => operation,
         Err(error) => return ApiResponse::error(error),
@@ -1790,10 +1988,37 @@ mod tests {
     use super::{
         claim_session_operation, create_stable_snapshot, discover_local_applications,
         discover_local_editors, editor_candidate_exists, editor_kind_from_name, editor_prefix_args,
-        file_digest, is_likely_text_editor_application, is_native_default_editor,
-        sanitize_file_name, EditorKind, ProvisionalSessionDirectory,
+        file_digest, is_likely_text_editor_application, is_native_default_editor, restore_once,
+        retire_confirmed_missing_candidates, retire_confirmed_missing_sessions, sanitize_file_name,
+        scan_session_records, EditSessionRecord, EditSessionStatus, EditorKind,
+        ProvisionalSessionDirectory, SessionRestoreGate, SESSION_MANIFEST_FILE,
     };
-    use std::path::Path;
+    use crate::core::edit_session::RemoteFingerprint;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, TryLockError};
+    use std::time::Duration;
+
+    fn edit_session_record(local_path: PathBuf, status: EditSessionStatus) -> EditSessionRecord {
+        EditSessionRecord {
+            session_id: "session-id".to_string(),
+            connection_id: "connection-id".to_string(),
+            remote_path: "/remote/file.txt".to_string(),
+            file_name: "file.txt".to_string(),
+            editor_id: "editor-id".to_string(),
+            editor_name: "Editor".to_string(),
+            local_path,
+            baseline_digest: Vec::new(),
+            baseline_remote: RemoteFingerprint {
+                etag: None,
+                version: None,
+                modified: None,
+                size: 0,
+            },
+            status,
+            error: None,
+        }
+    }
 
     #[test]
     fn preserves_extension_while_sanitizing_remote_file_name() {
@@ -1814,6 +2039,187 @@ mod tests {
         assert!(claim_session_operation("serialized-session").is_err());
         drop(first);
         assert!(claim_session_operation("serialized-session").is_ok());
+    }
+
+    #[test]
+    fn restore_gate_is_held_until_the_scan_finishes() {
+        let gate = Mutex::new(SessionRestoreGate::default());
+
+        let restored = restore_once(&gate, || {
+            assert!(matches!(gate.try_lock(), Err(TryLockError::WouldBlock)));
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(restored);
+        assert!(!restore_once(&gate, || panic!("restore ran twice")).unwrap());
+    }
+
+    #[test]
+    fn failed_restore_is_retried() {
+        let gate = Mutex::new(SessionRestoreGate::default());
+
+        assert!(restore_once(&gate, || Err("scan failed".to_string())).is_err());
+        assert!(restore_once(&gate, || Ok(())).unwrap());
+    }
+
+    #[test]
+    fn missing_session_root_is_a_successful_empty_scan() {
+        let directory = tempfile::tempdir().unwrap();
+
+        let records = scan_session_records(&directory.path().join("missing-root")).unwrap();
+
+        assert!(records.is_empty());
+    }
+
+    #[test]
+    fn unreadable_session_root_does_not_count_as_an_empty_scan() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("not-a-directory");
+        std::fs::write(&file, "content").unwrap();
+
+        assert!(scan_session_records(&file).is_err());
+    }
+
+    #[test]
+    fn initial_scan_preserves_a_manifest_without_its_local_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let session_directory = root.path().join("session-id");
+        std::fs::create_dir(&session_directory).unwrap();
+        let record = edit_session_record(
+            session_directory.join("missing.txt"),
+            EditSessionStatus::Editing,
+        );
+        std::fs::write(
+            session_directory.join(SESSION_MANIFEST_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+
+        let records = scan_session_records(root.path()).unwrap();
+
+        assert_eq!(records.len(), 1);
+        assert!(session_directory.exists());
+    }
+
+    #[test]
+    fn initial_scan_restores_a_valid_local_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let session_directory = root.path().join("session-id");
+        std::fs::create_dir(&session_directory).unwrap();
+        let local_path = session_directory.join("file.txt");
+        std::fs::write(&local_path, "content").unwrap();
+        let record = edit_session_record(local_path, EditSessionStatus::Editing);
+        std::fs::write(
+            session_directory.join(SESSION_MANIFEST_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+
+        let records = scan_session_records(root.path()).unwrap();
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].session_id, "session-id");
+    }
+
+    #[tokio::test]
+    async fn transiently_missing_local_copy_keeps_the_active_session() {
+        let root = tempfile::tempdir().unwrap();
+        let session_directory = root.path().join("session-id");
+        std::fs::create_dir(&session_directory).unwrap();
+        let local_path = session_directory.join("file.txt");
+        let mut record = edit_session_record(local_path.clone(), EditSessionStatus::Editing);
+        record.session_id = uuid::Uuid::new_v4().to_string();
+        let session_id = record.session_id.clone();
+        std::fs::write(
+            session_directory.join(SESSION_MANIFEST_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        let sessions = Mutex::new(HashMap::from([(session_id, record)]));
+        let restored_path = local_path.clone();
+        let restore_file = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            std::fs::write(restored_path, "content").unwrap();
+        });
+
+        retire_confirmed_missing_sessions(
+            &sessions,
+            Some("connection-id"),
+            Some("/remote/file.txt"),
+            Duration::from_millis(50),
+        )
+        .await
+        .unwrap();
+        restore_file.await.unwrap();
+
+        assert_eq!(sessions.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn stably_missing_local_copy_retires_the_active_session() {
+        let root = tempfile::tempdir().unwrap();
+        let session_directory = root.path().join("session-id");
+        std::fs::create_dir(&session_directory).unwrap();
+        let mut record = edit_session_record(
+            session_directory.join("missing.txt"),
+            EditSessionStatus::Editing,
+        );
+        record.session_id = uuid::Uuid::new_v4().to_string();
+        let session_id = record.session_id.clone();
+        std::fs::write(
+            session_directory.join(SESSION_MANIFEST_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        let sessions = Mutex::new(HashMap::from([(session_id, record)]));
+
+        retire_confirmed_missing_sessions(
+            &sessions,
+            Some("connection-id"),
+            Some("/remote/file.txt"),
+            Duration::from_millis(1),
+        )
+        .await
+        .unwrap();
+
+        assert!(sessions.lock().unwrap().is_empty());
+        let terminal: EditSessionRecord = serde_json::from_slice(
+            &std::fs::read(session_directory.join(SESSION_MANIFEST_FILE)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(terminal.status, EditSessionStatus::Abandoned);
+        assert!(session_directory.exists());
+    }
+
+    #[tokio::test]
+    async fn stale_missing_candidate_does_not_overwrite_a_completed_manifest() {
+        let root = tempfile::tempdir().unwrap();
+        let session_directory = root.path().join("session-id");
+        std::fs::create_dir(&session_directory).unwrap();
+        let mut candidate = edit_session_record(
+            session_directory.join("missing.txt"),
+            EditSessionStatus::Editing,
+        );
+        candidate.session_id = uuid::Uuid::new_v4().to_string();
+        let mut completed = candidate.clone();
+        completed.status = EditSessionStatus::Completed;
+        std::fs::write(
+            session_directory.join(SESSION_MANIFEST_FILE),
+            serde_json::to_vec(&completed).unwrap(),
+        )
+        .unwrap();
+        let sessions = Mutex::new(HashMap::new());
+
+        retire_confirmed_missing_candidates(&sessions, vec![candidate], Duration::from_millis(1))
+            .await
+            .unwrap();
+
+        let persisted: EditSessionRecord = serde_json::from_slice(
+            &std::fs::read(session_directory.join(SESSION_MANIFEST_FILE)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(persisted.status, EditSessionStatus::Completed);
     }
 
     #[tokio::test]
