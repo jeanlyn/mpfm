@@ -3,6 +3,7 @@ import { Button, Dropdown, Divider, Typography } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
 import LanguageSwitcher from './LanguageSwitcher';
 import DiagnosticsSection from './DiagnosticsSection';
+import EditorSelector from './EditorSelector';
 import { useAppI18n } from '../hooks/useI18n';
 
 const { Text, Title } = Typography;
@@ -12,7 +13,7 @@ interface FloatingSettingsButtonProps {
 }
 
 const panelStyle: React.CSSProperties = {
-  width: 340,
+  width: 370,
   background: '#fff',
   borderRadius: 12,
   boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12)',
@@ -43,6 +44,13 @@ const FloatingSettingsButton: React.FC<FloatingSettingsButtonProps> = ({ classNa
       <div style={{ padding: '14px 16px 4px' }}>
         <Text style={sectionLabelStyle}>{settings.language}</Text>
         <LanguageSwitcher size="middle" style={{ width: '100%' }} />
+      </div>
+
+      <Divider style={{ margin: '12px 0' }} />
+
+      <div style={{ padding: '2px 16px 4px' }}>
+        <Text style={sectionLabelStyle}>{settings.localEditor}</Text>
+        <EditorSelector />
       </div>
 
       <Divider style={{ margin: '12px 0' }} />

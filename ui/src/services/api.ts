@@ -2,6 +2,33 @@ import { invoke } from '@tauri-apps/api/core';
 import { Connection, FileInfo, PaginatedFileList, ApiResponse, CopyResultSummary } from '../types';
 import { listenUploadProgress, UploadProgress } from '../utils/uploadProgress';
 
+export type EditSessionStatus =
+  | 'editing'
+  | 'conflict'
+  | 'uploadFailed'
+  | 'completed'
+  | 'abandoned';
+
+export interface EditSessionResult {
+  sessionId: string;
+  connectionId: string;
+  remotePath: string;
+  fileName: string;
+  editorName: string;
+  status: EditSessionStatus;
+  changed: boolean;
+  uploaded: boolean;
+  dirty: boolean;
+  error: string | null;
+}
+
+export interface DetectedEditor {
+  id: string;
+  name: string;
+  removable: boolean;
+  legacyDefault: boolean;
+}
+
 // 检测是否在 Tauri 环境中
 const isTauriEnvironment = (): boolean => {
   return true;
@@ -453,6 +480,124 @@ export class ApiService {
       console.error('Tauri invoke error:', error);
       throw error;
     }
+  }
+
+  static async startEditSession(
+    connectionId: string,
+    remotePath: string,
+    editorId: string
+  ): Promise<EditSessionResult> {
+    try {
+      const response: ApiResponse<EditSessionResult> = await invoke('start_edit_session', {
+        connectionId,
+        remotePath,
+        editorId,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.error || '启动本地编辑失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
+  static async listEditSessions(connectionId?: string): Promise<EditSessionResult[]> {
+    const response: ApiResponse<EditSessionResult[]> = await invoke('list_edit_sessions', {
+      connectionId: connectionId || null,
+    });
+    if (response.success) return response.data || [];
+    throw new Error(response.error || '读取编辑会话失败');
+  }
+
+  static async finishEditSession(
+    sessionId: string,
+    mode: 'normal' | 'overwrite' | 'saveAs' = 'normal',
+    saveAsPath?: string
+  ): Promise<EditSessionResult> {
+    const response: ApiResponse<EditSessionResult> = await invoke('finish_edit_session', {
+      sessionId,
+      mode,
+      saveAsPath: saveAsPath?.trim() || null,
+    });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.error || '完成编辑失败');
+  }
+
+  static async abandonEditSession(sessionId: string): Promise<EditSessionResult> {
+    const response: ApiResponse<EditSessionResult> = await invoke('abandon_edit_session', {
+      sessionId,
+    });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.error || '放弃编辑失败');
+  }
+
+  static async reopenEditSession(
+    sessionId: string,
+    editorId?: string
+  ): Promise<EditSessionResult> {
+    const response: ApiResponse<EditSessionResult> = await invoke('reopen_edit_session', {
+      sessionId,
+      editorId: editorId || null,
+    });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.error || '重新打开编辑器失败');
+  }
+
+  static async detectLocalEditors(): Promise<DetectedEditor[]> {
+    try {
+      const response: ApiResponse<DetectedEditor[]> = await invoke('detect_local_editors');
+      if (response.success) {
+        return response.data || [];
+      }
+      throw new Error(response.error || '检测本地编辑器失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
+  static async listLocalApplications(): Promise<DetectedEditor[]> {
+    try {
+      const response: ApiResponse<DetectedEditor[]> = await invoke('list_local_applications');
+      if (response.success) {
+        return response.data || [];
+      }
+      throw new Error(response.error || '读取本机应用失败');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
+  }
+
+  static async registerDetectedEditor(editorId: string): Promise<DetectedEditor> {
+    const response: ApiResponse<DetectedEditor> = await invoke('register_detected_editor', {
+      editorId,
+    });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.error || '添加编辑器失败');
+  }
+
+  static async chooseAndRegisterLocalEditor(): Promise<DetectedEditor> {
+    const response: ApiResponse<DetectedEditor> = await invoke(
+      'choose_and_register_local_editor'
+    );
+    if (response.success && response.data) return response.data;
+    throw new Error(response.error || '选择的编辑器不可用');
+  }
+
+  static async removeRegisteredEditor(editorId: string): Promise<void> {
+    const response: ApiResponse<boolean> = await invoke('remove_registered_editor', {
+      editorId,
+    });
+    if (!response.success) throw new Error(response.error || '移除编辑器失败');
   }
 
   static async buildDownloadCommand(

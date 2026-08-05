@@ -15,8 +15,8 @@ export const RESERVED_HEIGHT = 252;
 export const MIN_TABLE_HEIGHT = 200;
 export const MAX_TABLE_HEIGHT = 650;
 
-// 操作列最小宽度（需容纳 Preview + Download 下拉 + Delete 的英文标签）
-export const ACTIONS_COLUMN_MIN_WIDTH = 300;
+// 操作列最小宽度（需容纳 Edit + Preview + Download 下拉 + Delete 的英文标签）
+export const ACTIONS_COLUMN_MIN_WIDTH = 380;
 
 // 列宽定义
 export const COLUMN_WIDTHS = {

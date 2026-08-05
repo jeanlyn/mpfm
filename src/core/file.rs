@@ -7,12 +7,45 @@ use std::sync::Arc;
 use log::{debug, info, warn};
 use opendal::{Entry, Metadata, Operator};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tokio::task::JoinSet;
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
+use crate::core::edit_session::RemoteFingerprint;
 use crate::core::error::{Error, Result};
 
 /// 上传分块大小（1MB），用于分块读取并上报进度
 const UPLOAD_CHUNK_SIZE: usize = 1024 * 1024;
+
+/// 本地文件系统的 list 操作不包含大小和修改时间，需要额外 stat。
+/// 限制并发数，避免大目录瞬间产生过多文件系统访问。
+const METADATA_STAT_CONCURRENCY: usize = 16;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EditCommitStrategy {
+    ConditionalEtag,
+    ConditionalCreate,
+    Rename,
+    DirectWrite,
+}
+
+fn select_edit_commit_strategy(
+    supports_if_match: bool,
+    has_expected_etag: bool,
+    supports_if_not_exists: bool,
+    require_absent: bool,
+    supports_rename: bool,
+) -> EditCommitStrategy {
+    if supports_if_match && has_expected_etag {
+        EditCommitStrategy::ConditionalEtag
+    } else if supports_if_not_exists && require_absent {
+        EditCommitStrategy::ConditionalCreate
+    } else if supports_rename {
+        EditCommitStrategy::Rename
+    } else {
+        EditCommitStrategy::DirectWrite
+    }
+}
 
 /// 检查取消标志是否已被置位；flag 为 None 时视为不可取消
 fn is_cancelled(flag: &Option<Arc<AtomicBool>>) -> bool {
@@ -61,6 +94,52 @@ impl FileManager {
         Self { operator }
     }
 
+    pub async fn remote_fingerprint(&self, path: &str) -> Result<RemoteFingerprint> {
+        let metadata = self.operator.stat(&normalize_path(path)).await?;
+        Ok(RemoteFingerprint {
+            etag: metadata.etag().map(str::to_string),
+            version: metadata.version().map(str::to_string),
+            modified: metadata.last_modified().map(|value| value.to_rfc3339()),
+            size: metadata.content_length(),
+        })
+    }
+
+    pub async fn remote_digest(&self, path: &str) -> Result<Vec<u8>> {
+        let path = normalize_path(path);
+        let metadata = self.operator.stat(&path).await?;
+        let total_size = metadata.content_length();
+        let reader = self.operator.reader(&path).await?;
+        let mut offset = 0u64;
+        let mut hasher = Sha256::new();
+        while offset < total_size {
+            let end = std::cmp::min(offset + UPLOAD_CHUNK_SIZE as u64, total_size);
+            let buffer = reader.read(offset..end).await?;
+            if buffer.is_empty() {
+                return Err(Error::new_config("读取远端文件摘要时内容提前结束"));
+            }
+            hasher.update(buffer.to_bytes());
+            offset = end;
+        }
+        Ok(hasher.finalize().to_vec())
+    }
+
+    pub fn supports_safe_edit_commit(
+        &self,
+        expected: &RemoteFingerprint,
+        require_absent: bool,
+    ) -> bool {
+        let capability = self.operator.info().full_capability();
+        (expected.etag.is_some() && capability.write_with_if_match)
+            || (require_absent && capability.write_with_if_not_exists)
+    }
+
+    pub fn supports_safe_create(&self) -> bool {
+        self.operator
+            .info()
+            .full_capability()
+            .write_with_if_not_exists
+    }
+
     /// 列出给定路径下的文件和目录
     pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
         debug!("列出路径内容: {}", path);
@@ -73,6 +152,41 @@ impl FileManager {
 
         info!("已列出 {} 个文件/目录", filtered.len());
         Ok(filtered)
+    }
+
+    /// 通过 stat 补齐列表条目的大小和修改时间。
+    ///
+    /// OpenDAL 的 FS 后端在 list 时只提供基础条目类型；Windows、macOS 和
+    /// Linux 都需要通过 stat 获取完整元数据。单个条目 stat 失败时保留 list
+    /// 返回的基础信息，避免文件被并发删除或权限变化导致整个目录加载失败。
+    pub async fn enrich_entries_metadata(&self, entries: Vec<Entry>) -> Vec<FileInfo> {
+        let mut results: Vec<FileInfo> = entries
+            .iter()
+            .map(|entry| file_info_from_entry(entry, entry.metadata()))
+            .collect();
+        let mut pending = entries.into_iter().enumerate();
+        let mut tasks = JoinSet::new();
+
+        for _ in 0..METADATA_STAT_CONCURRENCY {
+            let Some((index, entry)) = pending.next() else {
+                break;
+            };
+            spawn_metadata_stat(&mut tasks, self.operator.clone(), index, entry);
+        }
+
+        while let Some(task_result) = tasks.join_next().await {
+            match task_result {
+                Ok((index, Some(file_info))) => results[index] = file_info,
+                Ok((_index, None)) => {}
+                Err(error) => warn!("获取列表条目元数据的任务失败: {}", error),
+            }
+
+            if let Some((index, entry)) = pending.next() {
+                spawn_metadata_stat(&mut tasks, self.operator.clone(), index, entry);
+            }
+        }
+
+        results
     }
 
     /// 分页列出给定路径下的文件和目录
@@ -125,6 +239,217 @@ impl FileManager {
     pub async fn upload(&self, local_path: &Path, remote_path: &str) -> Result<()> {
         self.upload_with_progress(local_path, remote_path, |_, _, _| {}, None)
             .await
+    }
+
+    /// Upload to a sibling temporary object, then replace the destination.
+    /// If the final rename fails after the old destination was moved aside,
+    /// the previous destination is restored before returning the error.
+    pub async fn replace_from_local(
+        &self,
+        local_path: &Path,
+        remote_path: &str,
+        session_id: &str,
+    ) -> Result<()> {
+        self.replace_from_local_if_unchanged(local_path, remote_path, session_id, None, None, false)
+            .await?
+            .then_some(())
+            .ok_or_else(|| Error::new_config("远端文件版本冲突"))
+    }
+
+    /// Commits edited content with the strongest primitive exposed by the backend.
+    /// `Ok(false)` means the caller must resolve a version/path conflict.
+    pub async fn replace_from_local_if_unchanged(
+        &self,
+        local_path: &Path,
+        remote_path: &str,
+        session_id: &str,
+        expected: Option<&RemoteFingerprint>,
+        expected_digest: Option<&[u8]>,
+        require_absent: bool,
+    ) -> Result<bool> {
+        let remote_path = normalize_path(remote_path);
+        let (parent, file_name) = remote_path
+            .rsplit_once('/')
+            .unwrap_or(("", remote_path.as_str()));
+        if file_name.is_empty() {
+            return Err(Error::new_config("远端编辑目标必须是文件"));
+        }
+        let destination_exists = self.operator.exists(&remote_path).await?;
+        let version_matches = if let Some(expected) = expected {
+            if !destination_exists {
+                false
+            } else if expected.has_strong_identity() {
+                expected.matches(&self.remote_fingerprint(&remote_path).await?)
+            } else if let Some(expected_digest) = expected_digest {
+                self.remote_digest(&remote_path).await? == expected_digest
+            } else {
+                expected.matches(&self.remote_fingerprint(&remote_path).await?)
+            }
+        } else {
+            true
+        };
+        if (require_absent && destination_exists) || !version_matches {
+            return Ok(false);
+        }
+
+        let capability = self.operator.info().full_capability();
+        let expected_etag = expected.and_then(|fingerprint| fingerprint.etag.as_deref());
+        match select_edit_commit_strategy(
+            capability.write_with_if_match,
+            expected_etag.is_some(),
+            capability.write_with_if_not_exists,
+            require_absent,
+            capability.rename,
+        ) {
+            EditCommitStrategy::ConditionalEtag => {
+                return self
+                    .upload_with_condition(local_path, &remote_path, expected_etag, false)
+                    .await;
+            }
+            EditCommitStrategy::ConditionalCreate => {
+                return self
+                    .upload_with_condition(local_path, &remote_path, None, true)
+                    .await;
+            }
+            EditCommitStrategy::DirectWrite => {
+                // S3 publishes a completed object atomically; OpenDAL's FTP writer
+                // uploads to its own temporary path and renames it on close.
+                self.upload(local_path, &remote_path).await?;
+                return Ok(true);
+            }
+            EditCommitStrategy::Rename => {}
+        }
+
+        let safe_session: String = session_id
+            .chars()
+            .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
+            .collect();
+        let prefix = if parent.is_empty() {
+            String::new()
+        } else {
+            format!("{}/", parent)
+        };
+        let temporary_path = format!("{}.{}.mpfm-{}.tmp", prefix, file_name, safe_session);
+        let backup_path = format!("{}.{}.mpfm-{}.bak", prefix, file_name, safe_session);
+
+        let _ = self.operator.delete(&temporary_path).await;
+        let _ = self.operator.delete(&backup_path).await;
+        if let Err(error) = self.upload(local_path, &temporary_path).await {
+            let _ = self.operator.delete(&temporary_path).await;
+            return Err(error);
+        }
+
+        let destination_exists = self.operator.exists(&remote_path).await?;
+        let version_matches = if let Some(expected) = expected {
+            if expected.has_strong_identity() {
+                expected.matches(&self.remote_fingerprint(&remote_path).await?)
+            } else if let Some(expected_digest) = expected_digest {
+                self.remote_digest(&remote_path).await? == expected_digest
+            } else {
+                true
+            }
+        } else {
+            true
+        };
+        if (require_absent && destination_exists) || !version_matches {
+            let _ = self.operator.delete(&temporary_path).await;
+            return Ok(false);
+        }
+        if destination_exists {
+            if let Err(error) = self.operator.rename(&remote_path, &backup_path).await {
+                let _ = self.operator.delete(&temporary_path).await;
+                return Err(error.into());
+            }
+        }
+
+        if let Err(error) = self.operator.rename(&temporary_path, &remote_path).await {
+            if destination_exists {
+                if let Err(rollback_error) = self.operator.rename(&backup_path, &remote_path).await
+                {
+                    let _ = self.operator.delete(&temporary_path).await;
+                    return Err(Error::new_protocol(&format!(
+                        "提交编辑结果失败，且恢复原文件失败；原文件可能仍保存在 {}：提交错误: {}；恢复错误: {}",
+                        backup_path, error, rollback_error
+                    )));
+                }
+            }
+            let _ = self.operator.delete(&temporary_path).await;
+            return Err(error.into());
+        }
+
+        if destination_exists {
+            if let Err(error) = self.operator.delete(&backup_path).await {
+                warn!(
+                    "编辑提交成功，但旧版本备份清理失败 {}: {}",
+                    backup_path, error
+                );
+            }
+        }
+        Ok(true)
+    }
+
+    async fn upload_with_condition(
+        &self,
+        local_path: &Path,
+        remote_path: &str,
+        etag: Option<&str>,
+        if_not_exists: bool,
+    ) -> Result<bool> {
+        let mut builder = self.operator.writer_with(remote_path);
+        if let Some(etag) = etag {
+            builder = builder.if_match(etag);
+        }
+        if if_not_exists {
+            builder = builder.if_not_exists(true);
+        }
+        let mut writer = match builder.await {
+            Ok(writer) => writer,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    opendal::ErrorKind::ConditionNotMatch | opendal::ErrorKind::AlreadyExists
+                ) =>
+            {
+                return Ok(false)
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let upload_result: std::result::Result<(), opendal::Error> = async {
+            let mut file = File::open(local_path).map_err(|error| {
+                opendal::Error::new(opendal::ErrorKind::Unexpected, "open local edit file")
+                    .set_source(error)
+            })?;
+            let mut buffer = vec![0u8; UPLOAD_CHUNK_SIZE];
+            loop {
+                let read = file.read(&mut buffer).map_err(|error| {
+                    opendal::Error::new(opendal::ErrorKind::Unexpected, "read local edit file")
+                        .set_source(error)
+                })?;
+                if read == 0 {
+                    break;
+                }
+                writer.write(buffer[..read].to_vec()).await?;
+            }
+            writer.close().await?;
+            Ok(())
+        }
+        .await;
+        match upload_result {
+            Ok(()) => Ok(true),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    opendal::ErrorKind::ConditionNotMatch | opendal::ErrorKind::AlreadyExists
+                ) =>
+            {
+                let _ = writer.abort().await;
+                Ok(false)
+            }
+            Err(error) => {
+                let _ = writer.abort().await;
+                Err(error.into())
+            }
+        }
     }
 
     /// 分块上传文件，并通过回调上报进度（transferred, total, file_name）。
@@ -960,6 +1285,34 @@ where
     }
 }
 
+fn spawn_metadata_stat(
+    tasks: &mut JoinSet<(usize, Option<FileInfo>)>,
+    operator: Operator,
+    index: usize,
+    entry: Entry,
+) {
+    tasks.spawn(async move {
+        let path = entry.path().to_string();
+        match operator.stat(&path).await {
+            Ok(metadata) => (index, Some(file_info_from_entry(&entry, &metadata))),
+            Err(error) => {
+                warn!("无法补齐列表条目 {} 的元数据: {}", path, error);
+                (index, None)
+            }
+        }
+    });
+}
+
+fn file_info_from_entry(entry: &Entry, metadata: &Metadata) -> FileInfo {
+    FileInfo {
+        name: entry.name().to_string(),
+        path: entry.path().to_string(),
+        is_dir: metadata.is_dir(),
+        size: metadata.is_file().then(|| metadata.content_length()),
+        modified: metadata.last_modified().map(|dt| dt.to_rfc3339()),
+    }
+}
+
 /// 收集目录中所有待上传文件的本地路径与远程路径
 fn collect_directory_upload_items(
     local_dir_path: &Path,
@@ -1176,6 +1529,138 @@ mod tests {
         operator.write("dir2/file5.txt", "content of file5").await?;
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn enriches_fs_list_entries_with_size_and_modified_time() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator);
+
+        setup_test_files(&file_manager.operator).await.unwrap();
+        file_manager.operator.write("empty.txt", "").await.unwrap();
+
+        let entries = file_manager.list("/").await.unwrap();
+        let files = file_manager.enrich_entries_metadata(entries).await;
+
+        let regular_file = files
+            .iter()
+            .find(|file| file.name == "file1.txt")
+            .expect("file1.txt should be listed");
+        assert_eq!(regular_file.size, Some(16));
+        assert!(regular_file.modified.is_some());
+
+        let empty_file = files
+            .iter()
+            .find(|file| file.name == "empty.txt")
+            .expect("empty.txt should be listed");
+        assert_eq!(empty_file.size, Some(0));
+        assert!(empty_file.modified.is_some());
+
+        let directory = files
+            .iter()
+            .find(|file| file.name.trim_end_matches('/') == "dir1")
+            .expect("dir1 should be listed");
+        assert!(directory.is_dir);
+        assert_eq!(directory.size, None);
+        assert!(directory.modified.is_some());
+    }
+
+    #[tokio::test]
+    async fn remote_fingerprint_changes_after_external_write() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator.clone());
+        operator.write("shared.txt", "first").await.unwrap();
+
+        let initial = file_manager
+            .remote_fingerprint("/shared.txt")
+            .await
+            .unwrap();
+        operator
+            .write("shared.txt", "second version")
+            .await
+            .unwrap();
+        let current = file_manager
+            .remote_fingerprint("/shared.txt")
+            .await
+            .unwrap();
+
+        assert!(!initial.matches(&current));
+        assert_eq!(current.size, 14);
+    }
+
+    #[test]
+    fn edit_commit_strategy_matches_supported_backend_primitives() {
+        assert_eq!(
+            select_edit_commit_strategy(true, true, true, false, false),
+            EditCommitStrategy::ConditionalEtag
+        );
+        assert_eq!(
+            select_edit_commit_strategy(false, false, false, false, false),
+            EditCommitStrategy::DirectWrite
+        );
+        assert_eq!(
+            select_edit_commit_strategy(false, false, false, false, true),
+            EditCommitStrategy::Rename
+        );
+        assert_eq!(
+            select_edit_commit_strategy(false, false, true, true, false),
+            EditCommitStrategy::ConditionalCreate
+        );
+    }
+
+    #[tokio::test]
+    async fn replace_from_local_commits_through_a_temporary_remote_path() {
+        let (operator, temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator.clone());
+        operator.write("shared.txt", "old").await.unwrap();
+        let local_path = temp_dir.path().join("edited.txt");
+        std::fs::write(&local_path, "new content").unwrap();
+
+        file_manager
+            .replace_from_local(&local_path, "/shared.txt", "session-123")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            operator.read("shared.txt").await.unwrap().to_vec(),
+            b"new content"
+        );
+        let entries = operator.list("/").await.unwrap();
+        assert!(entries.iter().all(|entry| !entry.name().contains("mpfm")));
+    }
+
+    #[tokio::test]
+    async fn conditional_replace_preserves_a_newer_remote_version() {
+        let (operator, temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator.clone());
+        operator.write("shared.txt", "old").await.unwrap();
+        let expected = file_manager
+            .remote_fingerprint("/shared.txt")
+            .await
+            .unwrap();
+        operator.write("shared.txt", "newer remote").await.unwrap();
+        let local_path = temp_dir.path().join("edited.txt");
+        std::fs::write(&local_path, "local edit").unwrap();
+
+        let committed = file_manager
+            .replace_from_local_if_unchanged(
+                &local_path,
+                "/shared.txt",
+                "session-123",
+                Some(&expected),
+                Some(b"old"),
+                false,
+            )
+            .await
+            .unwrap();
+
+        assert!(!committed);
+        assert_eq!(
+            operator.read("shared.txt").await.unwrap().to_vec(),
+            b"newer remote"
+        );
+        let entries = operator.list("/").await.unwrap();
+        assert!(entries.iter().all(|entry| !entry.name().contains("mpfm")));
     }
 
     #[tokio::test]

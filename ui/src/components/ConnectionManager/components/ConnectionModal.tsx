@@ -67,7 +67,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
           label={connection.modal.nameLabel}
           rules={[{ required: true, message: connection.modal.nameRequired }]}
         >
-          <AppInput 
+          <AppInput
             placeholder={connection.modal.namePlaceholder}
             style={{ width: '100%' }}
             autoComplete="off"

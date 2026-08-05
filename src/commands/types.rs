@@ -48,6 +48,18 @@ impl From<Entry> for FileInfo {
     }
 }
 
+impl From<crate::core::file::FileInfo> for FileInfo {
+    fn from(file_info: crate::core::file::FileInfo) -> Self {
+        Self {
+            name: file_info.name,
+            path: file_info.path,
+            is_dir: file_info.is_dir,
+            size: file_info.size,
+            modified: file_info.modified,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub success: bool,

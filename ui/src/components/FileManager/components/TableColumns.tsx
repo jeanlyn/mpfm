@@ -6,10 +6,14 @@ import {
   EyeOutlined,
   CopyOutlined,
   DownOutlined,
+  EditOutlined,
+  CheckOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import { FileInfo } from '../../../types';
+import { DetectedEditor } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
-import { isPreviewable } from '../../FilePreview/utils/fileTypeDetector';
+import { isPreviewable, isTextEditable } from '../../FilePreview/utils/fileTypeDetector';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { formatFileSize, formatModifiedTime, isSelfReferentialDirEntry } from '../utils';
 import { COLUMN_WIDTHS, ACTIONS_COLUMN_MIN_WIDTH } from '../constants';
@@ -23,10 +27,17 @@ interface TableColumnsProps {
   isSearchMode: boolean;
   fileSelection: ReturnType<typeof useFileSelection>;
   isAllCurrentPageSelected: boolean;
-  onFileDoubleClick: (file: FileInfo) => void;
   onDownload: (file: FileInfo) => void;
   onCopyDownloadCommand: (file: FileInfo, targetShell: 'bash' | 'powershell') => void;
   onCopyDownloadCurlCommand: (file: FileInfo) => void;
+  onEdit: (file: FileInfo, editorId?: string) => void;
+  onFinishEdit: (file: FileInfo) => void;
+  onReopenEdit: (file: FileInfo, editorId?: string) => void;
+  onAbandonEdit: (file: FileInfo) => void;
+  editingPaths: Set<string>;
+  finishingPaths: Set<string>;
+  detectedEditors: DetectedEditor[];
+  detectingEditors: boolean;
   onDelete: (file: FileInfo) => void;
   onPreview: (file: FileInfo) => void;
 }
@@ -42,10 +53,17 @@ export const useTableColumns = ({
   isSearchMode,
   fileSelection,
   isAllCurrentPageSelected,
-  onFileDoubleClick,
   onDownload,
   onCopyDownloadCommand,
   onCopyDownloadCurlCommand,
+  onEdit,
+  onFinishEdit,
+  onReopenEdit,
+  onAbandonEdit,
+  editingPaths,
+  finishingPaths,
+  detectedEditors,
+  detectingEditors,
   onDelete,
   onPreview,
 }: TableColumnsProps) => {
@@ -85,7 +103,6 @@ export const useTableColumns = ({
           connectionId={connectionId}
           text={text}
           record={record}
-          onDoubleClick={onFileDoubleClick}
         />
       ),
     },
@@ -113,6 +130,70 @@ export const useTableColumns = ({
       align: 'right' as const,
       render: (_: any, record: FileInfo) => (
         <div className="file-manager-actions">
+          {!record.is_dir && isTextEditable(record.name) && (
+            <Space.Compact>
+              <Button
+                size="small"
+                type={editingPaths.has(record.path) ? 'primary' : 'default'}
+                icon={editingPaths.has(record.path) ? <CheckOutlined /> : <EditOutlined />}
+                loading={finishingPaths.has(record.path)}
+                onClick={() => editingPaths.has(record.path) ? onFinishEdit(record) : onEdit(record)}
+                title={editingPaths.has(record.path) ? fileManager.table.finishEditButton : fileManager.table.editButton}
+              >
+                {editingPaths.has(record.path) ? fileManager.table.finishEditButton : fileManager.table.editButton}
+              </Button>
+              <Dropdown
+                trigger={['click']}
+                placement="bottomRight"
+                menu={{
+                  items: editingPaths.has(record.path)
+                    ? [
+                        {
+                          key: 'reopen-edit',
+                          icon: <EditOutlined />,
+                          label: fileManager.table.reopenEditButton,
+                          onClick: () => onReopenEdit(record),
+                        },
+                        ...detectedEditors.map((editor) => ({
+                          key: `reopen-${editor.id}`,
+                          label: fileManager.actions.openWith.replace('{editor}', editor.name),
+                          onClick: () => onReopenEdit(record, editor.id),
+                        })),
+                        { type: 'divider' as const },
+                        {
+                          key: 'abandon-edit',
+                          icon: <StopOutlined />,
+                          danger: true,
+                          label: fileManager.table.abandonEditButton,
+                          onClick: () => onAbandonEdit(record),
+                        },
+                      ]
+                    : detectedEditors.length > 0
+                    ? detectedEditors.map((editor) => ({
+                        key: editor.id,
+                        label: fileManager.actions.openWith.replace('{editor}', editor.name),
+                        onClick: () => onEdit(record, editor.id),
+                      }))
+                    : [{
+                        key: 'no-editors',
+                        label: detectingEditors
+                          ? fileManager.messages.detectingEditors
+                          : fileManager.messages.noEditorsDetected,
+                        disabled: true,
+                      }],
+                }}
+              >
+                <Button
+                  size="small"
+                  icon={<DownOutlined />}
+                  loading={detectingEditors}
+                  disabled={finishingPaths.has(record.path)}
+                  title={fileManager.actions.chooseEditor}
+                />
+              </Dropdown>
+            </Space.Compact>
+          )}
+
           {!record.is_dir && isPreviewable(record.name) && (
             <Button
               size="small"
@@ -202,10 +283,17 @@ export const useTableColumns = ({
     searchResults,
     isSearchMode,
     fileManager,
-    onFileDoubleClick,
     onDownload,
     onCopyDownloadCommand,
     onCopyDownloadCurlCommand,
+    onEdit,
+    onFinishEdit,
+    onReopenEdit,
+    onAbandonEdit,
+    editingPaths,
+    finishingPaths,
+    detectedEditors,
+    detectingEditors,
     onDelete,
     onPreview,
   ]);

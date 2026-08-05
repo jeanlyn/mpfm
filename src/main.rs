@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use log::info;
-use multi_protocol_file_manager::commands::{config, connection, diagnostics, file};
+use multi_protocol_file_manager::commands::{config, connection, diagnostics, editor, file};
 use multi_protocol_file_manager::utils::logger;
 use multi_protocol_file_manager::VERSION;
 
@@ -45,6 +45,16 @@ fn main() {
             file::get_directory_count,
             file::search_files,
             file::get_file_content,
+            editor::detect_local_editors,
+            editor::list_local_applications,
+            editor::register_detected_editor,
+            editor::choose_and_register_local_editor,
+            editor::remove_registered_editor,
+            editor::start_edit_session,
+            editor::list_edit_sessions,
+            editor::finish_edit_session,
+            editor::reopen_edit_session,
+            editor::abandon_edit_session,
             config::save_app_config,
             config::load_app_config,
             config::delete_app_config,

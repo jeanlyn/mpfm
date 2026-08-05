@@ -1,13 +1,19 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { message, Modal } from 'antd';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Connection, FileInfo } from '../../../types';
-import { ApiService } from '../../../services/api';
+import { ApiService, DetectedEditor, EditSessionResult } from '../../../services/api';
 import { useAppI18n } from '../../../i18n/hooks/useI18n';
 import { UploadProgress } from '../../../utils/uploadProgress';
 import { extractLocalFileName } from '../utils';
 import { loadDirectoryFiles } from '../utils/loadDirectoryFiles';
 import { isLocalDirectory } from '../utils/isLocalDirectory';
+import {
+  EDITOR_SETTINGS_CHANGED_EVENT,
+  loadEditorSettings,
+  mergeEditorCandidates,
+  resolveDefaultEditorId,
+} from '../../../utils/editorSettings';
 
 /**
  * 文件操作相关的 Hook
@@ -20,6 +26,65 @@ export const useFileOperations = (
   onStateUpdate: (updates: any) => void
 ) => {
   const { fileManager, app } = useAppI18n();
+  const [editSessions, setEditSessions] = useState<Map<string, EditSessionResult>>(
+    () => new Map()
+  );
+  const [finishingPaths, setFinishingPaths] = useState<Set<string>>(() => new Set());
+  const [conflictSession, setConflictSession] = useState<EditSessionResult | null>(null);
+  const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
+  const [detectingEditors, setDetectingEditors] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const refreshEditors = async () => {
+      if (active) setDetectingEditors(true);
+      const [systemEditorsResult, settingsResult] = await Promise.allSettled([
+        ApiService.detectLocalEditors(),
+        loadEditorSettings(),
+      ]);
+
+      if (!active) return;
+
+      const systemEditors = systemEditorsResult.status === 'fulfilled'
+        ? systemEditorsResult.value
+        : [];
+      if (systemEditorsResult.status === 'rejected') {
+        console.warn('检测本地文本编辑器失败:', systemEditorsResult.reason);
+      }
+
+      const editors = settingsResult.status === 'fulfilled'
+        ? mergeEditorCandidates(settingsResult.value, systemEditors)
+        : systemEditors;
+
+      setDetectedEditors(editors);
+      setDetectingEditors(false);
+    };
+
+    const handleSettingsChanged = () => {
+      void refreshEditors();
+    };
+    void refreshEditors();
+    window.addEventListener(EDITOR_SETTINGS_CHANGED_EVENT, handleSettingsChanged);
+    return () => {
+      active = false;
+      window.removeEventListener(EDITOR_SETTINGS_CHANGED_EVENT, handleSettingsChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setEditSessions(new Map());
+    setConflictSession(null);
+    if (!connection) return () => { active = false; };
+
+    void ApiService.listEditSessions(connection.id)
+      .then((sessions) => {
+        if (!active) return;
+        setEditSessions(new Map(sessions.map((session) => [session.remotePath, session])));
+      })
+      .catch((error) => console.warn('恢复编辑会话失败:', error));
+    return () => { active = false; };
+  }, [connection?.id]);
 
   // 加载文件列表
   const loadFiles = useCallback(async (path: string, page: number = 0) => {
@@ -330,6 +395,128 @@ export const useFileOperations = (
     }
   }, [connection, fileManager.messages.copySuccess, fileManager.messages.copyFailed]);
 
+  // 启动显式编辑会话；编辑器进程退出不会自动提交远端文件。
+  const handleEdit = useCallback(async (file: FileInfo, selectedEditorId?: string) => {
+    if (!connection || file.is_dir) return;
+    if (editSessions.has(file.path)) return;
+    try {
+      let editorId = selectedEditorId;
+      if (!editorId) {
+        try {
+          const editorSettings = await loadEditorSettings();
+          editorId = resolveDefaultEditorId(editorSettings, detectedEditors);
+        } catch (error) {
+          console.warn('读取文本编辑器设置失败，将尝试自动检测编辑器:', error);
+        }
+      }
+      if (!editorId) throw new Error(fileManager.messages.noEditorsDetected);
+      const result = await ApiService.startEditSession(
+        connection.id,
+        file.path,
+        editorId
+      );
+      setEditSessions((current) => new Map(current).set(file.path, result));
+      message.info(fileManager.messages.editorEditingSingle.replace('{name}', file.name));
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    }
+  }, [
+    connection,
+    detectedEditors,
+    editSessions,
+    fileManager.messages.editorEditingSingle,
+    fileManager.messages.editorFailed,
+    fileManager.messages.noEditorsDetected,
+  ]);
+
+  const finishEdit = useCallback(async (
+    file: FileInfo,
+    mode: 'normal' | 'overwrite' | 'saveAs' = 'normal',
+    saveAsPath?: string
+  ) => {
+    const session = editSessions.get(file.path);
+    if (!session) return false;
+    setFinishingPaths((current) => new Set(current).add(file.path));
+    try {
+      const result = await ApiService.finishEditSession(session.sessionId, mode, saveAsPath);
+      if (result.status === 'conflict') {
+        setEditSessions((current) => new Map(current).set(file.path, result));
+        setConflictSession(result);
+        return false;
+      }
+      if (result.status === 'uploadFailed') {
+        throw new Error(result.error || fileManager.messages.editorFailed);
+      }
+      setConflictSession(null);
+      setEditSessions((current) => {
+        const next = new Map(current);
+        next.delete(file.path);
+        return next;
+      });
+      if (result.uploaded) {
+        message.success(fileManager.messages.editorSynced);
+        loadFiles(currentPath, currentPage);
+      } else {
+        message.info(fileManager.messages.editorNoChanges);
+      }
+      return true;
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+      return false;
+    } finally {
+      setFinishingPaths((current) => {
+        const next = new Set(current);
+        next.delete(file.path);
+        return next;
+      });
+    }
+  }, [
+    currentPage,
+    currentPath,
+    editSessions,
+    fileManager.messages.editorFailed,
+    fileManager.messages.editorNoChanges,
+    fileManager.messages.editorSynced,
+    loadFiles,
+  ]);
+
+  const abandonEdit = useCallback(async (file: FileInfo) => {
+    const session = editSessions.get(file.path);
+    if (!session) return;
+    try {
+      await ApiService.abandonEditSession(session.sessionId);
+      setConflictSession(null);
+      setEditSessions((current) => {
+        const next = new Map(current);
+        next.delete(file.path);
+        return next;
+      });
+      message.info(fileManager.messages.editorAbandoned);
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    }
+  }, [editSessions, fileManager.messages.editorAbandoned, fileManager.messages.editorFailed]);
+
+  const reopenEdit = useCallback(async (file: FileInfo, editorId?: string) => {
+    const session = editSessions.get(file.path);
+    if (!session) return;
+    setFinishingPaths((current) => new Set(current).add(file.path));
+    try {
+      const result = await ApiService.reopenEditSession(session.sessionId, editorId);
+      setEditSessions((current) => new Map(current).set(file.path, result));
+      setConflictSession(null);
+      message.info(fileManager.messages.editorEditingSingle.replace('{name}', file.name));
+    } catch (error) {
+      message.error(`${fileManager.messages.editorFailed}: ${error}`);
+    } finally {
+      setFinishingPaths((current) => {
+        const next = new Set(current);
+        next.delete(file.path);
+        return next;
+      });
+    }
+  }, [editSessions, fileManager.messages.editorEditingSingle, fileManager.messages.editorFailed]);
+
   // 删除文件
   const handleDelete = useCallback(async (file: FileInfo) => {
     if (!connection) return;
@@ -383,6 +570,17 @@ export const useFileOperations = (
     handleDownload,
     handleCopyDownloadCommand,
     handleCopyDownloadCurlCommand,
+    handleEdit,
+    finishEdit,
+    abandonEdit,
+    reopenEdit,
+    editSessions,
+    editingPaths: new Set(editSessions.keys()),
+    finishingPaths,
+    conflictSession,
+    closeConflict: () => setConflictSession(null),
+    detectedEditors,
+    detectingEditors,
     handleDelete,
     handleCreateDirectory,
     navigateUp,

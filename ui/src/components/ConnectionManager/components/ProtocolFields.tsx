@@ -57,7 +57,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
         label={connection.fields.rootDirectory}
         rules={[{ required: true, message: connection.fields.rootDirectoryRequired }]}
       >
-        <AppInput 
+        <AppInput
           placeholder={connection.fields.rootDirectoryPlaceholder}
           style={{ width: '100%', height: '32px' }}
         />
@@ -75,7 +75,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
           rules={[{ required: true, message: connection.fields.hostRequired }]}
           tooltip={connection.fields.hostTooltip}
         >
-          <AppInput 
+          <AppInput
             placeholder={connection.fields.hostPlaceholder} 
             addonBefore="ftp://"
           />
@@ -86,7 +86,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
           label={connection.fields.port}
           tooltip={connection.fields.portTooltip}
         >
-          <AppInput 
+          <AppInput
             placeholder={connection.fields.portPlaceholder} 
             type="number"
           />
@@ -98,7 +98,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
           rules={[{ required: true, message: connection.fields.usernameRequired }]}
           tooltip={connection.fields.usernameTooltip}
         >
-          <AppInput 
+          <AppInput
             placeholder={connection.fields.usernamePlaceholder}
             autoComplete="username"
           />
@@ -110,7 +110,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
           rules={[{ required: true, message: connection.fields.passwordRequired }]}
           tooltip={connection.fields.passwordTooltip}
         >
-          <AppInput.Password 
+          <AppInput.Password
             placeholder={connection.fields.passwordPlaceholder}
             autoComplete="current-password"
           />
@@ -121,7 +121,7 @@ export const ProtocolFields: React.FC<{ protocolType: string }> = ({ protocolTyp
           label={connection.fields.rootDirectory}
           tooltip={connection.fields.rootDirectoryTooltip}
         >
-          <AppInput 
+          <AppInput
             placeholder={connection.fields.rootDirectoryPlaceholder}
             addonBefore="/"
           />

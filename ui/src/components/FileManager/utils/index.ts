@@ -2,7 +2,7 @@
  * 格式化文件大小
  */
 export const formatFileSize = (size?: number): string => {
-  if (!size) return '-';
+  if (size === undefined || size === null) return '-';
   
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let unitIndex = 0;

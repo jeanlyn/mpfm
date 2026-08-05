@@ -17,14 +17,12 @@ interface FileNameCellProps {
   connectionId: string;
   text: string;
   record: FileInfo;
-  onDoubleClick: (file: FileInfo) => void;
 }
 
 export const FileNameCell: React.FC<FileNameCellProps> = ({
   connectionId,
   text,
   record,
-  onDoubleClick,
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: remoteFileDragId(connectionId, record.path),
@@ -56,11 +54,7 @@ export const FileNameCell: React.FC<FileNameCellProps> = ({
       ) : (
         <FileOutlined style={{ color: '#666' }} />
       )}
-      <span
-        style={{ cursor: 'pointer' }}
-        onDoubleClick={() => onDoubleClick(record)}
-        title={text}
-      >
+      <span title={text}>
         {text}
       </span>
     </Space>
