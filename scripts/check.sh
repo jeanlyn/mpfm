@@ -33,4 +33,7 @@ bash "$SCRIPT_DIR/test-release-notes.sh"
 echo "[check] release workflow"
 bash "$SCRIPT_DIR/test-release-workflow.sh"
 
+echo "[check] CI workflow"
+bash "$SCRIPT_DIR/test-ci-workflow.sh"
+
 echo "[check] OK"
