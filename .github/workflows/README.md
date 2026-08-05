@@ -18,6 +18,21 @@
 - 统一通过 `bash ./scripts/bootstrap.sh` 安装 root 与 `ui/` 依赖
 - 统一使用 `Node 20 + pnpm/action-setup + packageManager`
 - `full-tests` 直接复用 `bash ./scripts/check.sh`
+- PR 不使用路径过滤，保证每个面向 `master` / `develop` 的 PR 都会生成必需检查
+- 同一 PR 或分支的新提交会取消旧 CI，避免重复消耗 runner 时间
+- `CI Gate` 汇总 `Basic Checks`、`Full Tests` 和 `Windows Release Script Tests`；任一任务失败、取消或跳过都会使门禁失败
+
+### 个人项目推荐的 `master` 保护
+
+在 GitHub 仓库中创建名为 `master-pr-ci` 的 active branch ruleset，并设置：
+
+- 目标分支：`master`
+- 要求通过 Pull Request 合并，但 required approvals 设为 `0`
+- 要求状态检查 `CI Gate` 成功，并要求分支在合并前更新到最新 `master`
+- 禁止 force push 和删除分支
+- 为 Repository administrator 保留 bypass，作为紧急恢复通道
+
+先让包含本配置的 PR 成功运行一次，确保 GitHub 已记录 `CI Gate` 检查名称，再把它设为 required status check。日常合并不使用 bypass；本地 pre-push hook 只负责提前反馈，不能替代远端门禁。
 
 ### 2. 正式发布 (`release.yml`)
 

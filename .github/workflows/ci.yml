@@ -11,9 +11,10 @@ on:
     branches:
       - master
       - develop
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -129,3 +130,23 @@ jobs:
       - name: Test fixed WebView2 release scripts
         shell: pwsh
         run: ./scripts/test-fixed-webview2-assets.ps1
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    needs:
+      - basic-checks
+      - full-tests
+      - windows-release-script-tests
+    if: ${{ always() && (github.event_name == 'pull_request' || github.ref_name == 'master' || github.ref_name == 'develop') }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Require successful CI jobs
+        run: |
+          bash ./scripts/ci-gate.sh \
+            "Basic Checks=${{ needs.basic-checks.result }}" \
+            "Full Tests=${{ needs.full-tests.result }}" \
+            "Windows Release Script Tests=${{ needs.windows-release-script-tests.result }}"

@@ -880,10 +880,13 @@ fn is_likely_text_editor_application(path: &Path) -> bool {
 }
 
 fn discover_local_applications() -> Vec<EditorDescriptor> {
-    let mut paths: Vec<PathBuf> = discover_local_editors()
+    let paths: Vec<PathBuf> = discover_local_editors()
         .into_iter()
         .map(|editor| editor.path)
         .collect();
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    let mut paths = paths;
 
     #[cfg(target_os = "windows")]
     paths.extend(windows_installed_application_paths());
