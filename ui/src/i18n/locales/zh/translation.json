@@ -219,6 +219,7 @@
     },
     "dialogs": {
       "selectFileToUpload": "选择要上传的文件",
+      "selectFilesToUpload": "选择要批量上传的文件",
       "selectDirectoryToUpload": "选择要上传的文件夹",
       "selectSaveLocation": "选择保存位置",
       "createFolder": "创建文件夹",
@@ -251,7 +252,27 @@
       "search": "搜索文件或目录",
       "createDirectory": "新建目录",
       "uploadFile": "上传文件",
+      "batchUpload": "批量上传文件",
       "uploadDirectory": "上传文件夹"
+    },
+    "batchUpload": {
+      "conflictTitle": "检测到批量上传同名冲突",
+      "conflictDescription": "请选择每一项（或批量）的处理方式，再开始上传",
+      "conflictCount": "冲突数量：{count}",
+      "defaultAction": "默认对同名文件：",
+      "file": "文件",
+      "remotePath": "远端路径",
+      "action": "处理",
+      "skip": "跳过",
+      "overwrite": "覆盖",
+      "fileConflict": "类型：文件",
+      "directoryConflict": "类型：目录",
+      "directoryConflictHint": "同名目录无法被文件覆盖，相关项目只能跳过。",
+      "startUpload": "开始上传",
+      "checkingConflicts": "正在检查批量上传冲突...",
+      "progress": "批量上传中：已上传 {uploaded}/{total} 个文件",
+      "completed": "批量上传完成：已上传 {uploaded}/{total}，跳过 {skipped}",
+      "completedWithIssues": "批量上传完成：成功 {uploaded}，失败 {failed}，跳过 {skipped}（共 {total}）"
     },
     "pagination": {
       "mode": "模式",

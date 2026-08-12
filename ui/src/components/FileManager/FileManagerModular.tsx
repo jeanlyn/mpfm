@@ -4,6 +4,7 @@ import { AppInput } from '../common';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
 import FilePreview from '../FilePreview';
 import UploadProgressModal from './UploadProgressModal';
+import BatchUploadConflictModal from './BatchUploadConflictModal';
 import './FileManager.css';
 
 // 模块化组件导入
@@ -275,6 +276,7 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         onSearchQueryChange={(value) => updateState('searchQuery', value)}
         onCreateDirectory={() => updateState('createDirModalOpen', true)}
         onUpload={fileOperations.handleUpload}
+        onBatchUpload={fileOperations.handleBatchUpload}
         onUploadDirectory={fileOperations.handleUploadDirectory}
       />
 
@@ -420,6 +422,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         visible={state.uploadVisible}
         progress={state.uploadProgress}
         onClose={fileOperations.handleUploadClose}
+      />
+
+      <BatchUploadConflictModal
+        open={fileOperations.batchUploadItems.length > 0}
+        items={fileOperations.batchUploadItems}
+        onCancel={fileOperations.closeBatchUploadConflict}
+        onConfirm={(items) => void fileOperations.confirmBatchUpload(items)}
       />
 
       <Modal

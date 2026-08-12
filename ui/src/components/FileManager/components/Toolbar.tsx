@@ -8,6 +8,7 @@ import {
   PlusOutlined,
   UploadOutlined,
   FolderAddOutlined,
+  FileAddOutlined,
   ArrowUpOutlined,
   DownOutlined,
 } from '@ant-design/icons';
@@ -27,6 +28,7 @@ interface ToolbarProps {
   onSearchQueryChange: (value: string) => void;
   onCreateDirectory: () => void;
   onUpload: () => void;
+  onBatchUpload: () => void;
   onUploadDirectory: () => void;
 }
 
@@ -46,6 +48,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSearchQueryChange,
   onCreateDirectory,
   onUpload,
+  onBatchUpload,
   onUploadDirectory,
 }) => {
   const { fileManager } = useAppI18n();
@@ -106,6 +109,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onUpload}
           menu={{
             items: [
+              {
+                key: 'batch-upload',
+                icon: <FileAddOutlined />,
+                label: fileManager.toolbar.batchUpload,
+                onClick: onBatchUpload,
+              },
               {
                 key: 'upload-directory',
                 icon: <FolderAddOutlined />,

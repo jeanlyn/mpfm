@@ -14,6 +14,10 @@ import {
   mergeEditorCandidates,
   resolveDefaultEditorId,
 } from '../../../utils/editorSettings';
+import type { BatchUploadItem } from '../BatchUploadConflictModal';
+
+const BATCH_UPLOAD_MESSAGE_KEY = 'batch-file-upload';
+const BATCH_CONFLICT_CHECK_CONCURRENCY = 16;
 
 /**
  * 文件操作相关的 Hook
@@ -33,6 +37,7 @@ export const useFileOperations = (
   const [conflictSession, setConflictSession] = useState<EditSessionResult | null>(null);
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
   const [detectingEditors, setDetectingEditors] = useState(true);
+  const [batchUploadItems, setBatchUploadItems] = useState<BatchUploadItem[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -75,6 +80,7 @@ export const useFileOperations = (
     let active = true;
     setEditSessions(new Map());
     setConflictSession(null);
+    setBatchUploadItems([]);
     if (!connection) return () => { active = false; };
 
     void ApiService.listEditSessions(connection.id)
@@ -321,6 +327,128 @@ export const useFileOperations = (
     fileManager.messages.uploadFailed,
   ]);
 
+  const performBatchUpload = useCallback(async (items: BatchUploadItem[]) => {
+    if (!connection || items.length === 0) return;
+
+    const uploadItems = items.filter((item) => !item.conflict || item.action === 'overwrite');
+    const total = items.length;
+    let uploaded = 0;
+    let failed = 0;
+
+    const showProgress = () => {
+      message.loading({
+        key: BATCH_UPLOAD_MESSAGE_KEY,
+        content: fileManager.batchUpload.progress
+          .replace('{uploaded}', String(uploaded))
+          .replace('{total}', String(total)),
+        duration: 0,
+      });
+    };
+
+    showProgress();
+    for (const item of uploadItems) {
+      try {
+        await ApiService.uploadFile(connection.id, item.localPath, item.remotePath);
+        uploaded += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(`批量上传失败: ${item.localPath}`, error);
+      }
+      showProgress();
+    }
+
+    const skipped = total - uploadItems.length;
+    if (failed > 0) {
+      message.warning({
+        key: BATCH_UPLOAD_MESSAGE_KEY,
+        content: fileManager.batchUpload.completedWithIssues
+          .replace('{uploaded}', String(uploaded))
+          .replace('{failed}', String(failed))
+          .replace('{skipped}', String(skipped))
+          .replace('{total}', String(total)),
+      });
+    } else {
+      message.success({
+        key: BATCH_UPLOAD_MESSAGE_KEY,
+        content: fileManager.batchUpload.completed
+          .replace('{uploaded}', String(uploaded))
+          .replace('{skipped}', String(skipped))
+          .replace('{total}', String(total)),
+      });
+    }
+    await loadFiles(currentPath, currentPage);
+  }, [connection, currentPage, currentPath, fileManager.batchUpload, loadFiles]);
+
+  const handleBatchUpload = useCallback(async () => {
+    if (!connection) return;
+
+    try {
+      const selected = await open({
+        multiple: true,
+        directory: false,
+        title: fileManager.dialogs.selectFilesToUpload,
+      });
+      if (!selected) return;
+
+      const paths = Array.isArray(selected) ? selected : [selected];
+      if (paths.length === 0) return;
+
+      message.loading({
+        key: BATCH_UPLOAD_MESSAGE_KEY,
+        content: fileManager.batchUpload.checkingConflicts,
+        duration: 0,
+      });
+
+      const descriptors = await Promise.all(paths.map(async (localPath, index) => {
+        const fileName = (await extractLocalFileName(localPath)) || `uploaded_file_${index + 1}`;
+        return { index, localPath, fileName, remotePath: buildRemotePath(fileName) };
+      }));
+      const selectedRemotePaths = new Set<string>();
+      const duplicateSelections = descriptors.map(({ remotePath }) => {
+        const duplicate = selectedRemotePaths.has(remotePath);
+        selectedRemotePaths.add(remotePath);
+        return duplicate;
+      });
+      const pathInfos: Array<{ exists: boolean; isDir: boolean }> = [];
+      for (let index = 0; index < descriptors.length; index += BATCH_CONFLICT_CHECK_CONCURRENCY) {
+        const chunk = descriptors.slice(index, index + BATCH_CONFLICT_CHECK_CONCURRENCY);
+        pathInfos.push(...await Promise.all(
+          chunk.map(({ remotePath }) => ApiService.checkFileExists(connection.id, remotePath))
+        ));
+      }
+      const items: BatchUploadItem[] = descriptors.map((descriptor, index) => {
+        const pathInfo = pathInfos[index];
+        return {
+          key: `${descriptor.index}:${descriptor.localPath}`,
+          localPath: descriptor.localPath,
+          fileName: descriptor.fileName,
+          remotePath: descriptor.remotePath,
+          conflict: pathInfo.exists
+            ? (pathInfo.isDir ? 'directory' : 'file')
+            : (duplicateSelections[index] ? 'file' : null),
+          action: 'skip',
+        };
+      });
+
+      message.destroy(BATCH_UPLOAD_MESSAGE_KEY);
+      if (items.some((item) => item.conflict)) {
+        setBatchUploadItems(items);
+      } else {
+        await performBatchUpload(items);
+      }
+    } catch (error) {
+      message.error({
+        key: BATCH_UPLOAD_MESSAGE_KEY,
+        content: `${fileManager.messages.uploadFailed}: ${error}`,
+      });
+    }
+  }, [buildRemotePath, connection, fileManager.batchUpload.checkingConflicts, fileManager.dialogs.selectFilesToUpload, fileManager.messages.uploadFailed, performBatchUpload]);
+
+  const confirmBatchUpload = useCallback(async (items: BatchUploadItem[]) => {
+    setBatchUploadItems([]);
+    await performBatchUpload(items);
+  }, [performBatchUpload]);
+
   const handleUploadClose = useCallback(() => {
     onStateUpdate({
       uploadVisible: false,
@@ -564,6 +692,7 @@ export const useFileOperations = (
     loadFiles,
     handleFileDoubleClick,
     handleUpload,
+    handleBatchUpload,
     handleUploadDirectory,
     uploadLocalPaths,
     handleUploadClose,
@@ -584,5 +713,8 @@ export const useFileOperations = (
     handleDelete,
     handleCreateDirectory,
     navigateUp,
+    batchUploadItems,
+    confirmBatchUpload,
+    closeBatchUploadConflict: () => setBatchUploadItems([]),
   };
 };

@@ -222,6 +222,7 @@
     },
     "dialogs": {
       "selectFileToUpload": "Select file to upload",
+      "selectFilesToUpload": "Select files to upload",
       "selectDirectoryToUpload": "Select directory to upload",
       "selectSaveLocation": "Select save location",
       "createFolder": "Create Folder",
@@ -254,7 +255,27 @@
       "search": "Search files or directories",
       "createDirectory": "New Directory",
       "uploadFile": "Upload File",
+      "batchUpload": "Batch Upload Files",
       "uploadDirectory": "Upload Directory"
+    },
+    "batchUpload": {
+      "conflictTitle": "Batch upload name conflicts detected",
+      "conflictDescription": "Choose how to handle each conflict (or all conflicts) before uploading",
+      "conflictCount": "Conflicts: {count}",
+      "defaultAction": "Default for duplicate files:",
+      "file": "File",
+      "remotePath": "Remote path",
+      "action": "Action",
+      "skip": "Skip",
+      "overwrite": "Overwrite",
+      "fileConflict": "Type: file",
+      "directoryConflict": "Type: directory",
+      "directoryConflictHint": "A file cannot overwrite a directory with the same name. Those items must be skipped.",
+      "startUpload": "Start Upload",
+      "checkingConflicts": "Checking batch upload conflicts...",
+      "progress": "Batch uploading: {uploaded}/{total} files uploaded",
+      "completed": "Batch upload completed: {uploaded}/{total} uploaded, {skipped} skipped",
+      "completedWithIssues": "Batch upload completed: {uploaded} succeeded, {failed} failed, {skipped} skipped ({total} total)"
     },
     "pagination": {
       "mode": "Mode",
