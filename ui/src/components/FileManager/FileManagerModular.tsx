@@ -424,12 +424,13 @@ const FileManager: React.FC<FileManagerProps> = ({ connection }) => {
         onClose={fileOperations.handleUploadClose}
       />
 
-      <BatchUploadConflictModal
-        open={fileOperations.batchUploadItems.length > 0}
-        items={fileOperations.batchUploadItems}
-        onCancel={fileOperations.closeBatchUploadConflict}
-        onConfirm={(items) => void fileOperations.confirmBatchUpload(items)}
-      />
+      {fileOperations.batchUploadItems.length > 0 && (
+        <BatchUploadConflictModal
+          items={fileOperations.batchUploadItems}
+          onCancel={fileOperations.closeBatchUploadConflict}
+          onConfirm={(items) => void fileOperations.confirmBatchUpload(items)}
+        />
+      )}
 
       <Modal
         title={fileManager.messages.editorConflictTitle}

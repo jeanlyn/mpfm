@@ -19,6 +19,13 @@ export interface BatchDownloadProgress {
   error?: string;
 }
 
+export interface BatchUploadItem {
+  localPath: string;
+  fileName: string;
+  remotePath: string;
+  conflict?: 'file' | 'directory';
+}
+
 export interface FileManagerState {
   files: FileInfo[];
   currentPath: string;

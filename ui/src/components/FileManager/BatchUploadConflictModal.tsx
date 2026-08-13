@@ -1,53 +1,39 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Modal, Select, Space, Table, Typography } from 'antd';
+import React, { useState } from 'react';
+import { Alert, ConfigProvider, Modal, Segmented, Select, Space, Table, theme, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useAppI18n } from '../../i18n/hooks/useI18n';
+import type { BatchUploadItem } from './types';
 
 const { Text } = Typography;
 
-export type BatchUploadAction = 'skip' | 'overwrite';
-
-export interface BatchUploadItem {
-  key: string;
-  localPath: string;
-  fileName: string;
-  remotePath: string;
-  conflict: 'file' | 'directory' | null;
-  action: BatchUploadAction;
-}
+type BatchUploadAction = 'skip' | 'overwrite';
 
 interface BatchUploadConflictModalProps {
-  open: boolean;
   items: BatchUploadItem[];
   onCancel: () => void;
   onConfirm: (items: BatchUploadItem[]) => void;
 }
 
 const BatchUploadConflictModal: React.FC<BatchUploadConflictModalProps> = ({
-  open,
   items,
   onCancel,
   onConfirm,
 }) => {
   const { app, fileManager } = useAppI18n();
+  const { token } = theme.useToken();
   const [decisions, setDecisions] = useState<Record<string, BatchUploadAction>>({});
-  const conflicts = useMemo(() => items.filter((item) => item.conflict), [items]);
-
-  useEffect(() => {
-    if (open) setDecisions({});
-  }, [open, items]);
+  const conflicts = items.filter((item) => item.conflict);
+  const fileConflicts = conflicts.filter((item) => item.conflict === 'file');
 
   const actionFor = (item: BatchUploadItem): BatchUploadAction =>
-    item.conflict === 'directory' ? 'skip' : (decisions[item.key] ?? item.action);
+    item.conflict === 'directory' ? 'skip' : (decisions[item.localPath] ?? 'skip');
 
-  const setAll = (action: BatchUploadAction) => {
-    setDecisions(Object.fromEntries(
-      conflicts.map((item) => [
-        item.key,
-        item.conflict === 'directory' ? 'skip' : action,
-      ])
-    ));
-  };
+  const setAll = (action: BatchUploadAction) => setDecisions(
+    action === 'overwrite'
+      ? Object.fromEntries(fileConflicts
+        .map((item) => [item.localPath, action]))
+      : {}
+  );
 
   const columns: ColumnsType<BatchUploadItem> = [
     {
@@ -84,91 +70,98 @@ const BatchUploadConflictModal: React.FC<BatchUploadConflictModalProps> = ({
       key: 'action',
       width: 150,
       render: (_, item) => (
-        <Space.Compact>
-          <Button
-            size="small"
-            type={actionFor(item) === 'skip' ? 'primary' : 'default'}
-            onClick={() => setDecisions((current) => ({ ...current, [item.key]: 'skip' }))}
-          >
-            {fileManager.batchUpload.skip}
-          </Button>
-          <Button
-            size="small"
-            disabled={item.conflict === 'directory'}
-            type={actionFor(item) === 'overwrite' ? 'primary' : 'default'}
-            onClick={() => setDecisions((current) => ({ ...current, [item.key]: 'overwrite' }))}
-          >
-            {fileManager.batchUpload.overwrite}
-          </Button>
-        </Space.Compact>
+        <Segmented<BatchUploadAction>
+          size="small"
+          value={actionFor(item)}
+          options={[
+            { value: 'skip', label: fileManager.batchUpload.skip },
+            {
+              value: 'overwrite',
+              label: fileManager.batchUpload.overwrite,
+              disabled: item.conflict === 'directory',
+            },
+          ]}
+          onChange={(action) => setDecisions((current) => ({
+            ...current,
+            [item.localPath]: action,
+          }))}
+        />
       ),
     },
   ];
 
   return (
-    <Modal
-      open={open}
-      width="calc(100vw - 32px)"
-      style={{ top: 20, maxWidth: 1120 }}
-      title={(
-        <div>
-          <div>{fileManager.batchUpload.conflictTitle}</div>
-          <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
-            {fileManager.batchUpload.conflictDescription}
-          </Text>
-        </div>
-      )}
-      onCancel={onCancel}
-      destroyOnClose
-      footer={(
-        <Space>
-          <Button onClick={onCancel}>{app.cancel}</Button>
-          <Button
-            type="primary"
-            onClick={() => onConfirm(items.map((item) => ({ ...item, action: actionFor(item) })))}
-          >
-            {fileManager.batchUpload.startUpload}
-          </Button>
-        </Space>
-      )}
+    <ConfigProvider
+      theme={{
+        components: {
+          Segmented: {
+            itemSelectedBg: token.colorPrimary,
+            itemSelectedColor: token.colorTextLightSolid,
+          },
+        },
+      }}
     >
-      {conflicts.some((item) => item.conflict === 'directory') && (
-        <Alert
-          type="warning"
-          showIcon
-          message={fileManager.batchUpload.directoryConflictHint}
-          style={{ marginBottom: 12 }}
-        />
-      )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text>
-          {fileManager.batchUpload.conflictCount.replace('{count}', String(conflicts.length))}
-        </Text>
-        <Space>
-          <Text type="secondary">{fileManager.batchUpload.defaultAction}</Text>
-          <Select<BatchUploadAction>
-            defaultValue="skip"
-            style={{ width: 100 }}
-            options={[
-              { value: 'skip', label: fileManager.batchUpload.skip },
-              { value: 'overwrite', label: fileManager.batchUpload.overwrite },
-            ]}
-            onChange={setAll}
+      <Modal
+        open
+        width="calc(100vw - 32px)"
+        style={{ top: 20, maxWidth: 1120 }}
+        title={(
+          <div>
+            <div>{fileManager.batchUpload.conflictTitle}</div>
+            <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+              {fileManager.batchUpload.conflictDescription}
+            </Text>
+          </div>
+        )}
+        onCancel={onCancel}
+        cancelText={app.cancel}
+        okText={fileManager.batchUpload.startUpload}
+        onOk={() => onConfirm(items.filter((item) =>
+          !item.conflict || actionFor(item) === 'overwrite'
+        ))}
+      >
+        {conflicts.some((item) => item.conflict === 'directory') && (
+          <Alert
+            type="warning"
+            showIcon
+            message={fileManager.batchUpload.directoryConflictHint}
+            style={{ marginBottom: 12 }}
           />
-        </Space>
-      </div>
-      <Table
-        rowKey="key"
-        columns={columns}
-        dataSource={conflicts}
-        pagination={false}
-        size="small"
-        scroll={{
-          x: 700,
-          y: 'max(160px, calc(100vh - 340px))',
-        }}
-      />
-    </Modal>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <Text>
+            {fileManager.batchUpload.conflictCount.replace('{count}', String(conflicts.length))}
+          </Text>
+          <Space>
+            <Text type="secondary">{fileManager.batchUpload.defaultAction}</Text>
+            <Select<BatchUploadAction>
+              defaultValue="skip"
+              style={{ width: 100 }}
+              options={[
+                { value: 'skip', label: fileManager.batchUpload.skip },
+                {
+                  value: 'overwrite',
+                  label: fileManager.batchUpload.overwrite,
+                  disabled: fileConflicts.length === 0,
+                },
+              ]}
+              onSelect={setAll}
+            />
+          </Space>
+        </div>
+        <Table
+          rowKey="localPath"
+          columns={columns}
+          dataSource={conflicts}
+          pagination={false}
+          size="small"
+          scroll={{
+            x: 700,
+            y: 'max(160px, calc(100vh - 340px))',
+          }}
+        />
+      </Modal>
+    </ConfigProvider>
   );
 };
 
