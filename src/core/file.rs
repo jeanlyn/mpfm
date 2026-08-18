@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use futures_util::TryStreamExt;
 use log::{debug, info, warn};
 use opendal::{Entry, Metadata, Operator};
 use serde::{Deserialize, Serialize};
@@ -685,11 +686,41 @@ impl FileManager {
     /// 检查远程路径是否存在，返回 (是否存在, 是否为目录)
     pub async fn path_exists(&self, path: &str) -> Result<(bool, bool)> {
         let path = normalize_path(path);
-        if !self.operator.exists(&path).await? {
+        match self.operator.stat(&path).await {
+            Ok(metadata) => Ok((true, metadata.is_dir())),
+            Err(error) if error.kind() == opendal::ErrorKind::NotFound => Ok((false, false)),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// 检查文件上传目标，同时识别 S3 中同名的显式或虚拟目录。
+    pub async fn upload_target_exists(&self, path: &str) -> Result<(bool, bool)> {
+        let result = self.path_exists(path).await?;
+        if result.0 {
+            return Ok(result);
+        }
+
+        let path = normalize_path(path);
+        if path.is_empty()
+            || path.ends_with('/')
+            || self.operator.info().scheme() != opendal::Scheme::S3
+        {
             return Ok((false, false));
         }
-        let metadata = self.operator.stat(&path).await?;
-        Ok((true, metadata.is_dir()))
+
+        // S3 目录可能只有 `name/child` 前缀而没有 `name/` marker，只读取首个匹配项。
+        let directory_path = format!("{}/", path);
+        let mut entries = self
+            .operator
+            .lister_with(&directory_path)
+            .recursive(true)
+            .limit(1)
+            .await?;
+        if entries.try_next().await?.is_some() {
+            return Ok((true, true));
+        }
+
+        Ok((false, false))
     }
 
     /// 下载文件
@@ -1563,6 +1594,30 @@ mod tests {
         assert!(directory.is_dir);
         assert_eq!(directory.size, None);
         assert!(directory.modified.is_some());
+    }
+
+    #[tokio::test]
+    async fn upload_target_exists_recognizes_files_and_directories() {
+        let (operator, _temp_dir) = create_test_operator().await;
+        let file_manager = FileManager::new(operator.clone());
+        operator.create_dir("existing/").await.unwrap();
+        operator.write("existing.txt", "content").await.unwrap();
+
+        assert_eq!(
+            file_manager.upload_target_exists("existing").await.unwrap(),
+            (true, true)
+        );
+        assert_eq!(
+            file_manager
+                .upload_target_exists("existing.txt")
+                .await
+                .unwrap(),
+            (true, false)
+        );
+        assert_eq!(
+            file_manager.upload_target_exists("missing").await.unwrap(),
+            (false, false)
+        );
     }
 
     #[tokio::test]

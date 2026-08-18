@@ -100,6 +100,12 @@ fn emit_upload_progress(app: &AppHandle, payload: UploadProgressPayload) {
     let _ = app.emit(UPLOAD_PROGRESS_EVENT, payload);
 }
 
+fn maybe_emit_upload_progress(enabled: bool, app: &AppHandle, payload: UploadProgressPayload) {
+    if enabled {
+        emit_upload_progress(app, payload);
+    }
+}
+
 /// 取消指定上传。置位取消标志后，上传循环在下一个分块检查点中止上传。
 #[command]
 pub async fn cancel_upload(upload_id: String) -> ApiResponse<bool> {
@@ -405,6 +411,7 @@ pub async fn upload_file(
     connection_id: String,
     local_path: String,
     remote_path: String,
+    emit_progress: bool,
 ) -> ApiResponse<bool> {
     match get_connection_config(&connection_id) {
         Ok((protocol_type, config)) => match create_protocol(&protocol_type, &config) {
@@ -427,7 +434,8 @@ pub async fn upload_file(
                                 if let Ok(mut t) = known_total_for_cb.lock() {
                                     *t = total;
                                 }
-                                emit_upload_progress(
+                                maybe_emit_upload_progress(
+                                    emit_progress,
                                     &app_for_progress,
                                     UploadProgressPayload {
                                         transferred,
@@ -457,7 +465,8 @@ pub async fn upload_file(
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_else(|| "uploaded_file".to_string());
-                            emit_upload_progress(
+                            maybe_emit_upload_progress(
+                                emit_progress,
                                 &app,
                                 UploadProgressPayload {
                                     transferred: total_size,
@@ -480,7 +489,8 @@ pub async fn upload_file(
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_else(|| "uploaded_file".to_string());
-                            emit_upload_progress(
+                            maybe_emit_upload_progress(
+                                emit_progress,
                                 &app,
                                 UploadProgressPayload {
                                     transferred: 0,
@@ -503,7 +513,8 @@ pub async fn upload_file(
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_else(|| "uploaded_file".to_string());
-                            emit_upload_progress(
+                            maybe_emit_upload_progress(
+                                emit_progress,
                                 &app,
                                 UploadProgressPayload {
                                     transferred: 0,
@@ -755,7 +766,7 @@ pub async fn check_file_exists(connection_id: String, path: String) -> ApiRespon
             Ok(protocol) => match protocol.create_operator() {
                 Ok(operator) => {
                     let file_manager = FileManager::new(operator);
-                    match file_manager.path_exists(&path).await {
+                    match file_manager.upload_target_exists(&path).await {
                         Ok((exists, is_dir)) => {
                             ApiResponse::success(PathExistsInfo { exists, is_dir })
                         }

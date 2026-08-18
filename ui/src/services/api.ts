@@ -348,6 +348,7 @@ export class ApiService {
         connectionId,
         localPath,
         remotePath,
+        emitProgress: Boolean(onProgress),
       });
       if (!response.success) {
         throw new Error(response.error || '上传文件失败');
