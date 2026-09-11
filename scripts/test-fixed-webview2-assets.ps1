@@ -39,6 +39,8 @@ New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
 
 try {
     Copy-Item (Join-Path $repoRoot "tauri.win.conf.json") (Join-Path $testRoot "tauri.win.conf.json")
+    $version = (Get-Content (Join-Path $testRoot "tauri.win.conf.json") -Raw | ConvertFrom-Json).version
+    $tag = "v$version"
 
     $target = "x86_64-pc-windows-msvc"
     $bundleRoot = Join-Path $testRoot "target/$target/release/bundle"
@@ -46,9 +48,9 @@ try {
     $nsisDir = Join-Path $bundleRoot "nsis"
     New-Item -ItemType Directory -Force -Path $msiDir, $nsisDir | Out-Null
 
-    New-Item -ItemType File -Path (Join-Path $msiDir "mpfm_0.3.0_x64_zh-CN.msi") | Out-Null
-    New-Item -ItemType File -Path (Join-Path $msiDir "mpfm_0.3.0_x64_zh-CN.msi.zip") | Out-Null
-    New-Item -ItemType File -Path (Join-Path $nsisDir "mpfm_0.3.0_x64-setup.exe") | Out-Null
+    New-Item -ItemType File -Path (Join-Path $msiDir "mpfm_$($version)_x64_zh-CN.msi") | Out-Null
+    New-Item -ItemType File -Path (Join-Path $msiDir "mpfm_$($version)_x64_zh-CN.msi.zip") | Out-Null
+    New-Item -ItemType File -Path (Join-Path $nsisDir "mpfm_$($version)_x64-setup.exe") | Out-Null
 
     Push-Location $testRoot
     try {
@@ -58,7 +60,7 @@ try {
         Pop-Location
     }
 
-    $assetBase = "mpfm-v0.3.0-desktop-windows-x86_64-fixed-webview2"
+    $assetBase = "mpfm-v$version-desktop-windows-x86_64-fixed-webview2"
     $expectedMsi = Join-Path $msiDir "$assetBase-zh-CN.msi"
     $expectedMsiZip = Join-Path $msiDir "$assetBase-zh-CN.msi.zip"
     $expectedExe = Join-Path $nsisDir "$assetBase-setup.exe"
@@ -87,7 +89,7 @@ try {
 
     Push-Location $testRoot
     try {
-        & $publishScript -Target $target -Tag "v0.3.0"
+        & $publishScript -Target $target -Tag $tag
     }
     finally {
         Pop-Location
@@ -118,7 +120,7 @@ try {
     Assert-Throws -MessagePattern "Expected at least one MSI and one EXE" -Action {
         Push-Location $testRoot
         try {
-            & $publishScript -Target $target -Tag "v0.3.0"
+            & $publishScript -Target $target -Tag $tag
         }
         finally {
             Pop-Location
@@ -130,7 +132,7 @@ try {
     Assert-Throws -MessagePattern "Expected at least one MSI and one EXE" -Action {
         Push-Location $testRoot
         try {
-            & $publishScript -Target $target -Tag "v0.3.0"
+            & $publishScript -Target $target -Tag $tag
         }
         finally {
             Pop-Location
@@ -140,7 +142,7 @@ try {
     Assert-Throws -MessagePattern "Unsupported Windows target for release asset publishing" -Action {
         Push-Location $testRoot
         try {
-            & $publishScript -Target "i686-pc-windows-msvc" -Tag "v0.3.0"
+            & $publishScript -Target "i686-pc-windows-msvc" -Tag $tag
         }
         finally {
             Pop-Location
